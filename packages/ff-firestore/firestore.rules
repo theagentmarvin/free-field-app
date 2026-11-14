@@ -1,0 +1,321 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─────────────────────────────────────────────────────────────
+    // FreeField two-role security matrix (plan v4 §2, amendment v4.1)
+    //
+    // Phase 1b (docs/SPEC-PHASE-1.md §3): membership is decided by the
+    // member doc /projects/{pid}/members/{uid} (status 'active'), NOT by
+    // token claims. A user may belong to many projects, and removing or
+    // demoting a member takes effect on their very next request (no token
+    // refresh). The only remaining claim read is the roster-profile rule
+    // below (isProfileReadable), dropped in Phase 1e.
+    //
+    //   admin  → write (create/update/delete) the project content collections
+    //             (projects, buildings, folders). Membership, invitation and
+    //             audit-log mutations are functions-only (see below) — an
+    //             admin's client write surface does NOT cover them.
+    //   member → read-only consumption; no writes anywhere.
+    //
+    // Membership mutation, invitation create/revoke, redemption and bootstrap
+    // all run inside Cloud Functions (admin SDK) — never client-side — so the
+    // client rules deny those paths entirely (`write: if false`).
+    // ─────────────────────────────────────────────────────────────
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function memberDoc(pid) {
+      return /databases/$(database)/documents/projects/$(pid)/members/$(request.auth.uid);
+    }
+
+    // True when the caller has an ACTIVE member doc in `pid`.
+    // (get/exists on the same path are billed once per evaluation.)
+    function isMember(pid) {
+      return isSignedIn()
+        && exists(memberDoc(pid))
+        && get(memberDoc(pid)).data.status == 'active';
+    }
+
+    // True when the caller is an active admin of `pid` (implies isMember).
+    function isAdmin(pid) {
+      return isMember(pid)
+        && get(memberDoc(pid)).data.role == 'admin';
+    }
+
+    // ── Task state-machine legality (task-module plan §3) ────────
+    // Keep textually in sync with the client map in
+    // packages/ff-tasks/src/status.ts — one table, two consumers.
+    // `from == to` covers comment/edit/assign-without-move and is
+    // only legal for the four open states: 65 (approved) and 80
+    // (discontinued) are terminal — they accept NO further writes,
+    // so no self-transition pair is listed for them and a comment
+    // on a closed task needs a followup (40→60) first, exactly §3.
+    // 30 is enum-only parity with Commercial Viewer's Rejected —
+    // unreachable in v1 (reject lands back in 20, rework loop),
+    // hence no pair touches it.
+    function legalTaskTransition(from, to) {
+      return (from == to && (from == 10 || from == 20 || from == 40 || from == 60))
+        || (from == 10 && to == 20)                       // assign
+        || (from == 20 && to == 40)                       // complete
+        || (from == 40 && (to == 20 || to == 60 || to == 65 || to == 80)) // reject / followup / approve / discontinue
+        || (from == 60 && (to == 40 || to == 80))         // complete / discontinue
+        || ((from == 10 || from == 20) && to == 80);      // discontinue (open ends too)
+    }
+
+    // ── /users/{uid}: profile mirrored from Firebase Auth ──
+    // Read: your OWN profile, or the profile of someone on the roster of
+    // the project you are currently working in (the members table and the
+    // task assignee picker join roster uids to profile emails/names).
+    // Profiles of users outside your project are not readable (wave 63).
+    // A user may write only their OWN profile (this is the doc that
+    // triggers onCreateUser).
+    //
+    // Phase 1b: rules cannot enumerate the caller's projects, so "the
+    // project you are working in" is still the `currentProject` claim
+    // (kept in step with the selection by the setActiveProject callable).
+    // The claim only NAMES the project; the caller must still be an ACTIVE
+    // member of it, so a removed member loses profile reads immediately.
+    // Phase 1e replaces this by denormalizing name/email onto the member doc.
+    function isProfileReadable(userId) {
+      return isSignedIn()
+        && (request.auth.uid == userId
+          || (request.auth.token.currentProject != null
+            && isMember(request.auth.token.currentProject.id)
+            && exists(/databases/$(database)/documents/projects/$(request.auth.token.currentProject.id)/members/$(userId))));
+    }
+
+    // Field allowlist for profile docs. Mirrors UserSchema
+    // (packages/ff-firestore/src/schema/user.ts); FinishSignInPage writes
+    // { uid, email, createdAt } with merge. `request.resource.data` is the
+    // whole resulting doc (merge included), so hasOnly bounds the stored doc.
+    function hasOnlyProfileKeys() {
+      return request.resource.data.keys().hasOnly(
+        ['uid', 'email', 'displayName', 'createdAt', 'lastSignInAt']);
+    }
+
+    match /users/{userId} {
+      // Profile mirrored from Firebase Auth. Email-of-record is pinned to the
+      // verified token identity (P0-1): a client can never write a different
+      // email than the one bound to their own auth record. Update self-heals
+      // (NEW-5): any update must carry the caller's OWN verified email, so a
+      // stale profile converges after a legitimate email change while forged
+      // emails stay impossible. delete is denied so the onCreateUser trigger
+      // cannot be re-armed by deleting + recreating the profile doc (P1-3).
+      //
+      // v4 profile-update shape: there is no `displayName`-only update. A
+      // `displayName` (or any other field) update must include the current
+      // token email in the SAME write — else the projected doc still carries
+      // the stale email and the write is denied. This is the only supported
+      // profile-update shape in v4 (see FinishSignInPage, which always writes
+      // `{ uid, email, ... }` with the token email).
+      allow read: if isProfileReadable(userId);
+      allow create: if isSignedIn()
+        && request.auth.uid == userId
+        && hasOnlyProfileKeys()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == request.auth.token.email
+        && request.auth.token.email_verified == true;
+      allow update: if isSignedIn()
+        && request.auth.uid == userId
+        && hasOnlyProfileKeys()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == request.auth.token.email
+        && request.auth.token.email_verified == true;
+      allow delete: if false;
+    }
+
+    // ── Project surface ──────────────────────────────────────────
+    match /projects/{pid} {
+      // read = member; write = admin.
+      allow read: if isMember(pid);
+      allow write: if isAdmin(pid);
+
+      match /buildings/{buildingId} {
+        allow read: if isMember(pid);
+        allow write: if isAdmin(pid);
+      }
+
+      match /folders/{folderId} {
+        allow read: if isMember(pid);
+        allow write: if isAdmin(pid);
+      }
+
+      // Members: read = any project member (roster); write = functions-only.
+      // Roster reads are the assignment surface: member docs carry
+      // name/email/role, which is exactly what a project roster may expose
+      // to its own members — the assignee picker needs the full active
+      // roster, not just the caller's own doc. isMember(pid) bounds every
+      // read to the project (and already covers admins, since isAdmin implies
+      // isMember), so non-members still see nothing.
+      // Client-side member writes are the delta-review's residual lockout
+      // vector: a just-demoted admin's ID token keeps its claim for ≤1 h, so
+      // direct client writes would bypass the transactional last-admin guard.
+      // All membership mutations happen in Cloud Functions via the Admin SDK
+      // (setMemberRole, removeMember, redeemInvitation, bootstrap) — they
+      // bypass rules, so the client surface is closed entirely.
+      match /members/{uid} {
+        allow read: if isMember(pid);
+        allow write: if false;
+      }
+
+      // Invitations: admin-only client READ; client WRITES are functions-only.
+      // Every invitation write already flows through the `inviteMember` callable
+      // (and `removeMember` revocation) via the Admin SDK — no client code
+      // writes invitation docs — so the client write surface is closed entirely
+      // (NEW-R3-1). A removed admin's residual ≤1h ID token therefore cannot
+      // mint a self-serving invitation client-side. Redemption also runs in
+      // `redeemInvitation` with the admin SDK (read stays admin for the UI).
+      match /invitations/{iid} {
+        allow read: if isAdmin(pid);
+        allow write: if false;
+      }
+
+      // Audit log: append-only via Cloud Function; admin read only.
+      match /auditLog/{entryId} {
+        allow read: if isAdmin(pid);
+        allow write: if false;
+      }
+
+      // ── Tasks — DELIBERATE MATRIX AMENDMENT (task-39 D7) ───────
+      // The v4 matrix says: members write NOTHING anywhere (plan v4
+      // §2). Tasks are the first exception by design — issue/observation
+      // tracking is a whole-crew activity, and the Android data plane
+      // depends on member-authored writes. Everything else about the
+      // matrix is unchanged: membership, invitations and auditLog stay
+      // functions-only. Legality here mirrors §3 of the task-module
+      // plan; num/createdBy*/createdAt are immutable; every update
+      // must bump entryCount by exactly one (the matching append-only
+      // entry rides the same transaction); there is no client delete
+      // — discontinue is the soft-close verb.
+      // Shape validation (wave 63). Field lists mirror TaskSchema /
+      // TaskEntrySchema (packages/ff-firestore/src/schema/task*.ts) and what
+      // packages/ff-tasks/src/repository.ts actually writes:
+      //   create = ONE transaction: counter set {next}, task set (full DTO,
+      //            entryCount 1), entry set (the 'create' entry).
+      //   update = ONE transaction: entry set + task update with
+      //            entryCount increment(1).
+      // Coupling: a task create must bump the counter to exactly its `num`
+      // in the same write (getAfter); an entry create must ride a task write
+      // in the same transaction that bumps entryCount by one and matches the
+      // entry's statusFrom/statusTo (get/getAfter). A task update cannot
+      // name its entry (the doc doesn't carry the clientGuid), so that
+      // direction is enforced only by the +1 entryCount rule.
+      function taskPath(pid, taskId) {
+        return /databases/$(database)/documents/projects/$(pid)/tasks/$(taskId);
+      }
+      function counterPath(pid) {
+        return /databases/$(database)/documents/projects/$(pid)/taskCounters/tasks;
+      }
+      function hasOnlyTaskKeys() {
+        return request.resource.data.keys().hasOnly([
+          'id', 'num', 'title', 'description', 'type', 'status',
+          'createdBy', 'createdByUid', 'createdAt', 'updatedBy', 'updatedAt',
+          'assigneeUid', 'assigneeName', 'deadline', 'buildingId',
+          'location', 'photos', 'lastAction', 'entryCount']);
+      }
+      // The counter must go from num-1 (or absent, for num == 1) to num
+      // in this same write — so two tasks can never share a number and a
+      // task can't claim a number nobody allocated.
+      function counterBumpedTo(pid, num) {
+        return getAfter(counterPath(pid)).data.next == num
+          && (exists(counterPath(pid))
+            ? get(counterPath(pid)).data.next == num - 1
+            : num == 1);
+      }
+
+      match /tasks/{taskId} {
+        allow read: if isMember(pid);
+        allow create: if isMember(pid)
+          && hasOnlyTaskKeys()
+          && request.resource.data.id == taskId
+          && request.resource.data.createdByUid == request.auth.uid
+          && request.resource.data.num is int
+          && request.resource.data.num > 0
+          // The 'create' entry is written in the same transaction, so a
+          // fresh task already counts one entry.
+          && request.resource.data.entryCount == 1
+          && request.resource.data.lastAction == 'create'
+          && (request.resource.data.status == 10 || request.resource.data.status == 20)
+          && counterBumpedTo(pid, request.resource.data.num);
+        allow update: if isMember(pid)
+          && hasOnlyTaskKeys()
+          && request.resource.data.id == resource.data.id
+          && request.resource.data.num == resource.data.num
+          && request.resource.data.createdBy == resource.data.createdBy
+          && request.resource.data.createdByUid == resource.data.createdByUid
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.entryCount == resource.data.entryCount + 1
+          && legalTaskTransition(resource.data.status, request.resource.data.status);
+        allow delete: if false;
+
+        match /entries/{entryId} {
+          allow read: if isMember(pid);
+          // Append-only audit trail: docId IS the clientGuid
+          // (outbox idempotency key), author is the caller, and the entry
+          // must ride the task write of the same transaction.
+          allow create: if isMember(pid)
+            && request.resource.data.keys().hasOnly([
+              'id', 'action', 'text', 'by', 'byUid', 'at',
+              'statusFrom', 'statusTo', 'photos', 'clientGuid'])
+            && entryId == request.resource.data.clientGuid
+            && request.resource.data.id == entryId
+            && request.resource.data.byUid == request.auth.uid
+            && entryMatchesTaskWrite(pid, taskId);
+          allow update, delete: if false;
+        }
+      }
+
+      // Entry ↔ task coupling. Create entry: the task is new in this write,
+      // starts at entryCount 1 and its status is the entry's statusTo.
+      // Any other entry: the task existed, its entryCount goes up by exactly
+      // one in this write, and the entry records the real status edge.
+      function entryMatchesTaskWrite(pid, taskId) {
+        let after = getAfter(taskPath(pid, taskId)).data;
+        return request.resource.data.statusTo == after.status
+          && (request.resource.data.action == 'create'
+            ? (!exists(taskPath(pid, taskId))
+              && request.resource.data.statusFrom == null
+              && after.entryCount == 1)
+            : (exists(taskPath(pid, taskId))
+              && request.resource.data.statusFrom == get(taskPath(pid, taskId)).data.status
+              && after.entryCount == get(taskPath(pid, taskId)).data.entryCount + 1));
+      }
+
+      // Per-project display-number generator. First task creates
+      // {next: 1}; every later allocation increments by exactly one
+      // inside the same transaction that writes the task doc.
+      match /taskCounters/{counterId} {
+        allow read: if isMember(pid);
+        allow create: if isMember(pid)
+          && counterId == 'tasks'
+          && request.resource.data.keys().hasOnly(['next'])
+          && request.resource.data.next is int
+          && request.resource.data.next == 1;
+        allow update: if isMember(pid)
+          && request.resource.data.keys().hasOnly(['next'])
+          && request.resource.data.next == resource.data.next + 1;
+        allow delete: if false;
+      }
+    }
+
+    // ── Membership discovery (Phase 1b, SPEC-PHASE-1 §2.1) ───────
+    // The client finds ALL its projects with
+    //   collectionGroup('members').where('uid','==',me).where('status','==','active')
+    // This rule allows exactly that: a member doc is readable by the user
+    // it names (resource.data.uid). Docs without a `uid` field (pre-backfill)
+    // are never matched. Writes stay functions-only (the per-project match
+    // above); rules OR together, so project members still read their roster.
+    match /{path=**}/members/{memberId} {
+      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    // ── Bootstrap meta: Cloud Function (admin SDK) only ──────────
+    match /meta/{doc} {
+      allow read, write: if false;
+    }
+  }
+}

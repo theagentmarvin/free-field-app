@@ -1,0 +1,19 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# pnpm 10 reads settings from here, NOT from the root package.json
+# "pnpm" field (which 10.30 silently ignores — see the [WARN] on
+# install). Relocated 2026-07-12 so the @types/three dedupe and the
+# esbuild build-allowlist are actually applied.
+onlyBuiltDependencies:
+  - esbuild
+
+overrides:
+  "@types/three": "^0.182.0"
+
+# Wave 61: local patch of the fragments engine (faster tile build: face-id
+# colour table + inlined vertex transform, bit-identical output; workers
+# balanced by model bytes). Each hunk is commented "FreeField patch" in patches/.
+patchedDependencies:
+  "@thatopen/fragments@3.6.0": patches/@thatopen__fragments@3.6.0.patch

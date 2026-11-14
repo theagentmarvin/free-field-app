@@ -1,0 +1,73 @@
+/* src/styles/global.css
+ *
+ * Global stylesheet for Free Field. Imports the design tokens from
+ * tokens.css and applies the base typography + body reset described
+ * in docs/STYLING.md §2.
+ *
+ * Component-specific styles are co-located in each component file
+ * (vanilla CSS) so the file inventory stays flat and the user can
+ * trace a component to its styles in one place.
+ */
+
+@import "./tokens.css";
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--ff-font-stack);
+  font-size: var(--ff-font-size-base);
+  color: var(--ff-text-primary);
+  background: var(--ff-bg-app);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+input,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+ul,
+ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  font-weight: 600;
+}
+
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.95em;
+}

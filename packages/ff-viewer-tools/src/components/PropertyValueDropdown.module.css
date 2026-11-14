@@ -1,0 +1,210 @@
+/* apps/models/src/components/PropertyValueDropdown.module.css
+ *
+ * Task 24 — styles for the property value combobox dropdown.
+ * Free Field tokens, no Tailwind. The component is a real
+ * combobox (not a native <select>): keyboard-nav (Arrow/Enter/
+ * Escape), a11y attributes, chip-based multi-select for
+ * `in`/`not_in` operators.
+ */
+
+/* ── Fallback plain input (shared with disabled state) ───────── */
+
+.plainInput {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 13px;
+  border: 1px solid var(--ff-border);
+  border-radius: 4px;
+  background: var(--ff-bg-app);
+  color: var(--ff-text-primary);
+  box-sizing: border-box;
+  font-family: var(--ff-font-stack);
+}
+
+.plainInput:disabled {
+  opacity: 0.5;
+  background: var(--ff-bg-panel);
+  cursor: not-allowed;
+}
+
+.valHelper {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--ff-text-muted);
+  line-height: 1.4;
+}
+
+/* ── Combobox container ───────────────────────────────────────── */
+
+.comboboxContainer {
+  position: relative;
+}
+
+.combobox {
+  position: relative;
+  width: 100%;
+}
+
+/* ── Input area (chips + inline text input) ──────────────────── */
+
+.inputArea {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border: 1px solid var(--ff-border);
+  border-radius: 4px;
+  background: var(--ff-bg-app);
+  min-height: 28px;
+}
+
+.inputArea:focus-within {
+  border-color: var(--ff-blue-active);
+  box-shadow: 0 0 0 1px var(--ff-blue-active);
+}
+
+.comboboxInput {
+  flex: 1;
+  min-width: 80px;
+  border: none;
+  outline: none;
+  padding: 2px 4px;
+  font-size: 13px;
+  background: transparent;
+  color: var(--ff-text-primary);
+  font-family: var(--ff-font-stack);
+}
+
+.comboboxInput::placeholder {
+  color: var(--ff-text-muted);
+}
+
+/* ── Chip (multi-select mode) ────────────────────────────────── */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 4px 1px 6px;
+  font-size: 11px;
+  background: rgba(37, 99, 235, 0.10);
+  color: var(--ff-blue-active);
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  border-radius: 3px;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.chipText {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chipRemove {
+  background: transparent;
+  border: none;
+  color: var(--ff-blue-active);
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 14px;
+  line-height: 1;
+  border-radius: 2px;
+  opacity: 0.6;
+}
+
+.chipRemove:hover {
+  opacity: 1;
+  background: rgba(37, 99, 235, 0.15);
+}
+
+/* ── Dropdown panel ──────────────────────────────────────────── */
+
+.dropdownPanel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 1100;
+  max-height: 320px;
+  overflow: hidden;
+  background: var(--ff-bg-app);
+  border: 1px solid var(--ff-border);
+  border-radius: var(--ff-radius-control);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+}
+
+.dropdownFooter {
+  font-size: 10px;
+  color: var(--ff-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 4px 10px 2px;
+  border-bottom: 1px solid var(--ff-divider);
+}
+
+.listbox {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  overflow-y: auto;
+  max-height: 280px;
+}
+
+/* ── Option items ────────────────────────────────────────────── */
+
+.option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--ff-text-primary);
+  cursor: pointer;
+  font-family: var(--ff-font-stack);
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+}
+
+.option:hover {
+  background: var(--ff-bg-panel);
+}
+
+.optionHighlight {
+  background: var(--ff-bg-panel);
+  color: var(--ff-blue-active);
+}
+
+.optionSelected {
+  font-weight: 600;
+}
+
+.optionValue {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.optionCount {
+  font-size: 10px;
+  color: var(--ff-text-muted);
+  white-space: nowrap;
+}
+
+/* ── No matches ──────────────────────────────────────────────── */
+
+.noMatches {
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--ff-text-muted);
+  font-style: italic;
+}

@@ -1,0 +1,32 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "baseUrl": ".",
+    "paths": {
+      "@free-field/models": ["../models/src"],
+      "@ff/viewer-react": ["../../packages/ff-viewer-react/src"],
+      "@ff/viewer": ["../../packages/ff-viewer/src"],
+      "@ff/viewer-tools/pdf-measure": ["../../packages/ff-viewer-tools/src/pdfMeasure/index.ts"],
+      "@ff/types": ["../../packages/ff-types/src"]
+    },
+    "types": ["vitest/globals", "node", "vite/client"]
+  },
+  "include": ["src", "__tests__"]
+}

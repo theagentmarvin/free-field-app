@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Task 36 — `viewport-fit=cover` lets the app draw into the
+         notch / home-indicator area; the shell then pads itself
+         back with env(safe-area-inset-*). -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <title>FreeField</title>
+    <!-- Brand: floor-plan "F" + location pin. SVG for modern browsers,
+         32px PNG fallback, opaque 180px tile for iOS home screens. -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <style>
+      /* Task 36 — mobile pass.
+       *
+       * DESKTOP (≥768px) IS UNCHANGED: the only rule that applies
+       * unconditionally is the shell height, and on a desktop browser
+       * `100dvh` resolves to the same value as `100vh`. Every other
+       * rule lives inside the `max-width: 767px` media query, which
+       * matches the JS breakpoint exactly (useIsMobile()).
+       */
+
+      /* The unified shell fills the viewport. The fallback line comes
+       * FIRST so browsers without `dvh` support keep `100vh`; the
+       * @supports block upgrades to `100dvh` (the height that tracks
+       * the mobile URL bar) where it is available. */
+      .ff-main-shell {
+        height: 100vh;
+      }
+      @supports (height: 100dvh) {
+        .ff-main-shell {
+          height: 100dvh;
+        }
+      }
+
+      @media (max-width: 767px) {
+        /* Thumb-sized primary targets: Upload +, Map, list rows. */
+        .ff-mobile-stack button,
+        .ff-mobile-stack [role="button"] {
+          min-height: 44px;
+        }
+
+        /* The phone top sheet spans the full width. Module sidebars
+         * size themselves with a fixed desktop width (320px / 420px),
+         * so the sheet overrides that for its direct child. */
+        .ff-mobile-stack--sheet .ff-mobile-stack__sidebar > * {
+          width: 100% !important;
+          max-width: 100% !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,440 @@
+/* apps/models/src/components/CustomFilterBuilder.module.css
+ *
+ * Free Field token styling for CustomFilterBuilder. No Tailwind.
+ * Source of truth for token values: apps/settings/src/styles/tokens.css
+ *
+ * Only used for things that would clutter JSX inline (section labels,
+ * the autocomplete dropdown, rule pills, the stub badge, the save block).
+ */
+
+.sectionLabel {
+  display: block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ff-text-muted);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 1100;
+  max-height: 300px;
+  overflow-y: auto;
+  background: var(--ff-bg-app);
+  border: 1px solid var(--ff-border);
+  border-radius: var(--ff-radius-control);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  padding: 4px 0;
+}
+
+.dropdownGroup {
+  padding: 4px 0;
+}
+
+.dropdownGroupHeader {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ff-text-muted);
+  padding: 4px 10px 2px;
+}
+
+.dropdownItem {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 4px 10px 4px 20px;
+  font-size: 12px;
+  color: var(--ff-text-primary);
+  cursor: pointer;
+  font-family: var(--ff-font-stack);
+  border-radius: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dropdownItem:hover,
+.dropdownItem:focus {
+  background: var(--ff-bg-panel);
+  color: var(--ff-blue-active);
+  outline: none;
+}
+
+.dropdownEmpty {
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--ff-text-muted);
+  font-style: italic;
+}
+
+.emptyHint {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--ff-text-muted);
+  font-style: italic;
+  line-height: 1.4;
+}
+
+.valHelper {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--ff-text-muted);
+  line-height: 1.4;
+}
+
+.rulesBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--ff-bg-panel);
+  border: 1px solid var(--ff-border);
+  border-radius: var(--ff-radius-control);
+}
+
+.rulesHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rulesHeaderLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ff-text-muted);
+  font-weight: 600;
+}
+
+.rulesClear {
+  background: transparent;
+  border: none;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ff-text-muted);
+  cursor: pointer;
+  padding: 0;
+  font-family: var(--ff-font-stack);
+}
+
+.rulesClear:hover {
+  color: var(--ff-blue-active);
+}
+
+.rulePill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--ff-bg-app);
+  border: 1px solid var(--ff-border);
+  border-radius: var(--ff-radius-control);
+  color: var(--ff-text-primary);
+}
+
+.rulePillText {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.rulePillRemove {
+  background: transparent;
+  border: none;
+  color: var(--ff-text-muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rulePillRemove:hover {
+  color: var(--ff-blue-active);
+  background: var(--ff-bg-panel);
+}
+
+.stubBadge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  background: var(--ff-bg-app);
+  border: 1px dashed var(--ff-border);
+  border-radius: var(--ff-radius-control);
+  font-size: 11px;
+  color: var(--ff-text-muted);
+  font-style: italic;
+}
+
+.warningChip {
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: var(--ff-bg-panel);
+  border: 1px solid var(--ff-border);
+  border-radius: var(--ff-radius-control);
+  color: var(--ff-text-primary);
+  font-size: 11px;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  line-height: 1.4;
+}
+
+.warningChip code {
+  font-family: var(--ff-font-stack);
+  font-size: 10px;
+  background: var(--ff-bg-app);
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid var(--ff-divider);
+}
+
+.saveBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid var(--ff-divider);
+  margin-top: 4px;
+}
+
+.saveRow {
+  display: flex;
+  gap: 8px;
+}
+
+/* ---------------------------------------------------------------------------
+ * Task 20D — OR group UI
+ * ------------------------------------------------------------------------- */
+
+.groupCard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  background: var(--ff-bg-app);
+  border: 1px solid var(--ff-border);
+  border-radius: var(--ff-radius-control);
+  cursor: pointer;
+  transition: border-color 120ms ease;
+}
+
+.groupCard:hover {
+  border-color: rgba(37, 99, 235, 0.4);
+}
+
+.groupHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.groupLabel {
+  flex: 1;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ff-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.groupJoiner {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ff-text-muted);
+  margin-left: 4px;
+}
+
+.groupJoiner strong {
+  color: var(--ff-blue-active);
+  font-weight: 600;
+}
+
+.groupRemove {
+  background: transparent;
+  border: none;
+  color: var(--ff-text-muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.groupRemove:hover {
+  color: var(--ff-blue-active);
+  background: var(--ff-bg-panel);
+}
+
+.groupEmpty {
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--ff-text-muted);
+  font-style: italic;
+}
+
+.combinatorPill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--ff-border);
+  background: var(--ff-bg-panel);
+  color: var(--ff-text-muted);
+  cursor: pointer;
+  font-family: var(--ff-font-stack);
+  min-width: 36px;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.combinatorPill:hover {
+  border-color: rgba(37, 99, 235, 0.4);
+}
+
+.combinatorPillAnd {
+  background: rgba(37, 99, 235, 0.10);
+  color: var(--ff-blue-active);
+  border-color: rgba(37, 99, 235, 0.30);
+}
+
+.combinatorPillOr {
+  background: rgba(217, 119, 6, 0.10);
+  color: #b45309;
+  border-color: rgba(217, 119, 6, 0.30);
+}
+
+.groupAddRow {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.groupAddBtn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ff-text-secondary);
+  background: var(--ff-bg-app);
+  border: 1px dashed var(--ff-border);
+  border-radius: var(--ff-radius-control);
+  cursor: pointer;
+  font-family: var(--ff-font-stack);
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.groupAddBtn:hover {
+  background: var(--ff-bg-panel);
+  border-color: rgba(37, 99, 235, 0.4);
+  color: var(--ff-blue-active);
+}
+
+/* ---------------------------------------------------------------------------
+ * Task 20D — preset-level combinator (segmented control)
+ * ------------------------------------------------------------------------- */
+
+.presetCombinator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  margin-top: 4px;
+}
+
+.presetCombinatorLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ff-text-muted);
+  font-weight: 600;
+}
+
+.segmentedControl {
+  display: inline-flex;
+  border: 1px solid var(--ff-border);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--ff-bg-panel);
+}
+
+.segmentedOption {
+  background: var(--ff-bg-panel);
+  border: none;
+  padding: 4px 12px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ff-text-muted);
+  cursor: pointer;
+  font-family: var(--ff-font-stack);
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.segmentedOption:hover {
+  color: var(--ff-text-primary);
+}
+
+.segmentedOptionActive {
+  background: var(--ff-blue-active);
+  color: white;
+}
+
+.segmentedOptionActive:hover {
+  color: white;
+}
+
+.combinatorSwap {
+  background: transparent;
+  border: 1px solid var(--ff-border);
+  border-radius: 999px;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--ff-text-muted);
+  padding: 0;
+  font-family: var(--ff-font-stack);
+}
+
+.combinatorSwap:hover {
+  color: var(--ff-blue-active);
+  border-color: rgba(37, 99, 235, 0.4);
+}
+
+.warningChip strong {
+  color: var(--ff-blue-active);
+  font-weight: 600;
+}
+

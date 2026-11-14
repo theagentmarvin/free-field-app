@@ -1,0 +1,41 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "baseUrl": "./src",
+    "paths": {
+      "@components/*": ["components/*"],
+      "@hooks/*": ["hooks/*"],
+      "@store/*": ["store/*"],
+      "@calibration/*": ["calibration/*"],
+      "@shell/*": ["shell/*"],
+      "@ff/auth": ["../../packages/ff-auth/src"],
+      "@ff/firestore": ["../../packages/ff-firestore/src"],
+      "@free-field/models": ["../models/src"],
+      "@free-field/documents": ["../documents/src"],
+      "@free-field/linkview": ["../linkview/src"],
+      "@free-field/users": ["../users/src"],
+      "@ff/viewer-react": ["../../packages/ff-viewer-react/src"],
+      "@ff/viewer": ["../../packages/ff-viewer/src"]
+    },
+    "types": ["vitest/globals", "node"]
+  },
+  "include": ["src", "__tests__"],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}

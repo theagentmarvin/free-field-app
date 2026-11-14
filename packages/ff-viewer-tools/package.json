@@ -1,0 +1,54 @@
+{
+  "name": "@ff/viewer-tools",
+  "version": "0.0.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "description": "Reusable viewer capabilities for FreeField modules: selection tools, filter tools, and property tools. Consumes @ff/viewer-react's IfcViewerHandle seam and an injected data source (Dexie-free). Shared app-wide store.",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./pdf-measure": "./src/pdfMeasure/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run --no-file-parallelism --passWithNoTests",
+    "lint": "eslint . --ext .ts,.tsx",
+    "lint:drift": "node ../../apps/settings/scripts/toe-drift-check.js src",
+    "build": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "dependencies": {
+    "@ff/data": "workspace:*",
+    "@ff/types": "workspace:*",
+    "@ff/viewer": "workspace:*",
+    "@ff/viewer-react": "workspace:*",
+    "dexie-react-hooks": "^1.1.7",
+    "iconoir-react": "^7.11.1",
+    "zustand": "^5.0.1"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.0.1",
+    "@types/node": "^22.10.1",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@typescript-eslint/eslint-plugin": "^8.16.0",
+    "@typescript-eslint/parser": "^8.16.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "dexie": "^4.0.10",
+    "eslint": "^8.57.1",
+    "eslint-plugin-react": "^7.37.2",
+    "eslint-plugin-react-hooks": "^4.6.2",
+    "fake-indexeddb": "^6.0.0",
+    "jsdom": "^25.0.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "5.6.3",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.5"
+  }
+}

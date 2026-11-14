@@ -1,0 +1,22 @@
+{
+  "name": "@ff/tooling",
+  "version": "0.0.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "description": "Shared Vite/build tooling for FreeField apps (viewer optimizeDeps, alias presets).",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./vite.config.base": "./vite.config.base.ts"
+  },
+  "peerDependencies": {
+    "vite": "^5.4.11"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "devDependencies": {
+    "typescript": "5.6.3"
+  }
+}

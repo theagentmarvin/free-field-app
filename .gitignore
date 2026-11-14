@@ -1,0 +1,45 @@
+# Monorepo additions (superset of apps/settings/.gitignore)
+node_modules/
+.pnpm-store/
+dist/
+.turbo/
+*.tsbuildinfo
+.DS_Store
+coverage
+*.log
+.env
+.env.local
+# Backups of env files (e.g. .env.local.bak-175238) can hold real keys
+.env*.bak*
+# Firebase Functions emulator secret overrides
+.secret.local
+.vscode
+.idea
+vite.config.d.ts
+vite.config.js
+.firebase/
+
+# Orchestration completion-signal files (future waves stay out of status noise)
+.last-task-*.md
+# Firebase CLI local cache
+.firebase/
+
+# --- Open-source hygiene ---
+# Real deployment config (Firebase client config, per-project function params). Use the .env.example templates.
+.env.production
+.env.*.local
+apps/settings/.env.production
+packages/ff-firestore/functions/.env.*
+!packages/ff-firestore/functions/.env.example
+!packages/ff-firestore/functions/.env.demo-freefield
+# Generated e2e outputs (contain emulator sign-in links)
+scripts/e2e/seed-output.json
+scripts/e2e/drive-results.json
+# Backups / junk
+*.bak
+*.bak*
+*.orig
+*.tmp
+*.swp
+firebase-debug*.log
+ui-debug.log

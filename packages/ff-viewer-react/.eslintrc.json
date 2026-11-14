@@ -1,0 +1,58 @@
+{
+  "root": true,
+  "env": {
+    "browser": true,
+    "es2022": true,
+    "node": true
+  },
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:react/recommended",
+    "plugin:react-hooks/recommended"
+  ],
+  "ignorePatterns": [
+    "dist",
+    "node_modules",
+    "coverage",
+    "*.config.ts",
+    "*.config.js"
+  ],
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaVersion": 2022,
+    "sourceType": "module",
+    "ecmaFeatures": {
+      "jsx": true
+    }
+  },
+  "plugins": ["@typescript-eslint", "react", "react-hooks"],
+  "settings": {
+    "react": {
+      "version": "detect"
+    }
+  },
+  "rules": {
+    "react/react-in-jsx-scope": "off",
+    "react/prop-types": "off",
+    "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
+    "@typescript-eslint/no-explicit-any": "warn",
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "three",
+            "message": "Raw three.js imports are banned (TOE API Resolution Hierarchy — drift prevention). Use @thatopen/components, @thatopen/fragments, or web-ifc APIs only."
+          }
+        ],
+        "patterns": [
+          {
+            "group": ["three/*"],
+            "message": "Raw three.js subpath imports are banned (TOE API Resolution Hierarchy — drift prevention). Use @thatopen/components, @thatopen/fragments, or web-ifc APIs only."
+          }
+        ]
+      }
+    ]
+  }
+}

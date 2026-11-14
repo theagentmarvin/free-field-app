@@ -1,0 +1,12 @@
+/* apps/models/src/frosted.css
+ *
+ * Wave 39 — re-export shim.
+ *
+ * The canonical frosted-glass family moved to
+ * packages/ff-viewer-tools/src/frosted.css (the generic shell now
+ * imports it from there). <ViewerToolbar> still deep-imports this
+ * path for the `ff-frosted` class; this shim forwards to the shared
+ * recipe so there is exactly ONE copy.
+ */
+
+@import "../../../packages/ff-viewer-tools/src/frosted.css";

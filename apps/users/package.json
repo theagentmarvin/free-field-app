@@ -1,0 +1,46 @@
+{
+  "name": "@free-field/users",
+  "private": true,
+  "version": "0.1.0",
+  "license": "MIT",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "description": "FreeField user module — admin UI for member management, roles, read access, and the public auth pages (sign-in, finish-sign-in, needs-invitation).",
+  "scripts": {
+    "dev": "echo '(consumed by apps/settings at runtime; no own dev server)'",
+    "build": "tsc --noEmit",
+    "test": "vitest run --no-file-parallelism --passWithNoTests",
+    "lint": "eslint . --ext .ts,.tsx",
+    "lint:drift": "node ../../apps/settings/scripts/toe-drift-check.js src"
+  },
+  "dependencies": {
+    "@ff/auth": "workspace:*",
+    "@ff/firestore": "workspace:*",
+    "dexie": "^4.0.10",
+    "dexie-react-hooks": "^1.1.7",
+    "firebase": "^11.0.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "react-router-dom": "^6.26.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.4.0",
+    "@testing-library/react": "^16.0.0",
+    "@types/node": "^26.1.1",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@typescript-eslint/eslint-plugin": "^8.60.0",
+    "@typescript-eslint/parser": "^8.60.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "eslint": "^8.57.1",
+    "fake-indexeddb": "^6.0.0",
+    "jsdom": "^25.0.0",
+    "typescript": "5.6.3",
+    "vite": "^5.4.0",
+    "vitest": "^2.0.0"
+  }
+}

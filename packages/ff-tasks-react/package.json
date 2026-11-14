@@ -1,0 +1,49 @@
+{
+  "name": "@ff/tasks-react",
+  "private": true,
+  "version": "0.1.0",
+  "license": "MIT",
+  "type": "module",
+  "description": "Tasks UI (plan §7): <TasksApp> route component + <TasksListPanel>, pure list logic (chips/search/sort/overdue). Consumes @ff/tasks; no viewer imports.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./useAnnotationLayer": "./src/useAnnotationLayer.ts"
+  },
+  "scripts": {
+    "test": "vitest run --no-file-parallelism",
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ff/auth": "workspace:*",
+    "iconoir-react": "^7.11.1",
+    "@ff/data": "workspace:*",
+    "@ff/firestore": "workspace:*",
+    "@ff/tasks": "workspace:*",
+    "@ff/types": "workspace:*",
+    "@ff/telemetry": "workspace:*"
+  },
+  "peerDependencies": {
+    "dexie-react-hooks": "^1.1.7",
+    "firebase": "^11.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.0.1",
+    "@types/node": "^22.0.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "dexie-react-hooks": "^1.1.7",
+    "firebase": "^11.0.0",
+    "jsdom": "^25.0.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "5.6.3",
+    "vite": "^5.4.0",
+    "vitest": "^2.1.5"
+  }
+}

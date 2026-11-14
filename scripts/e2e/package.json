@@ -1,0 +1,12 @@
+{
+  "name": "ff-tasks-e2e-harness",
+  "version": "1.0.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "description": "Wave-1B tasks live-e2e harness (uncommitted). Deps live ONLY here, never in the workspace root.",
+  "dependencies": {
+    "firebase-admin": "^12.7.0",
+    "playwright-core": "1.63.0"
+  }
+}

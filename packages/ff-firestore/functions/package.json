@@ -1,0 +1,25 @@
+{
+  "name": "@free-field/functions",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "main": "dist/index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "test": "cd .. && npm test",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0",
+    "firebase-functions": "^6.3.0"
+  },
+  "devDependencies": {
+    "typescript": "~5.6.3"
+  }
+}

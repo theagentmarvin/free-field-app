@@ -1,0 +1,39 @@
+{
+  "name": "@ff/firestore",
+  "private": true,
+  "version": "0.1.0",
+  "license": "MIT",
+  "type": "module",
+  "description": "Firestore schemas, typed collection refs, security rules, and Cloud Functions for FreeField user module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./functions": "./functions/src/index.ts"
+  },
+  "scripts": {
+    "test": "tsc -p functions/tsconfig.json && firebase emulators:exec --only auth,firestore,functions,storage --project demo-freefield \"vitest run --no-file-parallelism\"",
+    "lint": "eslint . --ext .ts",
+    "build:functions": "tsc -p functions/tsconfig.json",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "peerDependencies": {
+    "firebase": "^11.0.0",
+    "firebase-admin": "^12.0.0",
+    "firebase-functions": "^6.0.0"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@types/node": "^22.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.60.0",
+    "@typescript-eslint/parser": "^8.60.0",
+    "eslint": "^8.57.1",
+    "firebase-tools": "15.22.4",
+    "typescript": "5.6.3",
+    "vitest": "^2.1.5"
+  }
+}

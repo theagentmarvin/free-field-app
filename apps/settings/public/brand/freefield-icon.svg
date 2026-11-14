@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <title>FreeField</title>
+  <path stroke="#2E3033" stroke-width="2.6" stroke-linejoin="miter" d="M14.2 11.5 V8.3 H25.5 V3 H7 V29.5 H14.2 V20 H22.3 V14.7 H17.6"/>
+  <path fill="#DE6B55" d="M14.2 7.6 a4.3 4.3 0 0 1 4.3 4.3 c0 2.9 -2.4 5.1 -4.3 8 c-1.9 -2.9 -4.3 -5.1 -4.3 -8 a4.3 4.3 0 0 1 4.3 -4.3 z"/>
+  <circle cx="14.2" cy="11.7" r="1.4" fill="#FFFFFF"/>
+</svg>

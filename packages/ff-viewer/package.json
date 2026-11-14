@@ -1,0 +1,37 @@
+{
+  "name": "@ff/viewer",
+  "version": "0.0.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "description": "Headless 3D viewer core for FreeField: OBC world, level plan controller, PDF page rendering. No React.",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/pdf/pdfViewer.css": "./src/pdf/pdfViewer.css"
+  },
+  "scripts": {
+    "test": "vitest run --no-file-parallelism --passWithNoTests",
+    "lint": "eslint . --ext .ts,.tsx",
+    "lint:drift": "node ../../apps/settings/scripts/toe-drift-check.js src",
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@thatopen/components": "^3.6.0",
+    "@thatopen/fragments": "3.6.0",
+    "pdfjs-dist": "^5.7.284",
+    "three": "^0.182.0",
+    "web-ifc": "^0.0.77"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@types/node": "^22.19.19",
+    "@typescript-eslint/eslint-plugin": "^8.60.0",
+    "@typescript-eslint/parser": "^8.60.0",
+    "eslint": "^8.57.1",
+    "fake-indexeddb": "^6.0.0",
+    "jsdom": "^25.0.1",
+    "typescript": "5.6.3",
+    "vitest": "^2.1.5"
+  }
+}

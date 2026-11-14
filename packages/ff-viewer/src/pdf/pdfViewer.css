@@ -1,0 +1,264 @@
+/*
+ * Theme tokens. Defined locally so the package is self-contained
+ * (no dependency on the host app's --ff-* tokens). When loaded
+ * into the FreeField settings app, the host's tokens.css overrides
+ * these via :root, but the fallback values match so the toolbar
+ * reads correctly in any embedding.
+ *
+ * Light theme per Maintainer directive 2026-06-22 18:57 CLT (the dark
+ * hex values were a leftover from an early mockup; they fought
+ * the rest of the FreeField light palette).
+ */
+:root {
+  --pv-bg-app: #ffffff;
+  --pv-bg-panel: #f0f0f0;
+  --pv-bg-hover: #f9fafb;
+  --pv-border: #e5e7eb;
+  --pv-divider: #f3f4f6;
+  --pv-text-primary: #374151;
+  --pv-text-muted: #9ca3af;
+  --pv-blue-active: #2563eb;
+}
+
+/* ── Root & Toolbar ─────────────────────────────────────────────────── */
+
+.pv-root {
+  display: flex;
+  flex-direction: column;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  color: var(--pv-text-primary);
+  background: var(--pv-bg-panel);
+  border-radius: 8px;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  height: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pv-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--pv-bg-app);
+  border-bottom: 1px solid var(--pv-border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+/* ── Nav ─────────────────────────────────────────────────────────── */
+
+.pv-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pv-page-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--pv-text-muted);
+}
+
+.pv-page-num {
+  width: 42px;
+  background: var(--pv-bg-app);
+  border: 1px solid var(--pv-border);
+  border-radius: 4px;
+  color: var(--pv-text-primary);
+  font-size: 12px;
+  padding: 2px 5px;
+  text-align: center;
+  -moz-appearance: textfield;
+}
+
+.pv-page-num::-webkit-inner-spin-button,
+.pv-page-num::-webkit-outer-spin-button { -webkit-appearance: none; }
+
+.pv-sep { color: var(--pv-text-muted); margin: 0 1px; }
+
+.pv-total { font-size: 12px; }
+
+/* ── Buttons ─────────────────────────────────────────────────────── */
+
+.pv-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--pv-text-muted);
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+}
+
+.pv-btn svg { width: 18px; height: 18px; fill: currentColor; }
+
+.pv-btn:hover {
+  background: var(--pv-border);
+  color: var(--pv-text-primary);
+  border-color: var(--pv-border);
+}
+
+.pv-btn:active { background: var(--pv-bg-panel); }
+
+.pv-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.pv-btn:disabled:hover {
+  background: transparent;
+  border-color: transparent;
+  color: var(--pv-text-muted);
+}
+
+/* ── Zoom ────────────────────────────────────────────────────────── */
+
+.pv-zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.pv-zoom-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.pv-zoom-val {
+  min-width: 46px;
+  padding: 3px 6px;
+  font-size: 12px;
+  color: var(--pv-text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+  text-align: center;
+  transition: background 0.15s;
+}
+
+.pv-zoom-val:hover { background: var(--pv-border); color: var(--pv-text-primary); }
+
+.pv-zoom-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--pv-bg-app);
+  border: 1px solid var(--pv-border);
+  border-radius: 6px;
+  padding: 4px;
+  z-index: 100;
+  min-width: 80px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.pv-zoom-dropdown.open { display: block; }
+
+.pv-zoom-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 5px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--pv-text-muted);
+  font-size: 13px;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.pv-zoom-dropdown-item:hover { background: var(--pv-border); color: var(--pv-text-primary); }
+.pv-zoom-dropdown-item.active { color: var(--pv-blue-active); font-weight: 500; }
+
+/* ── Fit buttons ──────────────────────────────────────────────────── */
+
+.pv-fit-btns { display: flex; gap: 2px; }
+
+/* ── Separators ──────────────────────────────────────────────────── */
+
+.pv-sep-v {
+  width: 1px;
+  height: 22px;
+  background: var(--pv-border);
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+
+/* ── Scroll area ─────────────────────────────────────────────────── */
+
+.pv-scroll {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow: auto;
+  background: var(--pv-bg-panel);
+  cursor: grab;
+  position: relative;
+}
+
+.pv-scroll:active { cursor: grabbing; }
+
+.pv-scroll::-webkit-scrollbar        { width: 10px; height: 10px; }
+.pv-scroll::-webkit-scrollbar-track  { background: transparent; }
+.pv-scroll::-webkit-scrollbar-thumb  {
+  background: #9ca3af;
+  border-radius: 5px;
+  border: 2.5px solid transparent;
+  background-clip: padding-box;
+}
+.pv-scroll::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+
+/* ── Page wrap ───────────────────────────────────────────────────── */
+
+.pv-page-wrap {
+  position: relative;
+  display: inline-block;
+  padding: 24px 0 40px;
+  box-sizing: border-box;
+}
+
+.pv-zoom-transform {
+  position: relative;
+  transform-origin: top left;
+  will-change: transform;
+}
+
+.pv-canvas-stack {
+  position: absolute;
+  top: 0;
+  left: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 8px 24px rgba(0, 0, 0, 0.06);
+  border-radius: 3px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.pv-canvas-stack canvas { display: block; }
+
+/* ── Annotation layer (Task 15b) ─────────────────────────────────── */
+/* Sibling of .pv-canvas-stack inside .pv-zoom-transform. Sized in JS
+   to match the canvas's CSS dimensions on every render. Consumers
+   (e.g. the calibration wizard) portal SVG pick markers into this
+   layer. Because it's inside .pv-zoom-transform, it inherits the
+   parent's CSS transform — markers track the canvas for free, no
+   rAF polling, no getBoundingClientRect re-projection. */
+.pv-annotation-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  overflow: visible;
+}

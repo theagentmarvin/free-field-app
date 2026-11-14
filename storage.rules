@@ -1,0 +1,57 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // The only thing FreeField stores in Cloud Storage today is task media:
+    // task photos and the location-snapshot thumbnail, both written by the
+    // task outbox (packages/ff-tasks/src/repository.ts `photoPath`,
+    // packages/ff-tasks/src/photos.ts `locationThumbPath`). IFC models and
+    // PDFs stay in the browser (IndexedDB); they never touch Storage.
+    //
+    // Everything else is denied (wave 63: there used to be an open
+    // `allow read, write: if true` catch-all here, and it was deployed).
+    // The emulator uses these same rules; no local feature needs open access.
+
+    // Phase 1b (docs/SPEC-PHASE-1.md §3): authorize by the Firestore member
+    // doc, not by token claims. Revocation is immediate and a user may
+    // belong to many projects. (Storage rules read Firestore through
+    // `firestore.get` / `firestore.exists`.)
+    function memberPath(pid) {
+      return /databases/(default)/documents/projects/$(pid)/members/$(request.auth.uid);
+    }
+    function isMember(pid) {
+      return request.auth != null
+        && firestore.exists(memberPath(pid))
+        && firestore.get(memberPath(pid)).data.status == 'active';
+    }
+    function isAdmin(pid) {
+      return isMember(pid)
+        && firestore.get(memberPath(pid)).data.role == 'admin';
+    }
+
+    // ── Task photos + location thumb (task-39 D3, Day-3) ─────────
+    // Path shapes:
+    //   projects/{pid}/tasks/{taskId}/{sha256prefix}-{index}.{jpg|png|webp}
+    //   projects/{pid}/tasks/{taskId}/location-thumb.jpg
+    // Members read and upload; objects are immutable (no overwrite, so
+    // a sha-named photo can't be swapped after the task doc references
+    // it); deletes are admin-only (the v1 UI never deletes photos).
+    match /projects/{pid}/tasks/{taskId}/{photoId} {
+      allow read: if isMember(pid);
+      allow create: if isMember(pid)
+        // Overwrites can be evaluated as `create` (seen on the emulator), so
+        // immutability is pinned here too: only a brand-new object passes.
+        && resource == null
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp)');
+      allow update: if false;
+      allow delete: if isAdmin(pid);
+    }
+
+    // Default deny. Rules are allow-only, so this is the same as having no
+    // match at all; it is spelled out so nobody re-adds an open catch-all.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

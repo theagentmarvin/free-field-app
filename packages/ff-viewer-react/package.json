@@ -1,0 +1,52 @@
+{
+  "name": "@ff/viewer-react",
+  "version": "0.0.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "description": "React shell for the FreeField viewer: <IfcViewer>, <PdfOverlay>, handle context. Depends on @ff/viewer.",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run --no-file-parallelism",
+    "lint": "eslint . --ext .ts,.tsx",
+    "lint:drift": "node ../../apps/settings/scripts/toe-drift-check.js src",
+    "build": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "dependencies": {
+    "@ff/telemetry": "workspace:*",
+    "@ff/viewer": "workspace:*",
+    "@thatopen/components": "^3.6.0",
+    "@thatopen/components-front": "^3.6.0",
+    "@thatopen/fragments": "3.6.0",
+    "three": "^0.182.0",
+    "web-ifc": "^0.0.77"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.0.1",
+    "@types/node": "^22.10.1",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/stats.js": "^0.17.4",
+    "@types/three": "^0.182.0",
+    "@typescript-eslint/eslint-plugin": "^8.60.0",
+    "@typescript-eslint/parser": "^8.60.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "eslint": "^8.57.1",
+    "fake-indexeddb": "^6.0.0",
+    "jsdom": "^25.0.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "5.6.3",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.5"
+  }
+}

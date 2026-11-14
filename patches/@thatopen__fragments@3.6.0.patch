@@ -1,0 +1,1140 @@
+diff --git a/dist/FragmentsModels/src/multithreading/fragments-connection.mjs b/dist/FragmentsModels/src/multithreading/fragments-connection.mjs
+index 3d4a89de4812bfcec75853bff9a208b8c7d691b7..cfd44fed3e52a9c2baba19f0ef505e49387496a3 100644
+--- a/dist/FragmentsModels/src/multithreading/fragments-connection.mjs
++++ b/dist/FragmentsModels/src/multithreading/fragments-connection.mjs
+@@ -141,6 +141,7 @@ class FragmentsConnection extends Connection {
+     const newThread = MultithreadingHelper.newThread(url, this._classicWorker);
+     this.setupThread(newThread);
+     this._data.setAmount(newThread, 1);
++    this._data.addModelBytes(newThread, input);
+     this._data.setThreadGroup(newThread, group);
+     this._data.set(input.modelId, newThread);
+     return this._data.getPort(newThread);
+diff --git a/dist/FragmentsModels/src/multithreading/threads-data.mjs b/dist/FragmentsModels/src/multithreading/threads-data.mjs
+index 132c37f76c812821a6b3ad9af7dfb3a98f3ef6cd..27c8cf50ed7f48784d7f75c3eac32c0cfd68aa7e 100644
+--- a/dist/FragmentsModels/src/multithreading/threads-data.mjs
++++ b/dist/FragmentsModels/src/multithreading/threads-data.mjs
+@@ -9,6 +9,22 @@ class ThreadsData {
+   _threadGroup = /* @__PURE__ */ new Map();
+   // Per-model group tag, mirrors what the user passed at load().
+   _modelGroup = /* @__PURE__ */ new Map();
++  // FreeField patch (load balance): bytes of model data per worker and
++  // per model, so a new model goes to the worker with the LEAST DATA
++  // (not the fewest models) — a big model no longer shares a worker
++  // with the next-biggest one just because both pools hold one model.
++  _threadBytes = /* @__PURE__ */ new Map();
++  _modelBytes = /* @__PURE__ */ new Map();
++  static modelBytesOf(input) {
++    const data = input?.modelData;
++    const n = data?.byteLength;
++    return typeof n === "number" && Number.isFinite(n) ? n : 0;
++  }
++  addModelBytes(thread, input) {
++    const bytes = ThreadsData.modelBytesOf(input);
++    if (input?.modelId !== void 0) this._modelBytes.set(input.modelId, bytes);
++    this._threadBytes.set(thread, (this._threadBytes.get(thread) ?? 0) + bytes);
++  }
+   get path() {
+     return this._threadPath;
+   }
+@@ -66,6 +82,9 @@ class ThreadsData {
+     const threadModelAmount = this.getAmountSafe(modelThread);
+     const newModelAmount = threadModelAmount - 1;
+     this.setAmount(modelThread, newModelAmount);
++    const bytes = this._modelBytes.get(modelId) ?? 0;
++    this._modelBytes.delete(modelId);
++    this._threadBytes.set(modelThread, Math.max(0, (this._threadBytes.get(modelThread) ?? 0) - bytes));
+     this._modelThread.delete(modelId);
+     this._modelGroup.delete(modelId);
+   }
+@@ -78,6 +97,7 @@ class ThreadsData {
+   }
+   deleteThread(thread) {
+     this._threadsModelAmount.delete(thread);
++    this._threadBytes.delete(thread);
+     this._threadPort.delete(thread);
+     this._threadGroup.delete(thread);
+     thread.terminate();
+@@ -95,9 +115,12 @@ class ThreadsData {
+     const target = group ?? DEFAULT_POOL;
+     let lessBusyThread = null;
+     let modelAmount = Number.MAX_VALUE;
++    let leastBytes = Number.MAX_VALUE;
+     for (const [thread, amount] of this._threadsModelAmount) {
+       if (this._threadGroup.get(thread) !== target) continue;
+-      if (amount < modelAmount) {
++      const bytes = this._threadBytes.get(thread) ?? 0;
++      if (bytes < leastBytes || bytes === leastBytes && amount < modelAmount) {
++        leastBytes = bytes;
+         modelAmount = amount;
+         lessBusyThread = thread;
+       }
+@@ -108,6 +131,7 @@ class ThreadsData {
+       );
+     }
+     this._threadsModelAmount.set(lessBusyThread, modelAmount + 1);
++    this.addModelBytes(lessBusyThread, input);
+     this._modelThread.set(input.modelId, lessBusyThread);
+     return this._threadPort.get(lessBusyThread);
+   }
+diff --git a/dist/Worker/worker.mjs b/dist/Worker/worker.mjs
+index ce21df6f6479106297c885280d296d369efe9f41..6a0120ef63c660ba6cc4b89384b670293ab2b131 100644
+--- a/dist/Worker/worker.mjs
++++ b/dist/Worker/worker.mjs
+@@ -31742,6 +31742,584 @@ class VirtualMemoryController {
+     };
+   }
+ }
++/**
++ * FreeField patch (split tile build). A big model's tile geometry is
++ * built on ONE worker by design (one model = one worker), which leaves
++ * the other cores idle while it fills in. This spreads the builds:
++ * the owner worker spawns `helpers` nested workers (same script), each
++ * holding a read-only copy of the model bytes, and hands them tile
++ * builds. The owner keeps all state and still builds tiles itself
++ * between helper results; the main thread sees ONE model on ONE worker,
++ * exactly as before (same model id, local ids, tile ids, messages).
++ *
++ * Opt-in per load: `virtualModelConfig.splitTileBuild = { helpers,
++ * minBytes, inflight?, cacheBytes?, workerType? }`. Any failure (no
++ * nested workers, helper crash, build error) falls back to building
++ * that tile on the owner, so the worst case is the original behavior.
++ */
++class SplitTileBuild {
++  static create(modelId, modelData, options) {
++    if (!options || typeof options !== "object") return null;
++    const count = Math.floor(Number(options.helpers) || 0);
++    const bytes = modelData && typeof modelData.byteLength === "number" ? modelData.byteLength : 0;
++    const minBytes = Number(options.minBytes) || 0;
++    if (count < 1 || bytes === 0 || bytes < minBytes) return null;
++    if (typeof Worker === "undefined" || typeof self === "undefined" || !self.location) {
++      return null;
++    }
++    const src = modelData instanceof Uint8Array ? modelData : new Uint8Array(modelData);
++    const workers = [];
++    for (let i = 0; i < count; i++) {
++      let worker;
++      try {
++        const type = options.workerType === "classic" ? "classic" : "module";
++        worker = new Worker(self.location.href, { type });
++      } catch (e) {
++        console.warn("Fragments: split tile build unavailable:", e);
++        break;
++      }
++      const copy = src.slice();
++      worker.postMessage(
++        {
++          ffTileHelper: "init",
++          modelId,
++          data: copy.buffer,
++          cacheBytes: options.cacheBytes
++        },
++        [copy.buffer]
++      );
++      workers.push(worker);
++    }
++    if (workers.length === 0) return null;
++    return new SplitTileBuild(modelId, workers, options);
++  }
++  _modelId;
++  _tiles = void 0;
++  _helpers = [];
++  _queue = [];
++  _queueHead = 0;
++  _jobs = /* @__PURE__ */ new Map();
++  _nextJob = 1;
++  _maxInflight = 2;
++  _disposed = false;
++  constructor(modelId, workers, options) {
++    this._modelId = modelId;
++    const inflight = Math.floor(Number(options.inflight) || 0);
++    if (inflight > 0) this._maxInflight = inflight;
++    for (const worker of workers) {
++      const helper = { worker, inflight: 0, alive: true };
++      worker.onmessage = (event) => this.onHelperMessage(helper, event.data);
++      worker.onerror = (event) => this.onHelperFailure(helper, event);
++      this._helpers.push(helper);
++    }
++  }
++  attach(tiles) {
++    this._tiles = tiles;
++  }
++  /** Tiles queued or out on a helper. */
++  get busy() {
++    return this._queue.length > this._queueHead || this._jobs.size > 0;
++  }
++  get alive() {
++    for (const helper of this._helpers) {
++      if (helper.alive) return true;
++    }
++    return false;
++  }
++  /** Queue a tile build; false = build it now on the owner (no helpers left). */
++  enqueue(tile, tileId) {
++    if (this._disposed || !this.alive) return false;
++    if (tile.pending) return true;
++    tile.pending = true;
++    this._queue.push(tileId);
++    return true;
++  }
++  /** Owner tick: hand out builds, then build on the owner within the tick budget. */
++  pump(time) {
++    if (this._disposed || !this._tiles) return;
++    this.dispatch();
++    const budget = this._tiles._params.updateTime;
++    while (this._queue.length > this._queueHead && performance.now() - time < budget) {
++      const tileId = this.nextQueued();
++      this.buildOnOwner(tileId);
++    }
++    this.compactQueue();
++    this.dispatch();
++  }
++  nextQueued() {
++    const tileId = this._queue[this._queueHead];
++    this._queue[this._queueHead] = void 0;
++    this._queueHead++;
++    return tileId;
++  }
++  compactQueue() {
++    if (this._queueHead === 0) return;
++    if (this._queueHead >= this._queue.length) {
++      this._queue = [];
++      this._queueHead = 0;
++    } else if (this._queueHead > 1024) {
++      this._queue = this._queue.slice(this._queueHead);
++      this._queueHead = 0;
++    }
++  }
++  buildOnOwner(tileId) {
++    const tile = this._tiles._tiles.get(tileId);
++    if (!tile || !tile.pending) return;
++    this._tiles.buildNewVirtualTileNow(tile, tileId);
++  }
++  dispatch() {
++    if (this._disposed || !this._tiles) return;
++    while (this._queue.length > this._queueHead) {
++      let target = null;
++      for (const helper of this._helpers) {
++        if (!helper.alive || helper.inflight >= this._maxInflight) continue;
++        if (!target || helper.inflight < target.inflight) target = helper;
++      }
++      if (!target) break;
++      const tileId = this.nextQueued();
++      const tile = this._tiles._tiles.get(tileId);
++      if (!tile || !tile.pending) continue;
++      const job = this._nextJob++;
++      this._jobs.set(job, { tileId, tile, helper: target });
++      target.inflight++;
++      target.worker.postMessage({
++        ffTileHelper: "build",
++        modelId: this._modelId,
++        job,
++        desc: this._tiles.tileBuildDescriptor(tile)
++      });
++    }
++    this.compactQueue();
++  }
++  onHelperMessage(helper, msg) {
++    if (!msg || msg.ffTileHelper !== "built") return;
++    const job = this._jobs.get(msg.job);
++    if (!job) return;
++    this._jobs.delete(msg.job);
++    helper.inflight--;
++    if (this._disposed || !this._tiles) return;
++    if (!job.tile.pending) return;
++    if (msg.error) {
++      console.warn("Fragments: helper tile build failed, building on the owner:", msg.error);
++      helper.alive = false;
++      helper.worker.terminate();
++      this.requeueJobsOf(helper);
++      this._tiles.buildNewVirtualTileNow(job.tile, job.tileId);
++    } else {
++      this._tiles.applyDetachedBuild(job.tileId, job.tile, msg.result);
++    }
++    this.dispatch();
++  }
++  onHelperFailure(helper, event) {
++    if (!helper.alive) return;
++    console.warn("Fragments: tile build helper failed:", event && event.message);
++    helper.alive = false;
++    helper.worker.terminate();
++    this.requeueJobsOf(helper);
++  }
++  /** A dead helper's jobs go back to the FRONT of the queue (they were the biggest). */
++  requeueJobsOf(helper) {
++    const back = [];
++    for (const [job, entry] of this._jobs) {
++      if (entry.helper !== helper) continue;
++      this._jobs.delete(job);
++      back.push(entry.tileId);
++    }
++    helper.inflight = 0;
++    if (back.length === 0) return;
++    const rest = this._queue.slice(this._queueHead);
++    this._queue = back.concat(rest);
++    this._queueHead = 0;
++  }
++  dispose() {
++    this._disposed = true;
++    for (const helper of this._helpers) {
++      helper.alive = false;
++      try {
++        helper.worker.terminate();
++      } catch {
++      }
++    }
++    this._jobs.clear();
++    this._queue = [];
++    this._queueHead = 0;
++  }
++}
++/**
++ * FreeField patch (tile cache). Built tile geometry (the worker's output)
++ * is stored in IndexedDB per model and restored on the next load of the
++ * SAME model bytes instead of being rebuilt. Tile layout and contents
++ * are a pure function of the model bytes and this engine build (face ids
++ * aside, which are random per face by design), so a cached tile is the
++ * tile the worker would build. Records are validated against the tile's
++ * layout (counts, size, lod, class) before use; any mismatch, error or
++ * a slow store makes that tile build normally.
++ *
++ * Opt-in per load: `virtualModelConfig.tileCache = { key, maxModels?,
++ * waitMs? }`. `key` must change whenever the model bytes change.
++ */
++class TileCache {
++  static DB_NAME = "ff-fragments-tile-cache";
++  /** Bump whenever tile building or the record shape changes. */
++  static FORMAT = "w62.2";
++  static WAIT = "wait";
++  static MISS = "miss";
++  /** Records per read request. */
++  static READ_BATCH = 32;
++  /** Records written per owner tick once the view is drawn. */
++  static WRITE_BATCH = 16;
++  static create(modelData, options) {
++    if (!options || typeof options !== "object") return null;
++    if (typeof options.key !== "string" || options.key.length === 0) return null;
++    if (typeof indexedDB === "undefined") return null;
++    const bytes = modelData && typeof modelData.byteLength === "number" ? modelData.byteLength : 0;
++    const minBytes = Number(options.minBytes) || 0;
++    if (bytes === 0 || bytes < minBytes) return null;
++    return new TileCache(options, bytes, TileCache.fingerprint(modelData));
++  }
++  /**
++   * Cheap content fingerprint (FNV-1a over ~512 strided 128-byte windows
++   * plus the tail), so a key reused for different bytes still misses.
++   */
++  static fingerprint(modelData) {
++    const u8 = modelData instanceof Uint8Array ? modelData : new Uint8Array(modelData);
++    const n = u8.length;
++    let h = 2166136261;
++    const width = 128;
++    const step = Math.max(width, Math.floor(n / 512));
++    for (let start = 0; start < n; start += step) {
++      const end = Math.min(n, start + width);
++      for (let i = start; i < end; i++) {
++        h ^= u8[i];
++        h = Math.imul(h, 16777619);
++      }
++    }
++    for (let i = Math.max(0, n - width); i < n; i++) {
++      h ^= u8[i];
++      h = Math.imul(h, 16777619);
++    }
++    return (h >>> 0).toString(16);
++  }
++  _key;
++  _maxModels = 4;
++  /** A waiting tile is built normally once the store made no progress for this long. */
++  _stallMs = 2e3;
++  _tiles = void 0;
++  _db = null;
++  /** "meta" (reading what is stored) -> "reading" -> "ready"; "off" after any failure. */
++  _state = "meta";
++  /** Stored tile ids (from the model's meta record + this session's writes). */
++  _known = /* @__PURE__ */ new Set();
++  _records = /* @__PURE__ */ new Map();
++  _waiting = [];
++  /** Waiting tiles need a look (new records, state change, stall). */
++  _dirty = false;
++  _writes = [];
++  _writing = false;
++  _nextSeq = 0;
++  _progressAt = 0;
++  _disposed = false;
++  constructor(options, bytes, fingerprint) {
++    this._key = `${TileCache.FORMAT}|${bytes}|${fingerprint}|${options.key}`;
++    const maxModels = Math.floor(Number(options.maxModels) || 0);
++    if (maxModels > 0) this._maxModels = maxModels;
++    const stallMs = Number(options.waitMs);
++    if (Number.isFinite(stallMs) && stallMs >= 0) this._stallMs = stallMs;
++    this._progressAt = performance.now();
++    this.open().catch((e) => this.fail(e));
++  }
++  attach(tiles) {
++    this._tiles = tiles;
++  }
++  /** Tiles waiting for the store (they hold the view's FINISH; pending writes do not). */
++  get busy() {
++    return this._waiting.length > 0;
++  }
++  /** Something to do on the next tick (else the owner can idle while the store reads). */
++  get hasWork() {
++    return this._waiting.length > 0 && (this._dirty || this.stalled);
++  }
++  get stalled() {
++    return performance.now() - this._progressAt > this._stallMs;
++  }
++  progress() {
++    this._progressAt = performance.now();
++    this._dirty = true;
++  }
++  /** A cached build for `tile`, WAIT (records still loading) or MISS. */
++  lookup(tile, tileId) {
++    if (this._state === "off" || this._disposed) return TileCache.MISS;
++    if (this._state === "meta") return this.stalled ? TileCache.MISS : TileCache.WAIT;
++    if (!this._known.has(tileId)) return TileCache.MISS;
++    const rec = this._records.get(tileId);
++    if (rec === void 0) {
++      if (this._state === "ready" || this.stalled) return TileCache.MISS;
++      return TileCache.WAIT;
++    }
++    this._records.delete(tileId);
++    if (!TileCache.matches(rec, tile)) return TileCache.MISS;
++    return TileCache.toResult(rec, this._tiles);
++  }
++  static matches(rec, tile) {
++    return rec.positionCount === tile.positionCount && rec.indexCount === tile.indexCount && rec.normalCount === tile.normalCount && rec.size === tile.size && rec.lod === tile.lod && rec.objectClass === tile.objectClass && rec.positions instanceof Float32Array && rec.positions.length === tile.positionCount && rec.faceIdRaw instanceof Uint32Array && rec.faceIdRaw.length === tile.positionCount / 3;
++  }
++  static toResult(rec, tiles) {
++    return {
++      fromCache: true,
++      positions: rec.positions,
++      indices: rec.indices,
++      normals: rec.normals,
++      ids: rec.ids,
++      faceIds: tiles.getFaceIds({ faceIdBuffer: rec.faceIdRaw }),
++      localIds: rec.localIds,
++      usedMemory: rec.usedMemory,
++      location: rec.location,
++      box: rec.box
++    };
++  }
++  wait(tileId) {
++    this._waiting.push(tileId);
++  }
++  /** Owner tick: resolve waiting tiles within the budget; write when the view is drawn. */
++  pump(time) {
++    if (!this._tiles) return;
++    if (this._waiting.length > 0 && (this._dirty || this.stalled)) {
++      this._dirty = false;
++      const tiles = this._tiles;
++      const budget = tiles._params.updateTime;
++      const still = [];
++      let i = 0;
++      for (; i < this._waiting.length; i++) {
++        if (performance.now() - time >= budget) {
++          this._dirty = true;
++          break;
++        }
++        const tileId = this._waiting[i];
++        const tile = tiles._tiles.get(tileId);
++        if (!tile || !tile.pending) continue;
++        const cached = this.lookup(tile, tileId);
++        if (cached === TileCache.WAIT) {
++          still.push(tileId);
++        } else if (cached === TileCache.MISS) {
++          tiles.buildNewVirtualTileMissed(tile, tileId);
++        } else {
++          tiles.applyDetachedBuild(tileId, tile, cached);
++        }
++      }
++      this._waiting = still.concat(this._waiting.slice(i));
++    }
++    if (this._writes.length > 0 && this._tiles.tilesUpdated) {
++      this.writeBatch();
++    }
++  }
++  /**
++   * Queue a freshly built tile for storage. Copies (the buffers go to the
++   * main thread); written in small batches only once the view is drawn,
++   * so a first load is not slowed down by the store.
++   */
++  store(tileId, tile, faceIdRaw, localIds) {
++    if (this._state === "off" || this._disposed || this._known.has(tileId)) return;
++    if (!tile.positionBuffer || !faceIdRaw) return;
++    this._known.add(tileId);
++    const loc = tile.location;
++    const box = tile.box;
++    this._writes.push({
++      tileId,
++      positionCount: tile.positionCount,
++      indexCount: tile.indexCount,
++      normalCount: tile.normalCount,
++      size: tile.size,
++      lod: tile.lod,
++      objectClass: tile.objectClass,
++      positions: tile.positionBuffer.slice(),
++      indices: tile.indexBuffer ? tile.indexBuffer.slice() : void 0,
++      normals: tile.normalBuffer ? tile.normalBuffer.slice() : void 0,
++      ids: tile.ids ? tile.ids.slice() : void 0,
++      faceIdRaw: faceIdRaw.slice(),
++      localIds: localIds.slice(),
++      usedMemory: tile.usedMemory,
++      location: loc ? [loc.x, loc.y, loc.z] : null,
++      box: [box.min.x, box.min.y, box.min.z, box.max.x, box.max.y, box.max.z]
++    });
++  }
++  writeBatch() {
++    if (this._writing || !this._db || this._state === "meta" || this._state === "reading") return;
++    const batch = this._writes.splice(0, TileCache.WRITE_BATCH);
++    if (batch.length === 0) return;
++    this._writing = true;
++    try {
++      const tx = this._db.transaction(["tiles", "models"], "readwrite");
++      const tilesStore = tx.objectStore("tiles");
++      const ids = [];
++      for (const rec of batch) {
++        // Keyed by build order: the next load reads them back in the
++        // order this view needed them (biggest first).
++        rec.seq = this._nextSeq++;
++        tilesStore.put(rec, [this._key, rec.seq]);
++        ids.push(rec.tileId);
++      }
++      this._storedIds.push(...ids);
++      tx.objectStore("models").put(
++        { key: this._key, used: Date.now(), tileIds: this._storedIds, nextSeq: this._nextSeq },
++        this._key
++      );
++      tx.oncomplete = () => {
++        this._writing = false;
++      };
++      tx.onerror = () => this.fail(tx.error);
++      tx.onabort = () => this.fail(tx.error);
++    } catch (e) {
++      this.fail(e);
++    }
++  }
++  _storedIds = [];
++  async open() {
++    const db = await TileCache.request(indexedDB.open(TileCache.DB_NAME, 1), (req) => {
++      req.onupgradeneeded = () => {
++        const d = req.result;
++        if (!d.objectStoreNames.contains("tiles")) d.createObjectStore("tiles");
++        if (!d.objectStoreNames.contains("models")) d.createObjectStore("models");
++      };
++    });
++    if (this._disposed) {
++      db.close();
++      return;
++    }
++    this._db = db;
++    db.onversionchange = () => {
++      db.close();
++      this._db = null;
++      this.fail("version change");
++    };
++    const models = await TileCache.request(db.transaction("models").objectStore("models").getAll());
++    const mine = models.find((m) => m && m.key === this._key);
++    await this.evict(models);
++    if (!mine || !Array.isArray(mine.tileIds) || mine.tileIds.length === 0) {
++      this._state = "ready";
++      this.progress();
++      return;
++    }
++    for (const id of mine.tileIds) this._known.add(id);
++    this._storedIds = mine.tileIds.slice();
++    this._nextSeq = Number(mine.nextSeq) || mine.tileIds.length;
++    this._state = "reading";
++    this.progress();
++    db.transaction("models", "readwrite").objectStore("models").put({ ...mine, used: Date.now() }, this._key);
++    // Read in key (= build) order, in batches, so waiting tiles are
++    // applied while the rest still streams in.
++    let lower = IDBKeyRange.bound([this._key, -Infinity], [this._key, Infinity]);
++    for (; ; ) {
++      if (this._disposed || this._state === "off") return;
++      const store = db.transaction("tiles").objectStore("tiles");
++      const values = await TileCache.request(store.getAll(lower, TileCache.READ_BATCH));
++      let lastSeq = -Infinity;
++      for (const rec of values) {
++        if (!rec || typeof rec.tileId !== "number") continue;
++        this._records.set(rec.tileId, rec);
++        if (rec.seq > lastSeq) lastSeq = rec.seq;
++      }
++      this.progress();
++      if (values.length < TileCache.READ_BATCH || lastSeq === -Infinity) break;
++      lower = IDBKeyRange.bound([this._key, lastSeq], [this._key, Infinity], true, false);
++    }
++    this._state = "ready";
++    this.progress();
++  }
++  /** Keep the most recently used models (this one included), drop the rest. */
++  async evict(models) {
++    const others = models.filter((m) => m && m.key !== this._key).sort((a, b) => (b.used || 0) - (a.used || 0));
++    const drop = others.slice(Math.max(0, this._maxModels - 1));
++    if (drop.length === 0) return;
++    const tx = this._db.transaction(["tiles", "models"], "readwrite");
++    for (const m of drop) {
++      tx.objectStore("tiles").delete(IDBKeyRange.bound([m.key, -Infinity], [m.key, Infinity]));
++      tx.objectStore("models").delete(m.key);
++    }
++    await new Promise((resolve) => {
++      tx.oncomplete = resolve;
++      tx.onerror = resolve;
++      tx.onabort = resolve;
++    });
++  }
++  static request(req, setup) {
++    return new Promise((resolve, reject) => {
++      if (setup) setup(req);
++      req.onsuccess = () => resolve(req.result);
++      req.onerror = () => reject(req.error);
++    });
++  }
++  fail(e) {
++    if (this._state !== "off") {
++      console.warn("Fragments: tile cache disabled:", e);
++    }
++    this._state = "off";
++    this._records.clear();
++    this._writes = [];
++    this._dirty = true;
++  }
++  dispose() {
++    this._disposed = true;
++    this._records.clear();
++    this._waiting = [];
++    this._writes = [];
++    const db = this._db;
++    this._db = null;
++    if (db) setTimeout(() => db.close(), 0);
++  }
++}
++/** FreeField patch (split tile build): the helper-worker side. */
++class TileBuildHost {
++  static _models = /* @__PURE__ */ new Map();
++  static handle(msg) {
++    if (msg.ffTileHelper === "init") {
++      try {
++        if (typeof msg.cacheBytes === "number" && msg.cacheBytes > 0) {
++          VirtualMemoryController.setCapacity(msg.cacheBytes);
++        }
++        const bytes = new Uint8Array(msg.data);
++        const model = Model.getRootAsModel(new ByteBuffer(bytes));
++        const tiles = new VirtualTilesController({
++          buildOnly: true,
++          modelId: msg.modelId,
++          model
++        });
++        this._models.set(msg.modelId, tiles);
++      } catch (e) {
++        this._models.set(msg.modelId, e);
++      }
++      return;
++    }
++    if (msg.ffTileHelper === "build") {
++      const tiles = this._models.get(msg.modelId);
++      try {
++        if (!(tiles instanceof VirtualTilesController)) {
++          throw tiles instanceof Error ? tiles : new Error("Fragments: helper has no model " + msg.modelId);
++        }
++        const result = tiles.buildDetached(msg.desc);
++        const transfer = [];
++        for (const key of ["positions", "indices", "normals", "ids", "faceIds", "faceIdRaw", "localIds"]) {
++          const buffer = result[key];
++          if (buffer && buffer.buffer && !transfer.includes(buffer.buffer)) {
++            transfer.push(buffer.buffer);
++          }
++        }
++        globalThis.postMessage({ ffTileHelper: "built", job: msg.job, result }, transfer);
++      } catch (e) {
++        globalThis.postMessage({
++          ffTileHelper: "built",
++          job: msg.job,
++          error: String(e && e.stack || e)
++        });
++      }
++      return;
++    }
++    if (msg.ffTileHelper === "dispose") {
++      const tiles = this._models.get(msg.modelId);
++      this._models.delete(msg.modelId);
++      if (tiles instanceof VirtualTilesController) tiles.dispose();
++    }
++  }
++}
+ class VirtualTilesController {
+   meshes;
+   tilesUpdated = false;
+@@ -31832,6 +32410,24 @@ class VirtualTilesController {
+   _outsideMask;
+   _lodMode = LodMode.DEFAULT;
+   constructor(data) {
++    if (data.buildOnly) {
++      // FreeField patch (split tile build): a tile-build helper. Holds
++      // only what `constructTile` reads (meshes, mesh templates, local
++      // ids) — no boxes, items, view, sweep or main-thread connection.
++      this._modelId = data.modelId;
++      this._model = data.model;
++      this._materials = [];
++      this._meshConnection = new MeshConnection(data.modelId, void 0, void 0);
++      this.meshes = data.model.meshes();
++      const shells2 = new VirtualShellManager(this._modelId, this.meshes);
++      this._virtualMeshes.set(shells2.getRepresentation(), shells2);
++      const ces2 = new VirtualCircleExtrusionManager(this._modelId, this.meshes);
++      this._virtualMeshes.set(ces2.getRepresentation(), ces2);
++      for (const [, mesh] of this._virtualMeshes) {
++        mesh.setupTemplates();
++      }
++      return;
++    }
+     this._modelId = data.modelId;
+     this._model = data.model;
+     this._boxes = data.boxes;
+@@ -31872,6 +32468,14 @@ class VirtualTilesController {
+     return mesh.fetchMeshes(id, true);
+   }
+   dispose() {
++    if (this._splitBuild) {
++      this._splitBuild.dispose();
++      this._splitBuild = void 0;
++    }
++    if (this._tileCache) {
++      this._tileCache.dispose();
++      this._tileCache = void 0;
++    }
+     this._meshConnection.dispose();
+     for (const [, mesh] of this._virtualMeshes) {
+       mesh.dispose();
+@@ -32006,8 +32610,15 @@ class VirtualTilesController {
+   }
+   async update(time) {
+     this.updateTiles(time);
++    if (this._tileCache) {
++      this._tileCache.pump(time);
++    }
++    if (this._splitBuild) {
++      this._splitBuild.pump(time);
++    }
+     for (const tileId of this._tilesChanged) {
+       const tile = this._tiles.get(tileId);
++      if (tile.pending) continue;
+       this._meshConnection.process({
+         tileRequestClass: TileRequestClass.UPDATE,
+         modelId: this._modelId,
+@@ -32091,7 +32702,8 @@ class VirtualTilesController {
+   notifyUpdateFinished() {
+     const noficationNotSentYet = !this.tilesUpdated;
+     const samplesUpdated = this._changedSamples >= this._sampleAmount;
+-    const updateFinished = samplesUpdated && noficationNotSentYet;
++    const buildsPending = this._splitBuild !== void 0 && this._splitBuild.busy || this._tileCache !== void 0 && this._tileCache.busy;
++    const updateFinished = samplesUpdated && noficationNotSentYet && !buildsPending;
+     if (!updateFinished) {
+       return;
+     }
+@@ -32284,19 +32896,41 @@ class VirtualTilesController {
+     return { highlightData, highlightIds };
+   }
+   setupTileSampleAttributes(tile, location, geometry, sample) {
++    // FreeField patch (perf): the Vector3 fromArray / applyMatrix4 /
++    // transformDirection / toArray chain, inlined with the exact same
++    // float operations in the same order (bit-identical output), without
++    // the per-vertex method calls over mixed typed-array kinds.
++    const e = this._temp.matrix.elements;
++    const e0 = e[0], e1 = e[1], e2 = e[2], e3 = e[3];
++    const e4 = e[4], e5 = e[5], e6 = e[6], e7 = e[7];
++    const e8 = e[8], e9 = e[9], e10 = e[10], e11 = e[11];
++    const e12 = e[12], e13 = e[13], e14 = e[14], e15 = e[15];
+     const resultPosition = tile.vertexLocation[location] * 3;
+-    for (let i = 0; i < geometry.positionBuffer.length; i += 3) {
+-      this._temp.vector.fromArray(geometry.positionBuffer, i);
+-      this._temp.vector.applyMatrix4(this._temp.matrix);
+-      this._temp.vector.toArray(tile.positionBuffer, resultPosition + i);
++    const srcPos = geometry.positionBuffer;
++    const dstPos = tile.positionBuffer;
++    for (let i = 0; i < srcPos.length; i += 3) {
++      const x = srcPos[i], y = srcPos[i + 1], z = srcPos[i + 2];
++      const w = 1 / (e3 * x + e7 * y + e11 * z + e15);
++      dstPos[resultPosition + i] = (e0 * x + e4 * y + e8 * z + e12) * w;
++      dstPos[resultPosition + i + 1] = (e1 * x + e5 * y + e9 * z + e13) * w;
++      dstPos[resultPosition + i + 2] = (e2 * x + e6 * y + e10 * z + e14) * w;
+     }
+     if (tile.normalBuffer) {
+       const resultPosition2 = tile.vertexLocation[location] * 3;
+-      for (let i = 0; i < geometry.normalBuffer.length; i += 3) {
+-        this._temp.vector.fromArray(geometry.normalBuffer, i);
+-        this._temp.vector.transformDirection(this._temp.matrix);
+-        this._temp.vector.multiplyScalar(normalizationValue);
+-        this._temp.vector.toArray(tile.normalBuffer, resultPosition2 + i);
++      const srcNor = geometry.normalBuffer;
++      const dstNor = tile.normalBuffer;
++      for (let i = 0; i < srcNor.length; i += 3) {
++        const x = srcNor[i], y = srcNor[i + 1], z = srcNor[i + 2];
++        let nx = e0 * x + e4 * y + e8 * z;
++        let ny = e1 * x + e5 * y + e9 * z;
++        let nz = e2 * x + e6 * y + e10 * z;
++        const inv = 1 / (Math.sqrt(nx * nx + ny * ny + nz * nz) || 1);
++        nx *= inv;
++        ny *= inv;
++        nz *= inv;
++        dstNor[resultPosition2 + i] = nx * normalizationValue;
++        dstNor[resultPosition2 + i + 1] = ny * normalizationValue;
++        dstNor[resultPosition2 + i + 2] = nz * normalizationValue;
+       }
+     }
+     if (tile.indexBuffer) {
+@@ -32486,8 +33120,40 @@ class VirtualTilesController {
+     a.vertexLocation.push((a.positionCount || 0) / 3);
+   }
+   buildNewVirtualTile(tile, tileId) {
++    if (this._tileCache !== void 0 && !tile.location && !tile.pending) {
++      const cached = this._tileCache.lookup(tile, tileId);
++      if (cached === TileCache.WAIT) {
++        tile.pending = true;
++        this._tileCache.wait(tileId);
++        return;
++      }
++      if (cached !== TileCache.MISS) {
++        this.applyDetachedBuild(tileId, tile, cached);
++        return;
++      }
++    }
++    this.buildNewVirtualTileMissed(tile, tileId);
++  }
++  /** FreeField patch: build a tile the tile cache does not hold. */
++  buildNewVirtualTileMissed(tile, tileId) {
++    tile.pending = false;
++    if (this._splitBuild !== void 0 && this._splitBuild.enqueue(tile, tileId)) {
++      return;
++    }
++    this.buildNewVirtualTileNow(tile, tileId);
++  }
++  /** FreeField patch (split tile build): the original, synchronous build. */
++  buildNewVirtualTileNow(tile, tileId) {
++    tile.pending = false;
++    const isStart = !tile.location;
+     this.constructTile(tile);
+-    this.loadTile(tileId, tile);
++    if (this._tileCache !== void 0 && isStart) {
++      const localIds = this.getTileLocalIds(tile);
++      this._tileCache.store(tileId, tile, tile.faceIdBuffer, localIds);
++      this.loadTile(tileId, tile, { faceIds: this.getFaceIds(tile), localIds });
++    } else {
++      this.loadTile(tileId, tile);
++    }
+     tile.notVirtual = true;
+     delete tile.indexBuffer;
+     delete tile.positionBuffer;
+@@ -32496,6 +33162,11 @@ class VirtualTilesController {
+     delete tile.ids;
+   }
+   deleteTileIfNeeded(tile, tileId) {
++    if (tile.pending) {
++      // Not on the main thread yet: its CREATE, sent when the build
++      // lands, carries the then-current visibility / highlight data.
++      return;
++    }
+     const shouldDelete = this.getShouldDeleteTile(tile);
+     if (shouldDelete) {
+       this.deleteGeometry(tileId);
+@@ -32716,6 +33387,9 @@ class VirtualTilesController {
+   updateTile(tileId, sample, highlight, visible) {
+     const tile = this._tiles.get(tileId);
+     this.updateTileData(tile, sample, visible, highlight);
++    if (tile.pending) {
++      return;
++    }
+     if (tile.notVirtual) {
+       this._tilesChanged.add(tileId);
+       return;
+@@ -32893,10 +33567,10 @@ class VirtualTilesController {
+     }
+     return distance * this._temp.viewDimension;
+   }
+-  loadTile(tileId, tile) {
++  loadTile(tileId, tile, prebuilt) {
+     const tileData = this.getTileData(tile);
+     this.fetchTileMatrixOnLoad(tile);
+-    const faceIds = this.getFaceIds(tile);
++    const faceIds = prebuilt ? prebuilt.faceIds : this.getFaceIds(tile);
+     this._meshConnection.process({
+       tileRequestClass: TileRequestClass.CREATE,
+       modelId: this._modelId,
+@@ -32909,7 +33583,7 @@ class VirtualTilesController {
+       normals: tile.normalBuffer,
+       faceIds,
+       itemIds: tile.ids,
+-      localIds: this.getTileLocalIds(tile),
++      localIds: prebuilt ? prebuilt.localIds : this.getTileLocalIds(tile),
+       material: tile.materialId,
+       matrix: this._temp.matrix.clone(),
+       aabb: tile.box.clone(),
+@@ -32937,19 +33611,203 @@ class VirtualTilesController {
+     }
+     return Uint32Array.from(localIds);
+   }
++  // ── FreeField patch (split tile build) ─────────────────────────
++  // One model's tiles are built by its owner worker AND by helper
++  // workers holding a read-only copy of the model (see SplitTileBuild).
++  // The owner keeps every piece of state (sweep, visibility, highlight,
++  // tile layout, memory); a helper only turns a tile descriptor into
++  // the tile's buffers with the very same code (`fetchSample` /
++  // `tileLoadSample` / `getFaceIds` / `getTileLocalIds`), so a tile is
++  // bit-identical wherever it was built.
++  /**
++   * FreeField patch: nothing to do on this worker but wait (tile builds
++   * out on helpers, records still loading from the tile cache), so the
++   * updater may idle briefly instead of spinning.
++   */
++  get idleWaiting() {
++    if (this.tilesUpdated) return true;
++    if (this._changedSamples < this._sampleAmount || this._tilesChanged.size > 0) return false;
++    const split = this._splitBuild;
++    if (split !== void 0 && split._queue.length > split._queueHead) return false;
++    const cache = this._tileCache;
++    if (cache !== void 0 && cache.hasWork) return false;
++    return (split !== void 0 && split.busy) || (cache !== void 0 && cache.busy);
++  }
++  useTileCache(cache) {
++    this._tileCache = cache;
++    cache.attach(this);
++  }
++  useSplitBuild(split) {
++    this._splitBuild = split;
++    split.attach(this);
++  }
++  /** Owner side: what a helper needs to build `tile`. */
++  tileBuildDescriptor(tile) {
++    const n = tile.sampleLocation.size;
++    const samples = new Int32Array(n);
++    const locations = new Int32Array(n);
++    let k = 0;
++    for (const [sample, location] of tile.sampleLocation) {
++      samples[k] = sample;
++      locations[k] = location;
++      k++;
++    }
++    const loc = tile.location;
++    return {
++      objectClass: tile.objectClass,
++      materialId: tile.materialId,
++      lod: tile.lod,
++      size: tile.size,
++      positionCount: tile.positionCount,
++      indexCount: tile.indexCount,
++      normalCount: tile.normalCount,
++      samples,
++      locations,
++      geometriesLocation: tile.geometriesLocation,
++      vertexLocation: tile.vertexLocation,
++      indexLocation: tile.indexLocation,
++      location: loc ? [loc.x, loc.y, loc.z] : null
++    };
++  }
++  /** Helper side: build a tile from its descriptor (see constructTile). */
++  buildDetached(desc) {
++    const tile = this.newTile(desc.objectClass, desc.materialId, desc.lod);
++    tile.size = desc.size;
++    tile.positionCount = desc.positionCount;
++    tile.indexCount = desc.indexCount;
++    tile.normalCount = desc.normalCount;
++    tile.geometriesLocation = desc.geometriesLocation;
++    tile.vertexLocation = desc.vertexLocation;
++    tile.indexLocation = desc.indexLocation;
++    for (let i = 0; i < desc.samples.length; i++) {
++      tile.sampleLocation.set(desc.samples[i], desc.locations[i]);
++    }
++    if (desc.location) {
++      tile.location = new Vector3(desc.location[0], desc.location[1], desc.location[2]);
++    }
++    tile.positionBuffer = new Float32Array(tile.positionCount);
++    tile.usedMemory = tile.positionBuffer.byteLength;
++    this.setTileBuffer(tile, "index", true);
++    this.setTileBuffer(tile, "normal", false);
++    this.setTileShellBuffer(tile);
++    tile.faceIdBuffer = new Uint32Array(tile.positionCount / 3);
++    tile.usedMemory += tile.faceIdBuffer.byteLength;
++    const built = new Uint8Array(desc.samples.length);
++    let k = 0;
++    for (const [id, position] of tile.sampleLocation) {
++      const sample = this.fetchSample(id, tile.lod);
++      if (sample && sample.geometries) {
++        this.tileLoadSample(tile, sample, tile.geometriesLocation[position]);
++        built[k] = 1;
++      }
++      k++;
++    }
++    const loc = tile.location;
++    return {
++      positions: tile.positionBuffer,
++      indices: tile.indexBuffer,
++      normals: tile.normalBuffer,
++      ids: tile.ids,
++      faceIds: this.getFaceIds(tile),
++      faceIdRaw: tile.faceIdBuffer,
++      localIds: this.getTileLocalIds(tile),
++      usedMemory: tile.usedMemory,
++      location: loc ? [loc.x, loc.y, loc.z] : null,
++      built
++    };
++  }
++  /** Owner side: a helper's build landed — send the tile like buildNewVirtualTileNow. */
++  applyDetachedBuild(tileId, tile, result) {
++    tile.pending = false;
++    tile.positionBuffer = result.positions;
++    tile.indexBuffer = result.indices;
++    tile.normalBuffer = result.normals;
++    tile.ids = result.ids;
++    tile.usedMemory = result.usedMemory;
++    const isStart = !tile.location;
++    if (isStart && result.location && result.box) {
++      tile.location = new Vector3(result.location[0], result.location[1], result.location[2]);
++      const b = result.box;
++      tile.box.min.set(b[0], b[1], b[2]);
++      tile.box.max.set(b[3], b[4], b[5]);
++    } else if (isStart && result.location) {
++      tile.location = new Vector3(result.location[0], result.location[1], result.location[2]);
++      let k = 0;
++      for (const [id] of tile.sampleLocation) {
++        if (result.built[k++]) {
++          const box = this._boxes.get(id);
++          this._temp.vector.copy(tile.location);
++          this._temp.vector.negate();
++          box.translate(this._temp.vector);
++          tile.box.union(box);
++        }
++      }
++    }
++    if (this._tileCache !== void 0 && isStart && !result.fromCache && result.faceIdRaw) {
++      this._tileCache.store(tileId, tile, result.faceIdRaw, result.localIds);
++    }
++    this.loadTile(tileId, tile, result);
++    tile.notVirtual = true;
++    delete tile.indexBuffer;
++    delete tile.positionBuffer;
++    delete tile.normalBuffer;
++    delete tile.faceIdBuffer;
++    delete tile.ids;
++  }
+   getFaceIds(tile) {
+-    const tempColor = new Color();
+     const faceIdBuffer = tile.faceIdBuffer;
+     const faceIds = new Float32Array(faceIdBuffer.length * 3);
++    // FreeField patch (perf): `Color.set(hex)` runs the sRGB -> linear
++    // transfer (three Math.pow) per VERTEX — ~20% of a big model's tile
++    // build time. The transfer is per channel and a pure function of the
++    // channel byte, so a 256-entry table built from the very same
++    // `Color.setHex` gives bit-identical values.
++    const lut = VirtualTilesController.faceIdChannelLut();
++    if (!lut) {
++      const tempColor = new Color();
++      for (let i = 0; i < faceIdBuffer.length; i++) {
++        const id = faceIdBuffer[i];
++        tempColor.set(0 + id);
++        faceIds[i * 3] = tempColor.r;
++        faceIds[i * 3 + 1] = tempColor.g;
++        faceIds[i * 3 + 2] = tempColor.b;
++      }
++      return faceIds;
++    }
+     for (let i = 0; i < faceIdBuffer.length; i++) {
+-      const id = faceIdBuffer[i];
+-      tempColor.set(0 + id);
+-      faceIds[i * 3] = tempColor.r;
+-      faceIds[i * 3 + 1] = tempColor.g;
+-      faceIds[i * 3 + 2] = tempColor.b;
++      const hex = Math.floor(0 + faceIdBuffer[i]);
++      faceIds[i * 3] = lut[hex >> 16 & 255];
++      faceIds[i * 3 + 1] = lut[hex >> 8 & 255];
++      faceIds[i * 3 + 2] = lut[hex & 255];
+     }
+     return faceIds;
+   }
++  /**
++   * FreeField patch (perf): per-channel table for {@link getFaceIds}, or
++   * null when the colour pipeline is not a plain per-channel transfer
++   * (then the original per-vertex path runs).
++   */
++  static faceIdChannelLut() {
++    if (VirtualTilesController._faceIdLut !== void 0) {
++      return VirtualTilesController._faceIdLut;
++    }
++    const c = new Color();
++    const lut = new Float64Array(256);
++    let ok = true;
++    for (let v = 0; v < 256 && ok; v++) {
++      c.setHex(v);
++      lut[v] = c.b;
++      const blueOnly = c.r === 0 && c.g === 0;
++      c.setHex(v << 8);
++      const greenOnly = c.r === 0 && c.b === 0 && c.g === lut[v];
++      c.setHex(v << 16);
++      const redOnly = c.g === 0 && c.b === 0 && c.r === lut[v];
++      ok = (v === 0 || blueOnly) && greenOnly && redOnly;
++    }
++    VirtualTilesController._faceIdLut = ok ? lut : null;
++    return VirtualTilesController._faceIdLut;
++  }
++  static _faceIdLut = void 0;
+   meshData(mesh, allowVoid, lod) {
+     const id = this._temp.representation.id();
+     const customLod = mesh.getLodClass() === LodClass.CUSTOM;
+@@ -38846,12 +39704,18 @@ class VirtualFragmentsModel {
+     this._connection = connection;
+     this._config = { ...this._config, ...config };
+     this.data = this.setupModel(data);
++    // FreeField patch (split tile build): start the helpers first, so
++    // they parse their copy while this worker sets the model up.
++    const splitBuild = SplitTileBuild.create(modelId, data, this._config.splitTileBuild);
+     this.boxes = new VirtualBoxController(this.data);
+     this.materials = this.setupMaterials(modelId);
+     this._alignments = new AlignmentsController(this);
+     this._grids = new GridsController(this);
+     this.itemConfig = this.setupItemsConfig();
+     this.tiles = this.setupTiles();
++    if (splitBuild) this.tiles.useSplitBuild(splitBuild);
++    const tileCache = TileCache.create(data, this._config.tileCache);
++    if (tileCache) this.tiles.useTileCache(tileCache);
+     this.properties = this.setupProperties();
+     this.raycaster = this.setupRaycaster();
+     this.indexes = new VirtualIndexesController(this);
+@@ -39762,9 +40626,18 @@ class ThreadUpdater {
+       return;
+     }
+     const updated = this.updateAllModels();
+-    const delay = updated ? this._updateDelay : 0;
++    // FreeField patch: models only waiting (helpers / tile cache) -> a
++    // short idle instead of a 0 ms spin that steals a core.
++    const delay = updated ? this._updateDelay : this.onlyWaiting() ? 8 : 0;
+     this.schedule(delay);
+   };
++  onlyWaiting() {
++    for (const model of this._thread.list.values()) {
++      const tiles = model.tiles;
++      if (!tiles || tiles.idleWaiting !== true) return false;
++    }
++    return true;
++  }
+   // Offset into the model list where the next tick starts. Rotating the
+   // start point keeps one model with a long-running cull pass from
+   // eating the whole per-tick time budget every tick and starving the
+@@ -39877,11 +40750,19 @@ class FragmentsThread {
+ const thread = new FragmentsThread();
+ if (typeof window === "undefined") {
+   globalThis.onmessage = (input) => {
++    if (input.data && input.data.ffTileHelper) {
++      TileBuildHost.handle(input.data);
++      return;
++    }
+     thread.useConnection(input.data);
+   };
+ }
+ export {
+   FragmentsThread,
++  SplitTileBuild,
++  TileBuildHost,
++  TileCache,
++  VirtualFragmentsModel,
+   thread
+ };
+ //# sourceMappingURL=worker.mjs.map

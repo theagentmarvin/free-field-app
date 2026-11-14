@@ -1,0 +1,42 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "baseUrl": ".",
+    "paths": {
+      // The Models module depends on a few data hooks + Dexie helpers
+      // that live in @free-field/settings (Dexie schema, useIfcFiles,
+      // useIfcPipeline, getFragBlob, etc.). The aliases below resolve
+      // those imports to apps/settings/src/... so a single Vite build
+      // (in apps/settings) can bundle both modules with one Dexie
+      // instance and one origin → same IndexedDB → same DB.
+      //
+      // The dependency direction is one-way: settings → models for the
+      // runtime entry (ModelsApp), and models → settings for shared
+      // data plumbing. Vite + esbuild handle the circular graph fine
+      // because the data hooks live in their own subtree (settings/src/hooks,
+      // settings/src/core) and don't import from models.
+      "@ff/viewer-react": ["../../packages/ff-viewer-react/src"],
+      "@ff/viewer": ["../../packages/ff-viewer/src"],
+      "@ff/types": ["../../packages/ff-types/src"]
+    },
+    "types": ["vitest/globals", "node"]
+  },
+  "include": ["src", "__tests__"]
+}

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="330 280 380 470" fill="none">
+  <title>FreeField</title>
+  <g stroke="#2E3033" stroke-linecap="butt" stroke-linejoin="miter">
+    <!-- F outer walls -->
+    <path stroke-width="16" d="M393 692 V338 H652 V405 H485 V470 M505 495 H603 V565 H485 V692 H393"/>
+    <!-- interior partitions -->
+    <path stroke-width="10" d="M488 338 V358 M488 386 V405 M553 378 V405 M393 405 H438 M470 405 H485"/>
+    <!-- thin section line + door -->
+    <path stroke-width="5" d="M352 521 H470 M393 565 H440 M462 565 V592"/>
+    <path stroke-width="3" d="M440 565 A22 27 0 0 0 462 592"/>
+    <!-- dimension ticks -->
+    <path stroke-width="5" d="M352 330 H378 M391 298 V322 M652 298 V322 M666 330 H690 M666 410 H690 M652 425 V447 M603 459 V482 M617 493 H641 M617 568 H641 M603 580 V605 M352 692 H378 M391 705 V728 M489 705 V728 M503 692 H527"/>
+  </g>
+  <!-- location pin -->
+  <path fill="#DE6B55" d="M488 452 a33 33 0 0 1 33 33 c0 22 -20 40 -33 58 c-13 -18 -33 -36 -33 -58 a33 33 0 0 1 33 -33 z"/>
+  <circle cx="488" cy="482" r="10" fill="#FFFFFF"/>
+</svg>

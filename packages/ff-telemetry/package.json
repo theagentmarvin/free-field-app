@@ -1,0 +1,33 @@
+{
+  "name": "@ff/telemetry",
+  "version": "0.0.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "description": "Local, zero-dependency viewer crash forensics + performance breadcrumbs (ring-buffer state history + launch-crash detection). No React, no DOM at module load, no `three` import.",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run --no-file-parallelism",
+    "build": "tsc --noEmit",
+    "lint": "eslint . --ext .ts",
+    "lint:drift": "node ../../apps/settings/scripts/toe-drift-check.js src"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.60.0",
+    "@typescript-eslint/parser": "^8.60.0",
+    "eslint": "^8.57.1",
+    "fake-indexeddb": "^6.2.5",
+    "jsdom": "^25.0.1",
+    "typescript": "5.6.3",
+    "vitest": "^2.1.5"
+  },
+  "dependencies": {
+    "@sentry/browser": "^11.10.0",
+    "firebase": "^11.10.0"
+  }
+}

@@ -1,0 +1,12 @@
+process.env.FIRESTORE_EMULATOR_HOST = 'localhost:8080';
+process.env.GCLOUD_PROJECT = 'free-field-dev';
+const { initializeApp, getApps } = await import('firebase-admin/app');
+const { getFirestore } = await import('firebase-admin/firestore');
+if (getApps().length === 0) initializeApp({ projectId: 'free-field-dev' });
+const db = getFirestore();
+const snap = await db.collection('projects/default-project/members').get();
+console.log('member docs:');
+for (const d of snap.docs) console.log('  id=', d.id, 'data=', JSON.stringify(d.data()));
+const uSnap = await db.collection('users').get();
+console.log('user docs:');
+for (const d of uSnap.docs) console.log('  id=', d.id, 'email=', d.data().email, 'name=', d.data().displayName);
