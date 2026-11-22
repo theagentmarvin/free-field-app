@@ -1,4 +1,4 @@
-import { checklistProgress, normalizeChecklist, priorityOf, PRIORITY_LABELS } from "@ff/tasks";
+import { checklistProgress, isDualThumbLocation, normalizeChecklist, priorityOf, PRIORITY_LABELS } from "@ff/tasks";
 
 import { statusAccent } from "./formStyles";
 import { deadlineSignal, formatTaskNum, STATUS_LABELS } from "./logic";
@@ -105,6 +105,8 @@ export interface ReportTask {
   /** resolved display URLs (best effort) */
   photoUrls: string[];
   locationThumbUrl: string | null;
+  /** LinkView dual location: resolved plan snapshot URL (printed before the 3D one) */
+  locationThumb2dUrl?: string | null;
 }
 
 export interface ReportMeta {
@@ -123,7 +125,7 @@ export const REPORT_MAX_PHOTOS = 4;
 export function buildTasksReportHtml(items: readonly ReportTask[], meta: ReportMeta): string {
   const printedAt = meta.printedAt ?? new Date().toLocaleString();
   const cards = items
-    .map(({ row, photoUrls, locationThumbUrl }) => {
+    .map(({ row, photoUrls, locationThumbUrl, locationThumb2dUrl }) => {
       const r = row as Extra;
       const accent = statusAccent(r.status);
       const sig = deadlineSignal(r.deadline, r.status, meta.now);
@@ -145,7 +147,11 @@ export function buildTasksReportHtml(items: readonly ReportTask[], meta: ReportM
         .slice(0, REPORT_MAX_PHOTOS)
         .map((u) => `<img class="ph" src="${esc(u)}" alt="">`)
         .join("");
-      const thumb = locationThumbUrl ? `<img class="loc" src="${esc(locationThumbUrl)}" alt="location">` : "";
+      const plan =
+        locationThumbUrl && locationThumb2dUrl && isDualThumbLocation(r.location)
+          ? `<img class="loc" src="${esc(locationThumb2dUrl)}" alt="plan snapshot">`
+          : "";
+      const thumb = locationThumbUrl ? `${plan}<img class="loc" src="${esc(locationThumbUrl)}" alt="location">` : "";
       return `<section class="task">
   <div class="head"><span class="num">${esc(formatTaskNum(r.num))}</span><h2>${esc(r.title)}</h2><span class="pill" style="background:${esc(accent.bg)};color:${esc(accent.ink)}">${esc(STATUS_LABELS[r.status] ?? String(r.status))}</span></div>
   ${r.description ? `<p class="desc">${esc(r.description).replace(/\n/g, "<br>")}</p>` : ""}

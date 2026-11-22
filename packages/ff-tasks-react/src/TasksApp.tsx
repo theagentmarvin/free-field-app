@@ -6,6 +6,8 @@ import {
   type ExportBcf,
   buildActionPayload,
   clearDraft,
+  isDualThumbLocation,
+  normalizeLocationThumb2dPath,
   latestDraft,
   type TaskDraftFields,
   type TaskStatus,
@@ -637,7 +639,13 @@ export function TasksApp({
             const photoUrls = (
               await Promise.all((row.photos ?? []).slice(0, REPORT_MAX_PHOTOS).map((p) => urlFor(p.storagePath)))
             ).filter((u): u is string => !!u);
-            return { row, photoUrls, locationThumbUrl: await urlFor(row.locationThumbPath) };
+            const dual = isDualThumbLocation(row.location);
+            return {
+              row,
+              photoUrls,
+              locationThumbUrl: await urlFor(row.locationThumbPath),
+              locationThumb2dUrl: dual ? await urlFor(normalizeLocationThumb2dPath(row.location)) : null,
+            };
           })
         ))
       );

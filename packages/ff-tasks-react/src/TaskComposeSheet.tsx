@@ -25,7 +25,7 @@ import {
 } from "./composeModel";
 import { registerBlob, releaseBlob } from "./useTaskEngine";
 import { useOnlineStatus } from "./useOnlineStatus";
-import { resolveCreateBuildingId, useTaskBuildingIndex, type TaskBuildingIndex } from "./taskBuilding";
+import { resolveCreateBuildingId, useProjectBuildings, useTaskBuildingIndex, type TaskBuildingIndex } from "./taskBuilding";
 import { useIsWide } from "./useIsWide";
 import { TYPE_OPTIONS, isCustomType } from "./logic";
 import {
@@ -145,7 +145,7 @@ export function TaskComposeSheet({
   initial,
   projectName = null,
   buildingId = null,
-  buildings,
+  buildings: buildingsProp,
   buildingIndex: buildingIndexProp,
   extendedFields: extendedFieldsProp,
   onDone,
@@ -157,6 +157,10 @@ export function TaskComposeSheet({
   const [pickerOpen, setPickerOpen] = useState(false);
   const liveBuildingIndex = useTaskBuildingIndex();
   const buildingIndex = buildingIndexProp ?? liveBuildingIndex;
+  // Viewer-hosted creators (Models, LinkView, Documents) pass no list: name
+  // the stamped building from the project's local rows.
+  const liveBuildings = useProjectBuildings(projectId);
+  const buildings = buildingsProp ?? (liveBuildings.length > 0 ? liveBuildings : undefined);
   const [fields, setFields] = useState<ComposeFields>({
     ...emptyCompose(),
     location,

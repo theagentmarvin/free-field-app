@@ -102,6 +102,20 @@ export function useTaskBuildingIndex(): TaskBuildingIndex {
   );
 }
 
+/** Live id/name list of the project's buildings (local Dexie rows). */
+export function useProjectBuildings(
+  projectId: string | null | undefined,
+): readonly { id: string; name: string }[] {
+  return (
+    useLiveQuery(async () => {
+      const rows = projectId
+        ? await localDb.buildings.where("projectId").equals(projectId).toArray()
+        : [];
+      return rows.map((b) => ({ id: b.id, name: b.name }));
+    }, [projectId]) ?? []
+  );
+}
+
 /**
  * Rows with their EFFECTIVE building filled in. Old tasks (created
  * before stamping, or from an entry point that did not stamp) carry no
