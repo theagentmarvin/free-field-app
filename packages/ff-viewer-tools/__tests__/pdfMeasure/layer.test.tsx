@@ -32,6 +32,12 @@ function mount(cal: number | null = 0.01) {
   );
 }
 
+// open the Measure menu and choose a tool row
+function pick(tool: "length" | "area" | "scale") {
+  fireEvent.click(screen.getByTestId("pdf-measure-menu-button"));
+  fireEvent.click(screen.getByTestId(`pdf-measure-tool-${tool}`));
+}
+
 // page 600x400 shown at 1:1 at the origin
 function tap(x: number, y: number) {
   const svg = screen.getByTestId("pdf-measure-svg");
@@ -58,7 +64,7 @@ describe("PdfMeasureLayer", () => {
   it("measures a polyline with per-segment and total labels in metres", async () => {
     mount();
     await screen.findByTestId("pdf-measure-svg");
-    fireEvent.click(screen.getByTestId("pdf-measure-tool-length"));
+    pick("length");
     tap(0, 0);
     tap(300, 0);
     tap(300, 400);
@@ -73,7 +79,7 @@ describe("PdfMeasureLayer", () => {
   it("area shows area and perimeter; delete removes one", async () => {
     mount();
     await screen.findByTestId("pdf-measure-svg");
-    fireEvent.click(screen.getByTestId("pdf-measure-tool-area"));
+    pick("area");
     tap(0, 0);
     tap(500, 0);
     tap(500, 200);
@@ -87,7 +93,7 @@ describe("PdfMeasureLayer", () => {
   it("Escape cancels the draft, then deactivates the tool", async () => {
     mount();
     await screen.findByTestId("pdf-measure-svg");
-    fireEvent.click(screen.getByTestId("pdf-measure-tool-length"));
+    pick("length");
     tap(10, 10);
     tap(100, 10);
     expect(usePdfMeasureStore.getState().draft).toHaveLength(2);
@@ -102,7 +108,7 @@ describe("PdfMeasureLayer", () => {
   it("a drag does not add a point", async () => {
     mount();
     await screen.findByTestId("pdf-measure-svg");
-    fireEvent.click(screen.getByTestId("pdf-measure-tool-length"));
+    pick("length");
     const svg = screen.getByTestId("pdf-measure-svg");
     fireEvent.pointerDown(svg, { clientX: 10, clientY: 10, button: 0 });
     fireEvent.pointerUp(svg, { clientX: 80, clientY: 10, button: 0 });
@@ -113,7 +119,7 @@ describe("PdfMeasureLayer", () => {
     mount(null);
     await screen.findByTestId("pdf-measure-svg");
     expect(screen.getByTestId("pdf-measure-scale-badge").getAttribute("data-scale-source")).toBe("none");
-    fireEvent.click(screen.getByTestId("pdf-measure-tool-length"));
+    pick("length");
     tap(0, 0);
     tap(100, 0);
     fireEvent.keyDown(window, { key: "Enter" });
@@ -123,13 +129,13 @@ describe("PdfMeasureLayer", () => {
   it("set scale: two points + known length makes values metric, and re-labels existing shapes", async () => {
     mount(null);
     await screen.findByTestId("pdf-measure-svg");
-    fireEvent.click(screen.getByTestId("pdf-measure-tool-scale"));
+    pick("scale");
     tap(0, 0);
     tap(200, 0);
     fireEvent.change(screen.getByTestId("pdf-measure-scale-input"), { target: { value: "10" } });
     fireEvent.click(screen.getByTestId("pdf-measure-scale-apply"));
     expect(screen.getByTestId("pdf-measure-scale-badge").getAttribute("data-scale-source")).toBe("manual");
-    fireEvent.click(screen.getByTestId("pdf-measure-tool-length"));
+    pick("length");
     tap(0, 50);
     tap(100, 50);
     fireEvent.keyDown(window, { key: "Enter" });
@@ -139,7 +145,7 @@ describe("PdfMeasureLayer", () => {
   it("measurements are kept per page and survive remount (session)", async () => {
     const { unmount } = mount();
     await screen.findByTestId("pdf-measure-svg");
-    fireEvent.click(screen.getByTestId("pdf-measure-tool-length"));
+    pick("length");
     tap(0, 0);
     tap(100, 0);
     fireEvent.keyDown(window, { key: "Enter" });
@@ -154,5 +160,52 @@ describe("PdfMeasureLayer", () => {
     });
     expect(screen.queryAllByTestId("pdf-measure-item")).toHaveLength(0);
     expect(screen.getByTestId("pdf-measure-scale-badge").getAttribute("data-scale-source")).toBe("none");
+  });
+
+  describe("Measure menu (shared floating bar)", () => {
+    it("is the shared bottom-centre frosted bar with a closed Measure menu and a calibration chip", async () => {
+      mount();
+      await screen.findByTestId("pdf-measure-svg");
+      const bar = screen.getByTestId("pdf-measure-bar");
+      expect(bar.className).toContain("ff-frosted");
+      expect(bar.style.left).toBe("50%");
+      expect(screen.getByTestId("pdf-measure-menu-button").textContent).toContain("Measure");
+      expect(screen.queryByTestId("pdf-measure-menu")).toBeNull();
+      expect(screen.queryByTestId("pdf-measure-tool-length")).toBeNull();
+      const chip = screen.getByTestId("pdf-measure-scale-badge");
+      expect(chip.textContent).toBe("Scale: calibrated");
+      expect(chip.getAttribute("data-scale-source")).toBe("calibrated");
+    });
+
+    it("opens a menu with Length, Area and Set scale; choosing closes it and shows the tool in the button", async () => {
+      mount();
+      await screen.findByTestId("pdf-measure-svg");
+      fireEvent.click(screen.getByTestId("pdf-measure-menu-button"));
+      const menu = screen.getByTestId("pdf-measure-menu");
+      expect(menu.getAttribute("role")).toBe("menu");
+      expect(Array.from(menu.querySelectorAll("button")).map((b) => b.textContent)).toEqual([
+        "Length",
+        "Area",
+        "Set scale",
+      ]);
+      fireEvent.click(screen.getByTestId("pdf-measure-tool-area"));
+      expect(screen.queryByTestId("pdf-measure-menu")).toBeNull();
+      expect(usePdfMeasureStore.getState().tool).toBe("area");
+      expect(screen.getByTestId("pdf-measure-menu-button").textContent).toContain("Area");
+      expect(screen.getByTestId("pdf-measure-hint")).toBeTruthy();
+      // picking the active tool again turns measuring off
+      fireEvent.click(screen.getByTestId("pdf-measure-menu-button"));
+      fireEvent.click(screen.getByTestId("pdf-measure-tool-area"));
+      expect(usePdfMeasureStore.getState().tool).toBe("none");
+      expect(screen.getByTestId("pdf-measure-menu-button").textContent).toContain("Measure");
+    });
+
+    it("shows an uncalibrated warning chip when there is no calibration", async () => {
+      mount(null);
+      await screen.findByTestId("pdf-measure-svg");
+      const chip = screen.getByTestId("pdf-measure-scale-badge");
+      expect(chip.getAttribute("data-scale-source")).toBe("none");
+      expect(chip.textContent).toContain("Uncalibrated");
+    });
   });
 });

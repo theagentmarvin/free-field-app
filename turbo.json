@@ -33,6 +33,10 @@
     "typecheck": {
       "dependsOn": [],
       "outputs": []
+    },
+    "test:emulator": {
+      "cache": false,
+      "dependsOn": []
     }
   }
 }

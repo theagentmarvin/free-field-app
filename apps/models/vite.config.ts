@@ -1,4 +1,5 @@
 import { defineConfig } from "vite";
+import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
 
@@ -38,14 +39,8 @@ export default defineConfig({
     // re-exports hooks that import @ff/viewer-react) dies on the
     // three/webgpu module load.
     alias: {
-      "@thatopen/components": new URL(
-        "./__tests__/__mocks__/obc-stub.ts",
-        import.meta.url,
-      ).pathname,
-      "@thatopen/components-front": new URL(
-        "./__tests__/__mocks__/obc-stub.ts",
-        import.meta.url,
-      ).pathname,
+      "@thatopen/components": fileURLToPath(new URL("./__tests__/__mocks__/obc-stub.ts", import.meta.url)),
+      "@thatopen/components-front": fileURLToPath(new URL("./__tests__/__mocks__/obc-stub.ts", import.meta.url)),
     },
   },
 });

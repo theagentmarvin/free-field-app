@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 
-import { photoPath, entryData, allocateNum, createTaskExecutor } from "../src/repository";
+import { photoPath, entryData, allocateNum, createTaskExecutor, buildCreateTaskDto } from "../src/repository";
 import { buildActionPayload, type TaskActionPayload } from "../src/action";
 import { locationThumbPath } from "../src/photos";
 import type { OutboxRecord } from "@ff/types";
@@ -137,5 +137,35 @@ describe("executor.uploadPhotos — location thumb bytes-first", () => {
     const row = { payload: payload as unknown as Record<string, unknown> } as OutboxRecord;
     await executor.uploadPhotos(row);
     expect(uploaded).toHaveLength(0);
+  });
+});
+
+describe("sheetRefs through the outbox / sync path", () => {
+  const sheetRefs = [{ pdfFileId: "f1", pdfVersionId: "f1v1", versionNumber: 1, name: "A101.pdf" }];
+
+  it("a queued create carries the references into the task doc (references, not copies)", () => {
+    const create = buildActionPayload({
+      verb: "create",
+      projectId: "p1",
+      taskId: "t1",
+      statusFrom: null,
+      actor,
+      title: "T",
+      at: 5,
+      createDoc: { description: "", type: "task", buildingId: "b1", location: null, sheetRefs },
+    });
+    // the outbox persists the payload as JSON: it must survive a round trip
+    const stored = JSON.parse(JSON.stringify(create)) as TaskActionPayload;
+    const doc = buildCreateTaskDto(stored, [], 1);
+    expect((doc as unknown as { sheetRefs: unknown }).sheetRefs).toEqual(sheetRefs);
+    expect(doc.photos).toEqual([]);
+  });
+
+  it("an older queued create without the field still builds a valid doc", () => {
+    const create = buildActionPayload({
+      verb: "create", projectId: "p1", taskId: "t2", statusFrom: null, actor, title: "T", at: 5,
+      createDoc: { description: "", type: "task", buildingId: null, location: null },
+    });
+    expect("sheetRefs" in buildCreateTaskDto(create, [], 2)).toBe(false);
   });
 });

@@ -181,6 +181,7 @@ export default function ViewerSurface({
       <TapCreateTask3D
         getHandle={() => viewerRef.current}
         storeyName={activeStoreyName}
+        buildingId={buildingId}
         onComposeOpen={() => onCloseTask?.()}
         detailTaskId={detailTaskId}
       />

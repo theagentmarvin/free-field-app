@@ -110,7 +110,19 @@ export type {
   OutboxState,
   OutboxPhotoRef,
   TaskDraftRecord,
+  OutboxKind,
+  SyncOutboxKind,
+  SyncCollectionName,
+  SyncBlobKind,
+  DocUpsertPayload,
+  DocDeletePayload,
+  BlobUploadPayload,
+  BlobDownloadPayload,
+  SyncOutboxPayloadByKind,
+  SyncOutboxRecord,
+  TaskPdfLocation,
 } from "./tasks";
+export { UNCALIBRATED_CALIB_ID } from "./tasks";
 export * from "./levelSelection";
 export type {
   ViewpointSectionPlane,

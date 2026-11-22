@@ -112,6 +112,9 @@ export async function queryMappedPdfsForBuilding(
     const latest: PdfVersionRecord | undefined =
       vs.find((v) => v.isLatest) ?? vs[vs.length - 1];
     if (!latest) continue;
+    // 2026-11-16 — only single-page plans are mappable; a multi-page
+    // document never shows here, even with a stale calibration.
+    if ((latest.pageCount ?? 1) > 1) continue;
 
     const names = Array.from(new Set(cals.map((c) => c.storeyName)));
     names.sort((a, b) => a.localeCompare(b));

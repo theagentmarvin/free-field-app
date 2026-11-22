@@ -5,6 +5,10 @@ import { doc, getDoc, getFirestore, setDoc } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useAuthContext, useAuth, type AuthClaims } from '@ff/auth';
 
+/** Cloud Functions region (VITE_FIREBASE_FUNCTIONS_REGION); unset = SDK default (us-central1). */
+const FUNCTIONS_REGION: string | undefined =
+  import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION || undefined;
+
 /**
  * /finish-sign-in — handles oobCode from email-link clicks.
  *
@@ -135,7 +139,7 @@ export function FinishSignInPage() {
       if (inviteId) {
         try {
           const redeem = httpsCallable<{ inviteId: string }, RedeemInvitationResult>(
-            getFunctions(app),
+            getFunctions(app, FUNCTIONS_REGION),
             'redeemInvitation'
           );
           await redeem({ inviteId });

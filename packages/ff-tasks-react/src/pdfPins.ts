@@ -1,6 +1,7 @@
-import type { CalibrationTransformParams, OutboxRecord } from "@ff/types";
+import { UNCALIBRATED_CALIB_ID, type CalibrationTransformParams, type OutboxRecord } from "@ff/types";
 import type { TaskLocation } from "@ff/firestore";
 import { pinBuildingScope } from "./callouts";
+import { canonicalCalibId, resolveCalibration } from "./calibResolve";
 
 import {
   applyCalibration,
@@ -40,7 +41,12 @@ export interface PdfPin {
   page: number;
   /** normalized 0..1, origin top-left, y-down (PDF.js convention) */
   uv: [number, number];
+  /** canonical = `calibrationDocId(pdfFileId, storeyName)`; legacy = local uuid (w75) */
   calibId: string;
+  /** `task.location.storeyName` — last-resort calibration lookup (w75) */
+  storeyName?: string;
+  /** plan version the pin was placed on (w72); absent on older pins */
+  pdfVersionId?: string;
   /** building scope; absent = legacy/cross-building (shown everywhere) */
   buildingId?: string;
 }
@@ -54,11 +60,13 @@ export interface LocatablePdfTask {
   updatedAt: number;
   buildingId?: string | null;
   location?: {
+    storeyName?: string | null;
     pdf?: {
       pdfFileId?: string;
       page?: number;
       uv?: [number, number] | null;
       calibId?: string;
+      pdfVersionId?: string;
     } | null;
   } | null;
 }
@@ -84,6 +92,8 @@ export interface PdfPinSurface {
 export interface CalibrationLike {
   id: string;
   storeyName: string;
+  /** present on Dexie rows (w75 resolver scopes the lookup by it) */
+  pdfFileId?: string;
   transformParams: CalibrationTransformParams;
   updatedAt: number;
 }
@@ -108,11 +118,13 @@ function validPinParts(pdf: {
   page?: number;
   uv?: [number, number] | null;
   calibId?: string;
+  pdfVersionId?: string;
 } | null | undefined): pdf is {
   pdfFileId: string;
   page: number;
   uv: [number, number];
   calibId: string;
+  pdfVersionId?: string;
 } {
   return (
     !!pdf &&
@@ -143,6 +155,8 @@ export function extractPdfPins(tasks: readonly LocatablePdfTask[]): PdfPin[] {
       page: pdf.page,
       uv: pdf.uv,
       calibId: pdf.calibId,
+      ...(task.location?.storeyName ? { storeyName: task.location.storeyName } : {}),
+      ...(typeof pdf.pdfVersionId === "string" && pdf.pdfVersionId ? { pdfVersionId: pdf.pdfVersionId } : {}),
       ...pinBuildingScope(task.buildingId),
     });
   }
@@ -180,6 +194,7 @@ export function pendingPdfPins(rows: readonly OutboxRecord[], overlaySending = f
       page: pdf.page,
       uv: pdf.uv,
       calibId: pdf.calibId,
+      ...(payload.createDoc?.location?.storeyName ? { storeyName: payload.createDoc.location.storeyName } : {}),
       ...pinBuildingScope(payload.createDoc?.buildingId),
     });
   }
@@ -265,7 +280,7 @@ export function isStaleCalib(
   activeCalib: CalibrationLike | null
 ): boolean {
   if (!activeCalib) return false;
-  return pin.calibId !== activeCalib.id;
+  return resolveCalibration(pin, [activeCalib]) === null;
 }
 
 /** The calibration a pin trusts: its own record when still present, else null. */
@@ -273,7 +288,7 @@ export function pinCalibration(
   pin: PdfPin,
   calibrations: readonly CalibrationLike[]
 ): CalibrationLike | null {
-  return calibrations.find((c) => c.id === pin.calibId) ?? null;
+  return resolveCalibration(pin, calibrations);
 }
 
 /** Most recently updated calibration, or null (pin capture gated on this). */
@@ -291,12 +306,27 @@ export function pdfPinLocation(
   pdfFileId: string,
   page: number,
   uv: [number, number],
-  calib: CalibrationLike
+  calib: CalibrationLike,
+  /** The plan VERSION the point was placed on, so a later revision does
+   *  not silently inherit the pin. Optional: omitted = legacy pin. */
+  pdfVersionId?: string
 ): TaskLocation {
   return {
     storeyName: calib.storeyName,
     bim: null,
-    pdf: { pdfFileId, page, uv, calibId: calib.id },
+    pdf: {
+      pdfFileId,
+      page,
+      uv,
+      // The uncalibrated sentinel names no calibration: keep it as is (a canonical id
+      // built from an empty storey, "<pdfFileId>__", would claim a calibration that
+      // does not exist and never resolve).
+      calibId:
+        calib.id === UNCALIBRATED_CALIB_ID
+          ? UNCALIBRATED_CALIB_ID
+          : canonicalCalibId(pdfFileId, calib.storeyName),
+      ...(pdfVersionId ? { pdfVersionId } : {}),
+    },
   };
 }
 
@@ -314,8 +344,9 @@ export function locationFromPdfClick(
   pageSize: PdfPageSize,
   pdfFileId: string,
   page: number,
-  calib: CalibrationLike | null
+  calib: CalibrationLike | null,
+  pdfVersionId?: string
 ): TaskLocation | null {
   if (!calib) return null;
-  return pdfPinLocation(pdfFileId, page, pagePointToUv(click, pageSize), calib);
+  return pdfPinLocation(pdfFileId, page, pagePointToUv(click, pageSize), calib, pdfVersionId);
 }

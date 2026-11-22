@@ -404,6 +404,28 @@ export class PdfViewer {
     this._animateToScale(renderScale, clamped / renderScale);
   }
 
+  /**
+   * Centre the view on a normalized page point (uv, origin top-left) and
+   * zoom in to at least `minTotalScale` (quick access to a task pin).
+   * Waits for the page to be ready; out-of-range uv is clamped.
+   */
+  focusUv(uv: [number, number], minTotalScale = 1.5): void {
+    void (async () => {
+      const info = await this._getPageInfo(this.currentPage);
+      if (!info) return;
+      // a zoom request is ignored while a render is in flight: wait it out
+      for (let i = 0; i < 150 && this._rendering; i += 1) {
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      const fx = Math.min(1, Math.max(0, uv[0]));
+      const fy = Math.min(1, Math.max(0, uv[1]));
+      this._viewCenterPageX = fx * info.width;
+      this._viewCenterPageY = fy * info.height;
+      const target = Math.max(this.getTotalScale(), minTotalScale);
+      this.setZoom(target);
+    })();
+  }
+
   /** Fit the page to the viewport width. */
   fitWidth(): void {
     void this._fitWidth();

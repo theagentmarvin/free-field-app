@@ -169,7 +169,7 @@ describe("<PdfSidebarBlock> — PDF file list (Task 11)", () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          "No PDF files yet. Click + above to upload a PDF (calibration uses page 1).",
+          "No PDF files yet. Click + above to upload PDFs (you can pick several). Single-page PDFs are plans and can be mapped; multi-page PDFs are documents.",
         ),
       ).toBeInTheDocument();
     });
@@ -362,5 +362,40 @@ describe("<PdfSidebarBlock> — project scoping (wave 66)", () => {
     expect(screen.queryByTestId("pdf-folders-sidebar")).toBeNull();
     fireEvent.click(screen.getByTestId("pdf-subtab-map"));
     expect(screen.getByTestId("pdf-list").children.length).toBe(0);
+  });
+});
+
+describe("<PdfSidebarBlock> — Plans vs Documents + bulk upload (2026-11-16)", () => {
+  async function addPdf(buildingId: string, name: string, pageCount: number) {
+    const { createPdfFile } = await import("@ff/data/db/tables/pdfFiles");
+    const { createPdfVersion } = await import("@ff/data/db/tables/pdfVersions");
+    const f = await createPdfFile({ buildingId, name });
+    await createPdfVersion({
+      pdfFileId: f.id, versionNumber: 1, name, size: 9, contentHash: name,
+      pageCount, width: 612, height: 792, blobKey: `k-${name}`, isLatest: true,
+    });
+    return f;
+  }
+
+  it("the upload picker accepts several PDFs at once", async () => {
+    const { building } = await makeContext();
+    render(withViewerHandle(<PdfSidebarBlock buildingId={building.id} />));
+    expect(screen.getByTestId("pdf-upload-input")).toHaveAttribute("multiple");
+  });
+
+  it("lists multi-page PDFs under Documents (page count, no Map button) and single-page ones as plans", async () => {
+    const { building } = await makeContext();
+    await addPdf(building.id, "plan.pdf", 1);
+    await addPdf(building.id, "specs.pdf", 12);
+    render(withViewerHandle(<PdfSidebarBlock buildingId={building.id} />));
+
+    const docRow = await screen.findByTestId("pdf-document-row");
+    expect(docRow.textContent).toContain("specs.pdf");
+    expect(screen.getByTestId("pdf-document-pages").textContent).toBe("12 pp");
+    expect(docRow.querySelector('[data-testid="pdf-list-item-map"]')).toBeNull();
+
+    const mapButtons = screen.getAllByTestId("pdf-list-item-map");
+    expect(mapButtons).toHaveLength(1);
+    expect(mapButtons[0]).toHaveAttribute("data-pdf-file-id");
   });
 });

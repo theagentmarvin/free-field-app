@@ -14,7 +14,8 @@
     "test": "vitest run --no-file-parallelism --passWithNoTests",
     "lint": "eslint . --ext .ts,.tsx",
     "lint:drift": "node ../../apps/settings/scripts/toe-drift-check.js src",
-    "build": "tsc --noEmit"
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "peerDependencies": {
     "react": "^18.3.1",

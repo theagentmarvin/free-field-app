@@ -2,6 +2,7 @@ import {
   Suspense,
   lazy,
   useEffect,
+  useMemo,
   useSyncExternalStore,
   type CSSProperties,
   type ReactNode,
@@ -9,10 +10,13 @@ import {
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { useViewerSurfaceHost } from "@free-field/models";
-import { runDemoTasksSeedIfEmpty, useTaskPhotoResolver } from "@ff/tasks-react";
+import { TaskOpenBridge } from "./TaskOpenBridge";
+import { createTasksBcfContext, makeBcfContextDeps } from "../bcf/tasksBcfContext";
+import { ProjectSyncMount, runDemoTasksSeedIfEmpty, useTaskPhotoResolver } from "@ff/tasks-react";
 import {
   AuthProvider,
   ProjectLoadError,
+  BootLoading,
   RequireAdmin,
   RequireProjectMember,
   isDemoAuth,
@@ -315,7 +319,7 @@ function ShellLayout(): ReactNode {
 
   // Wave 65 — one-time move of pre-Phase-1 local rows ("default-project")
   // to the first real project chosen on this device. Never in demo mode.
-  useLegacyProjectRekey(demo ? null : (user?.uid ?? null), demo ? null : choice);
+  const rekeyReady = useLegacyProjectRekey(demo ? null : (user?.uid ?? null), demo ? null : choice);
 
   // Wave 66 — the ONE local `projects` row bootstrap (modules no longer
   // create their own). No-op in demo mode, where the demo seed writes it.
@@ -326,6 +330,11 @@ function ShellLayout(): ReactNode {
   const activeBuildingId = useModelsToolStore((s) => s.activeBuildingId);
   const buildingOptions = useBuildingOptions(choice);
   const activeBuilding = useActiveBuilding(activeBuildingId, choice);
+  // Tasks BCF export: host resolvers (base shift + IFC GlobalIds).
+  const bcfContext = useMemo(
+    () => createTasksBcfContext(makeBcfContextDeps(() => surfaceHost.viewerRef.current ?? null)),
+    [surfaceHost.viewerRef],
+  );
 
   const shellClass = "ff-app-shell ff-main-shell";
   const style = isMobile ? mobileShellStyle : shellStyle;
@@ -346,15 +355,16 @@ function ShellLayout(): ReactNode {
     if (!demo) {
       // Cloud mode: wait for auth, and send a signed-out visitor to
       // sign in instead of showing an empty picker.
-      if (loading) return null;
+      if (loading) return <BootLoading label="Signing you in…" />;
       if (!user) {
         return <Navigate to="/sign-in" replace state={{ from: pathname }} />;
       }
       if (projectError) {
         return <ProjectLoadError error={projectError} onRetry={retryProject} />;
       }
-      // Memberships still loading.
-      if (choice === undefined) return null;
+      // Memberships still loading. The provider times this wait out into
+      // projectError (friendly offline message + Retry) after ~12 s.
+      if (choice === undefined) return <BootLoading />;
     }
     return (
       <div
@@ -374,6 +384,7 @@ function ShellLayout(): ReactNode {
 
   return (
     <div style={style} className={shellClass}>
+      <TaskOpenBridge />
       <LeftRail
         projectAccess={{
           projects,
@@ -387,6 +398,9 @@ function ShellLayout(): ReactNode {
         className="ff-app-shell__outlet"
       >
         {demo ? <DemoSeedingBanner /> : null}
+        {demo ? null : (
+          <ProjectSyncMount projectId={choice} projectName={project?.name} ready={rekeyReady !== false} />
+        )}
         {/* Wave 52 — the persistent viewer surface lives in
             <ViewerKeepAlive> (which wraps this whole shell) and
             portals into whichever route's slot is active. */}
@@ -469,6 +483,7 @@ function ShellLayout(): ReactNode {
                     buildingId={activeBuildingId}
                     buildingName={activeBuilding?.name ?? null}
                     buildings={buildingOptions.map((b) => ({ id: b.id, name: b.name }))}
+                    bcfContext={bcfContext}
                   />
                 </ModuleRoute>
               </RequireProjectMember>
@@ -512,7 +527,7 @@ function DefaultLanding(): ReactNode {
   }
 
   if (loading) {
-    return null;
+    return <BootLoading label="Signing you in…" />;
   }
 
   if (!user) {
@@ -521,7 +536,7 @@ function DefaultLanding(): ReactNode {
 
   // Phase 1b: memberships come from the member docs (not the token claim).
   if (memberships === undefined) {
-    return null;
+    return <BootLoading />;
   }
 
   // Signed in but no project membership — self-invite or pending accept.

@@ -17,6 +17,10 @@ const h = vi.hoisted(() => ({
   // new task list after mount (wave 30: pins-change invalidation)
   pushTasks: null as ((tasks: unknown[]) => void) | null,
   lastMax: undefined as number | undefined,
+  // IfcFile rows (model id → building) for the building-scope index
+  ifcFiles: [] as { id: string; buildingId: string }[],
+  indexFor: null as unknown,
+  index: null as unknown,
 }));
 
 vi.mock("@ff/auth", () => ({
@@ -30,7 +34,9 @@ vi.mock("firebase/firestore", async (importOriginal) => ({
   getFirestore: () => ({}),
 }));
 vi.mock("@ff/data/db/database", () => ({
-  db: { outbox: { toArray: async () => [], where: () => ({ anyOf: () => ({ toArray: async () => [] }) }) } },
+  db: {
+    outbox: { toArray: async () => [], where: () => ({ anyOf: () => ({ toArray: async () => [] }) }) },
+  },
 }));
 vi.mock("@ff/tasks", async (importOriginal) => {
   // partial: keep STATUS_COLORS + the real module, swap only the feed
@@ -48,6 +54,25 @@ vi.mock("@ff/tasks", async (importOriginal) => {
       h.pushTasks = cb;
       cb(h.cloudTasks);
       return () => {};
+    },
+  };
+});
+// Building-scope index (model → building) from the test's ifcFiles; the
+// real hook reads Dexie through useLiveQuery, which is stubbed below.
+vi.mock("../src/taskBuilding", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/taskBuilding")>();
+  return {
+    ...actual,
+    // stable identity per ifcFiles list, like the real live query
+    useTaskBuildingIndex: () => {
+      if (h.indexFor !== h.ifcFiles) {
+        h.indexFor = h.ifcFiles;
+        h.index = {
+          modelToBuilding: new Map(h.ifcFiles.map((f) => [f.id, f.buildingId])),
+          pdfToBuilding: new Map(),
+        };
+      }
+      return h.index;
     },
   };
 });
@@ -343,11 +368,19 @@ describe("TaskCalloutLayer3D sub-pixel gate", () => {
     });
   });
 
-  it("wave 63: scopes pins to the active building and subscribes past the 50-task list window", async () => {
+  it("scopes pins strictly to the active building (own building, else the model's) and subscribes past the 50-task list window", async () => {
+    h.ifcFiles = [{ id: "m1", buildingId: "bA" }, { id: "m2", buildingId: "bB" }];
+    const onModel = (modelId: string) => ({
+      bim: { elements: [{ modelId, expressId: 5 }], worldPoint: [1, 2, 3], cameraPose: POSE },
+    });
     h.cloudTasks = [
       { ...cloudTask(), id: "ta", title: "In A", buildingId: "bA" },
       { ...cloudTask(), id: "tb", num: 2, title: "In B", buildingId: "bB" },
-      { ...cloudTask(), id: "tl", num: 3, title: "Legacy" },
+      // no buildingId: placed by the model it is pinned to
+      { ...cloudTask(), id: "tl", num: 3, title: "Legacy on A", location: onModel("m1") },
+      { ...cloudTask(), id: "tm", num: 4, title: "Legacy on B", location: onModel("m2") },
+      // no buildingId and an unknown model: belongs to no building
+      { ...cloudTask(), id: "to", num: 5, title: "Orphan", location: onModel("m-gone") },
     ];
     const handle = fakeHandle();
     // spread the chips so they don't cluster
@@ -355,9 +388,20 @@ describe("TaskCalloutLayer3D sub-pixel gate", () => {
     handle.worldToScreen = () => ({ x: 100 * ++i, y: 20 });
     render(<TaskCalloutLayer3D getHandle={() => handle} buildingId="bA" />);
     expect(await screen.findByLabelText(/In A/)).toBeTruthy();
-    expect(await screen.findByLabelText(/Legacy/)).toBeTruthy();
+    expect(await screen.findByLabelText(/Legacy on A/)).toBeTruthy();
     expect(screen.queryByLabelText(/In B/)).toBeNull();
+    expect(screen.queryByLabelText(/Legacy on B/)).toBeNull();
+    expect(screen.queryByLabelText(/Orphan/)).toBeNull();
     expect(h.lastMax).toBe(PIN_FEED_LIMIT);
     expect(PIN_FEED_LIMIT).toBeGreaterThan(50);
+    h.ifcFiles = [];
+  });
+
+  it("shows no pins when no building is selected", async () => {
+    h.cloudTasks = [{ ...cloudTask(), id: "ta", title: "In A", buildingId: "bA" }];
+    const handle = fakeHandle();
+    render(<TaskCalloutLayer3D getHandle={() => handle} buildingId={null} />);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.queryByLabelText(/In A/)).toBeNull();
   });
 });

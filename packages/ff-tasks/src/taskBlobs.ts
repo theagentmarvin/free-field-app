@@ -93,6 +93,9 @@ export function outboxBlobKeys(row: OutboxRecord): string[] {
   const thumb = (row.payload as { locationThumb?: { blobKey?: unknown } | null } | undefined)
     ?.locationThumb;
   if (thumb && typeof thumb.blobKey === 'string') keys.push(thumb.blobKey);
+  const thumb2d = (row.payload as { locationThumb2d?: { blobKey?: unknown } | null } | undefined)
+    ?.locationThumb2d;
+  if (thumb2d && typeof thumb2d.blobKey === 'string') keys.push(thumb2d.blobKey);
   return keys;
 }
 

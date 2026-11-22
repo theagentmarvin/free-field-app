@@ -1,3 +1,41 @@
+diff --git a/dist/FragmentsModels/src/model/mesh-manager.mjs b/dist/FragmentsModels/src/model/mesh-manager.mjs
+index 2d7a2c0ba80f80f706bde72cfb71379ca3caaa61..7bfc975c9728cb6d17d971c6b15ff11b1fdf0913 100644
+--- a/dist/FragmentsModels/src/model/mesh-manager.mjs
++++ b/dist/FragmentsModels/src/model/mesh-manager.mjs
+@@ -365,6 +365,15 @@ class MeshManager {
+     if (!indices) {
+       throw new Error("Fragments: no indices provided to create the mesh.");
+     }
++    if (globalThis.__ffFragmentsMemory?.leanTiles) {
++      // FreeField patch (mobile memory): no second CPU copy and no compaction source. The index array is dropped after
++      // the GPU upload like the other attributes (a compaction needs both CPU copies, so tiles stay on the group path).
++      const lean = new THREE.BufferAttribute(indices, 1);
++      geometry.setIndex(lean);
++      lean.onUpload(this.deleteAttribute(geometry));
++      geometry.userData.compactIndex = false;
++      return;
++    }
+     const full = indices;
+     const gpu = full.slice();
+     geometry.setIndex(new THREE.BufferAttribute(gpu, 1));
+diff --git a/dist/FragmentsModels/src/model/view-manager.mjs b/dist/FragmentsModels/src/model/view-manager.mjs
+index d42a87c4420490476e59bda689e952cb863cc138..15130244813a4a222ce8535afd3e2fa2299a808e 100644
+--- a/dist/FragmentsModels/src/model/view-manager.mjs
++++ b/dist/FragmentsModels/src/model/view-manager.mjs
+@@ -164,6 +164,13 @@ class ViewManager {
+     const threadCount = Math.max(1, model.threads.activeThreadCount);
+     view.graphicThreshold = GPU.estimateCapacity() / threadCount;
+     view.graphicQuality = model.graphicsQuality * -1.5 + 2;
++    // FreeField patch (mobile memory): per-worker mesh cache cap in bytes (the worker reads `view.meshThreshold`;
++    // unset keeps its own default of 100 MB x navigator.deviceMemory).
++    const meshCache = globalThis.__ffFragmentsMemory?.meshCache;
++    if (typeof meshCache === "number" && meshCache > 0) view.meshThreshold = meshCache;
++    // FreeField patch (mobile memory): the worker skips the per-vertex face-id colours (12 bytes a vertex on the GPU,
++    // only read by the id-pass picker) when this is set.
++    if (globalThis.__ffFragmentsMemory?.leanTiles) view.leanFaceIds = true;
+     view.clippingPlanes = this.getPlanes();
+     view.modelPlacement = model.object.matrixWorld;
+     return view;
 diff --git a/dist/FragmentsModels/src/multithreading/fragments-connection.mjs b/dist/FragmentsModels/src/multithreading/fragments-connection.mjs
 index 3d4a89de4812bfcec75853bff9a208b8c7d691b7..cfd44fed3e52a9c2baba19f0ef505e49387496a3 100644
 --- a/dist/FragmentsModels/src/multithreading/fragments-connection.mjs
@@ -77,8 +115,23 @@ index 132c37f76c812821a6b3ad9af7dfb3a98f3ef6cd..27c8cf50ed7f48784d7f75c3eac32c0c
      this._modelThread.set(input.modelId, lessBusyThread);
      return this._threadPort.get(lessBusyThread);
    }
+diff --git a/dist/FragmentsModels/src/utils/misc/gpu.mjs b/dist/FragmentsModels/src/utils/misc/gpu.mjs
+index f21dfea9792c2dce510f4bb9d0312cb3c93f1a72..32c8d7c2aa28d99ed55bd1c46ae24c9592b30846 100644
+--- a/dist/FragmentsModels/src/utils/misc/gpu.mjs
++++ b/dist/FragmentsModels/src/utils/misc/gpu.mjs
+@@ -10,6 +10,10 @@ class GPU {
+    */
+   static maxCapacity = 1e9;
+   static estimateCapacity() {
++    // FreeField patch (mobile memory): `globalThis.__ffFragmentsMemory.graphicBudget` (bytes) replaces the screen-size
++    // estimate. It is read on every view refresh, so lowering it under memory pressure evicts invisible tiles.
++    const override = globalThis.__ffFragmentsMemory?.graphicBudget;
++    if (typeof override === "number" && override >= 0) return override;
+     const factor = this.capacityFactor;
+     const width = window.screen.width;
+     const height = window.screen.height;
 diff --git a/dist/Worker/worker.mjs b/dist/Worker/worker.mjs
-index ce21df6f6479106297c885280d296d369efe9f41..6a0120ef63c660ba6cc4b89384b670293ab2b131 100644
+index ce21df6f6479106297c885280d296d369efe9f41..1859451d3a32c33b16bacf6e8a24894e6b594bc8 100644
 --- a/dist/Worker/worker.mjs
 +++ b/dist/Worker/worker.mjs
 @@ -31742,6 +31742,584 @@ class VirtualMemoryController {
@@ -847,7 +900,7 @@ index ce21df6f6479106297c885280d296d369efe9f41..6a0120ef63c660ba6cc4b89384b67029
      if (tile.notVirtual) {
        this._tilesChanged.add(tileId);
        return;
-@@ -32893,10 +33567,10 @@ class VirtualTilesController {
+@@ -32893,10 +33567,11 @@ class VirtualTilesController {
      }
      return distance * this._temp.viewDimension;
    }
@@ -856,11 +909,12 @@ index ce21df6f6479106297c885280d296d369efe9f41..6a0120ef63c660ba6cc4b89384b67029
      const tileData = this.getTileData(tile);
      this.fetchTileMatrixOnLoad(tile);
 -    const faceIds = this.getFaceIds(tile);
-+    const faceIds = prebuilt ? prebuilt.faceIds : this.getFaceIds(tile);
++    // FreeField patch (mobile memory): `view.leanFaceIds` drops the face-id colours (the main thread skips a missing attribute).
++    const faceIds = this._virtualView?.leanFaceIds ? void 0 : prebuilt ? prebuilt.faceIds : this.getFaceIds(tile);
      this._meshConnection.process({
        tileRequestClass: TileRequestClass.CREATE,
        modelId: this._modelId,
-@@ -32909,7 +33583,7 @@ class VirtualTilesController {
+@@ -32909,7 +33584,7 @@ class VirtualTilesController {
        normals: tile.normalBuffer,
        faceIds,
        itemIds: tile.ids,
@@ -869,7 +923,7 @@ index ce21df6f6479106297c885280d296d369efe9f41..6a0120ef63c660ba6cc4b89384b67029
        material: tile.materialId,
        matrix: this._temp.matrix.clone(),
        aabb: tile.box.clone(),
-@@ -32937,19 +33611,203 @@ class VirtualTilesController {
+@@ -32937,19 +33612,203 @@ class VirtualTilesController {
      }
      return Uint32Array.from(localIds);
    }
@@ -1079,7 +1133,7 @@ index ce21df6f6479106297c885280d296d369efe9f41..6a0120ef63c660ba6cc4b89384b67029
    meshData(mesh, allowVoid, lod) {
      const id = this._temp.representation.id();
      const customLod = mesh.getLodClass() === LodClass.CUSTOM;
-@@ -38846,12 +39704,18 @@ class VirtualFragmentsModel {
+@@ -38846,12 +39705,18 @@ class VirtualFragmentsModel {
      this._connection = connection;
      this._config = { ...this._config, ...config };
      this.data = this.setupModel(data);
@@ -1098,7 +1152,7 @@ index ce21df6f6479106297c885280d296d369efe9f41..6a0120ef63c660ba6cc4b89384b67029
      this.properties = this.setupProperties();
      this.raycaster = this.setupRaycaster();
      this.indexes = new VirtualIndexesController(this);
-@@ -39762,9 +40626,18 @@ class ThreadUpdater {
+@@ -39762,9 +40627,18 @@ class ThreadUpdater {
        return;
      }
      const updated = this.updateAllModels();
@@ -1118,7 +1172,7 @@ index ce21df6f6479106297c885280d296d369efe9f41..6a0120ef63c660ba6cc4b89384b67029
    // Offset into the model list where the next tick starts. Rotating the
    // start point keeps one model with a long-running cull pass from
    // eating the whole per-tick time budget every tick and starving the
-@@ -39877,11 +40750,19 @@ class FragmentsThread {
+@@ -39877,11 +40751,19 @@ class FragmentsThread {
  const thread = new FragmentsThread();
  if (typeof window === "undefined") {
    globalThis.onmessage = (input) => {

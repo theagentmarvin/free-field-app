@@ -1,6 +1,6 @@
 import type { OutboxRecord } from "@ff/types";
 import type { TaskView } from "@ff/tasks";
-import { sendingActionLanded } from "@ff/tasks";
+import { sendingActionLanded, queuedPhotoPaths, normalizeLocationThumbPath, type TaskActionPayload } from "@ff/tasks";
 
 import { CLOSED_STATUSES, isOverdue } from "./logic";
 
@@ -45,6 +45,7 @@ export interface PanelLocation {
     page?: number;
     uv?: [number, number] | null;
     calibId?: string;
+    pdfVersionId?: string;
   } | null;
 }
 
@@ -196,6 +197,7 @@ export function mergePanelTasks(
       statusTo?: number;
       at?: number;
       createDoc?: Record<string, unknown>;
+      actor?: { name?: string } | null;
     };
     const taskId = payload.taskId;
     if (!taskId) continue;
@@ -218,6 +220,14 @@ export function mergePanelTasks(
         pending: true,
         failed: row.state === "failed",
         location: (doc.location as PanelLocation) ?? null,
+        buildingId: (doc.buildingId as string | null | undefined) ?? null,
+        // A queued create renders like a synced task: description, type,
+        // photos and the location snapshot thumb ride the payload.
+        description: (doc.description as string | undefined) ?? "",
+        type: (doc.type as string | null | undefined) ?? null,
+        createdBy: (payload.actor as { name?: string } | undefined)?.name ?? null,
+        photos: queuedPhotoPaths({ ...(payload as object), projectId: row.projectId } as unknown as TaskActionPayload),
+        locationThumbPath: normalizeLocationThumbPath(doc.location),
       });
       continue;
     }

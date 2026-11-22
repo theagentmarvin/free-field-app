@@ -1,0 +1,103 @@
+# FreeField CI. Every step is a stock pnpm command you can run locally from
+# the repo root; see docs/deploy/self-hosting.md ("Keeping your fork green").
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# One run per ref; a newer push cancels the older run.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Turborepo only runs what changed; nothing here needs a remote cache.
+  TURBO_TELEMETRY_DISABLED: "1"
+
+jobs:
+  check:
+    name: Typecheck, lint, unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      # pnpm version comes from "packageManager" in package.json (10.30.1).
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # All workspaces (turbo) + apps/settings (direct `tsc --noEmit`).
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Lint
+        run: pnpm lint
+      # Unit tests only. Emulator suites run in the `emulator` job.
+      - name: Unit tests
+        run: pnpm test
+
+  build:
+    name: Build (self-host mode, demo off)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Placeholders so the build needs no secrets. They are public client
+      # config in a real deployment anyway; nothing here talks to Firebase.
+      VITE_FIREBASE_API_KEY: ci-placeholder
+      VITE_FIREBASE_AUTH_DOMAIN: ci-placeholder.firebaseapp.com
+      VITE_FIREBASE_PROJECT_ID: ci-placeholder
+      VITE_FIREBASE_STORAGE_BUCKET: ci-placeholder.firebasestorage.app
+      VITE_FIREBASE_MESSAGING_SENDER_ID: "0"
+      VITE_FIREBASE_APP_ID: ci-placeholder
+      VITE_EXPECTED_FIREBASE_PROJECT_ID: ci-placeholder
+      VITE_FIREBASE_USE_EMULATOR: "false"
+      VITE_FF_DEMO_AUTH: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Full build, then drop the ~150 MB of demo seed/sample assets.
+      - name: Build
+        run: pnpm build:selfhost
+      - name: Check the deploy artifact
+        run: |
+          test -f apps/settings/dist/index.html
+          test ! -e apps/settings/dist/seed
+          test ! -e apps/settings/dist/samples
+          du -sh apps/settings/dist
+
+  emulator:
+    name: Firestore/Storage rules and sync emulator suites
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      # Cloud Functions declare engines.node 22; the emulator loads them.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      # firebase-tools needs JDK 21+ for the Firestore emulator.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - run: pnpm install --frozen-lockfile
+      - name: Install Cloud Functions dependencies
+        run: npm ci --prefix packages/ff-firestore/functions
+      # Sequential: both suites bind the Firestore emulator port.
+      - name: Rules + functions (@ff/firestore)
+        run: pnpm --filter @ff/firestore test:emulator
+      - name: Sync engine (@ff/sync)
+        run: pnpm --filter @ff/sync test:emulator

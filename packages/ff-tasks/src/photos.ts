@@ -45,6 +45,15 @@ export function locationThumbPath(projectId: string, taskId: string): string {
   return `projects/${projectId}/tasks/${taskId}/location-thumb.jpg`;
 }
 
+/**
+ * LinkView dual location: the PLAN snapshot's deterministic path. Same
+ * prefix and `.jpg` shape as {@link locationThumbPath}, so the existing
+ * photos pattern in storage.rules admits it with no rules change.
+ */
+export function locationThumb2dPath(projectId: string, taskId: string): string {
+  return `projects/${projectId}/tasks/${taskId}/location-thumb-2d.jpg`;
+}
+
 /** Mime type the snapshot capturer always emits (canvas jpeg). */
 export const LOCATION_THUMB_MIME = "image/jpeg";
 

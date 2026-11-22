@@ -58,6 +58,7 @@ export {
 } from "./sampler";
 export { attachWindowHooks, type WindowTelemetryApi } from "./windowHooks";
 export { safe } from "./safe";
+export { reportBoundaryError, type BoundaryErrorContext } from "./reportBoundaryError";
 
 // --- Wave 18 U2: frame timer + per-model renderer ring buffers ----
 

@@ -3,6 +3,10 @@ import { httpsCallable } from 'firebase/functions';
 import { getFunctions } from 'firebase/functions';
 import { useAuth, useAuthContext } from '@ff/auth';
 
+/** Cloud Functions region (VITE_FIREBASE_FUNCTIONS_REGION); unset = SDK default (us-central1). */
+const FUNCTIONS_REGION: string | undefined =
+  import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION || undefined;
+
 /**
  * /needs-invitation — landing for signed-in users without project membership.
  *
@@ -24,7 +28,7 @@ export function NeedsInvitationPage() {
     setBootstrapping(true);
     setBootstrapResult(null);
     try {
-      const functions = getFunctions(app);
+      const functions = getFunctions(app, FUNCTIONS_REGION);
       const bootstrapFn = httpsCallable(functions, 'bootstrapFirstAdmin');
 
       // Call with no data — the function reads the caller's auth context.

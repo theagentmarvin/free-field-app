@@ -56,7 +56,9 @@ vi.mock("@ff/tasks-react", () => ({
   },
 }));
 
-vi.mock("@ff/viewer-tools", () => ({
+vi.mock("@ff/viewer-tools", async () => ({
+  // Pure presentational bar primitives (no heavy deps): use the real ones.
+  ...(await import("../../../packages/ff-viewer-tools/src/components/floatingBar")),
   useIsMobile: () => false,
   // Wave 54 — ViewerToolbar now reads the manual-visibility overlay when
   // saving a view (capture) and replaces it when restoring. The mock only

@@ -160,3 +160,17 @@ vi.mock("@thatopen/components", () => {
     DrawingSystemDescriptor: NoopClass,
   };
 });
+
+// pdf.js 6 (legacy build) calls `Promise.withResolvers`, which Node < 22 lacks
+// (every supported browser has it). Test-only shim.
+if (typeof (Promise as unknown as { withResolvers?: unknown }).withResolvers !== "function") {
+  (Promise as unknown as { withResolvers: () => unknown }).withResolvers = function withResolvers<T>() {
+    let resolve!: (v: T | PromiseLike<T>) => void;
+    let reject!: (r?: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  };
+}

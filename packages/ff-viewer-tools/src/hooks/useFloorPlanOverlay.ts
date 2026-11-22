@@ -151,8 +151,8 @@ export function useFloorPlanOverlay(
           throw renderErr;
         }
 
-        // 4. Compute world-space bounds from calibration.
-        const worldBounds = computeWorldBounds(
+        // 4. Place the page with the full similarity transform.
+        const { worldBounds, rotation } = computeOverlayPlacement(
           calibration.transformParams,
           api.width,
           api.height,
@@ -176,7 +176,11 @@ export function useFloorPlanOverlay(
           canvas,
           worldBounds,
           calibration.floorZ,
-          { opacity: opacityRef.current },
+          // `rotation` only when non-zero: unrotated calls keep the
+          // exact pre-rotation argument shape.
+          rotation !== 0
+            ? { opacity: opacityRef.current, rotation }
+            : { opacity: opacityRef.current },
         );
         planeIdRef.current = newId;
 
@@ -219,37 +223,34 @@ export function useFloorPlanOverlay(
 }
 
 /**
- * Compute the axis-aligned world-space XZ bounds of a PDF page
- * given its calibration transform. The PDF corners (0,0) →
- * (width,0) → (width,height) → (0,height) are mapped through
- * the similarity transform to world coords, and the min/max of
- * those four points defines the axis-aligned bounding rect.
+ * Place the page with the FULL similarity transform (rotation included).
  *
- * The plane is placed flat at y = floorZ + Z_FIGHT_OFFSET; this
- * function only returns the XZ footprint.
+ * The plane is the un-rotated page rectangle (scale * width x
+ * scale * height) centred on the world image of the page centre,
+ * plus the calibration's rotation, which the viewer applies about
+ * that centre. With rotation 0 the rectangle equals the old
+ * axis-aligned bounds of the transformed corners. (Using the corner
+ * AABB with a rotated page stretched the texture over a rectangle
+ * that is not the page.)
  */
-function computeWorldBounds(
+export function computeOverlayPlacement(
   params: CalibrationTransformParams,
   pdfWidth: number,
   pdfHeight: number,
-): { minX: number; minZ: number; maxX: number; maxZ: number } {
-  const corners = [
-    { x: 0, y: 0 },
-    { x: pdfWidth, y: 0 },
-    { x: pdfWidth, y: pdfHeight },
-    { x: 0, y: pdfHeight },
-  ].map((p) => applyCalibration(params, p));
-
-  let minX = Infinity;
-  let maxX = -Infinity;
-  let minZ = Infinity;
-  let maxZ = -Infinity;
-  for (const c of corners) {
-    if (c.x < minX) minX = c.x;
-    if (c.x > maxX) maxX = c.x;
-    if (c.z < minZ) minZ = c.z;
-    if (c.z > maxZ) maxZ = c.z;
-  }
-
-  return { minX, minZ, maxX, maxZ };
+): {
+  worldBounds: { minX: number; minZ: number; maxX: number; maxZ: number };
+  rotation: number;
+} {
+  const centre = applyCalibration(params, { x: pdfWidth / 2, y: pdfHeight / 2 });
+  const halfW = (params.scale * pdfWidth) / 2;
+  const halfD = (params.scale * pdfHeight) / 2;
+  return {
+    worldBounds: {
+      minX: centre.x - halfW,
+      maxX: centre.x + halfW,
+      minZ: centre.z - halfD,
+      maxZ: centre.z + halfD,
+    },
+    rotation: params.rotation,
+  };
 }

@@ -13,6 +13,8 @@
 
 export {
   AuthProvider,
+  MembershipTimeoutError,
+  MEMBERSHIP_TIMEOUT_MS,
   AuthConfigErrorScreen,
   useAuthContext,
   type AuthContextValue,
@@ -44,6 +46,7 @@ export { useDemoRole } from './hooks/useDemoRole';
 export { RequireAuth } from './guards/RequireAuth';
 export { RequireAdmin } from './guards/RequireAdmin';
 export { RequireProjectMember, ProjectLoadError } from './guards/RequireProjectMember';
+export { BootLoading } from './guards/BootLoading';
 
 export { runTenantCheck, TenantMismatchError } from './tenant-check';
 

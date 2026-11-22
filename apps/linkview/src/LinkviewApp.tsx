@@ -47,6 +47,11 @@ import {
 } from "@ff/viewer-react";
 import { db } from "@ff/data/db/database";
 import { useProjectId } from "@ff/auth";
+import {
+  attachPlanSnapshotThumb,
+  setTaskLocationEnricher,
+  TaskCalloutLayer2D,
+} from "@ff/tasks-react";
 import type { CalibrationRecord, StoreyRecord } from "@ff/types";
 
 import {
@@ -74,6 +79,9 @@ import {
   planDistance,
   seedPdfPoint,
   resolveStoreyFloorZ,
+  shouldDeferForBaseShift,
+  BASE_COORD_RETRY_MS,
+  overlapTopDownPose,
   seedWorldPoint,
   shouldBackProjectCamera,
   worldFromPdfPoint,
@@ -90,6 +98,8 @@ import {
   type LinkviewMode,
 } from "./linkviewMode";
 import { useOverlayOpacityStore } from "./overlayOpacityStore";
+import { linkviewLocationFromBim } from "./linkviewTaskLocation";
+import { useLinkviewTaskOpen } from "./useLinkviewTaskOpen";
 
 export interface LinkviewAppProps {
   /** The shared persistent surface handle (right pane). */
@@ -175,6 +185,11 @@ function LinkviewAppInner({
       ? calStoreyChoice.storeyName
       : null;
 
+  // Re-run the calibration query while the base model's coordinates are not
+  // known yet (floorZ needs the model's vertical shift).
+  const [baseTick, setBaseTick] = useState(0);
+  const baseAttemptsRef = useRef(0);
+
   // ── Floor-plan overlay calibration (moved from the old split canvas)
   const overlayCalibration = useLiveQuery(async () => {
     if (!activePdfVersionId || !activeBuildingId) return null;
@@ -238,6 +253,16 @@ function LinkviewAppInner({
     const currentVersionIds = new Set(
       ifcFiles.map((f) => f.currentVersionId).filter(Boolean),
     );
+    if (
+      shouldDeferForBaseShift(viewerRef.current, currentVersionIds.size > 0, baseAttemptsRef.current)
+    ) {
+      // The model has not loaded yet: its vertical shift is unknown, so do not
+      // place the plane at an unshifted floor. Retry shortly.
+      baseAttemptsRef.current += 1;
+      setTimeout(() => setBaseTick((t) => t + 1), BASE_COORD_RETRY_MS);
+      return null;
+    }
+    baseAttemptsRef.current = 0;
     const floorZ =
       resolveStoreyFloorZ(cal.storeyName, buildingStoreys, {
         currentVersionIds,
@@ -246,10 +271,13 @@ function LinkviewAppInner({
             ? activeStorey.sourceIfcFileId
             : null,
         centroidY: viewerRef.current?.getModelCentroid()?.y ?? null,
+        // Geometry sits at elevation + the base model's y shift.
+        modelShiftY: viewerRef.current?.getBaseCoordinates?.()?.[1] ?? null,
       }) ?? 0;
 
     return {
       versionId: activePdfVersionId,
+      pdfFileId: version.pdfFileId,
       calibration: cal,
       transformParams: cal.transformParams,
       floorZ,
@@ -263,6 +291,7 @@ function LinkviewAppInner({
     activeBuildingId,
     activeStoreyId,
     chosenCalStorey,
+    baseTick,
   ]);
 
   // Wave 58 — ref mirror of the calibration so the seed/place helpers
@@ -285,6 +314,32 @@ function LinkviewAppInner({
     mode === "overlap",
     overlayOpacityPct / 100,
   );
+
+  // Entering overlap (from split, or on load) frames the calibrated page from
+  // straight above. The split view leaves the camera at first-person eye height
+  // (horizontal): without this the plan plane is seen at a grazing angle.
+  // Once per (PDF version, calibration) entry; leaving overlap re-arms it.
+  const overlapFramedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (mode !== "overlap") {
+      overlapFramedRef.current = null;
+      return;
+    }
+    if (!overlayCalibration || !surfaceLoaded) return;
+    const key = `${overlayCalibration.versionId}|${overlayCalibration.calibration.id}`;
+    if (overlapFramedRef.current === key) return;
+    const handle = viewerRef.current;
+    if (!handle) return;
+    overlapFramedRef.current = key;
+    const pose = overlapTopDownPose(
+      overlayCalibration.transformParams,
+      overlayCalibration.pageWidth,
+      overlayCalibration.pageHeight,
+      overlayCalibration.floorZ,
+      handle.getPose({ silent: true }) ?? null,
+    );
+    handle.setViewPose(pose, { animate: false });
+  }, [mode, overlayCalibration, surfaceLoaded, viewerRef]);
 
   // Floor clip plane during overlap — cut everything above the
   // calibrated floor so the overlaid plan reads cleanly.
@@ -829,12 +884,16 @@ function LinkviewAppInner({
     // priority (caught by the wave-55 test suite). The signals only
     // serve as re-trigger deps when data lands late (demo seed).
     let cancelled = false;
+    // A task quick-access open claims the building (autoSelectRef) while
+    // these reads are in flight: its sheet must not be replaced.
+    const stale = (): boolean =>
+      cancelled || autoSelectRef.current === activeBuildingId;
     void (async () => {
       const pdfs = await queryMappedPdfsForBuilding(
         projectId,
         activeBuildingId,
       );
-      if (cancelled) return;
+      if (stale()) return;
       if (pdfs.length > 0) {
         autoSelectRef.current = activeBuildingId;
         setActivePdfVersionId(pdfs[0].latestVersion.id);
@@ -842,7 +901,7 @@ function LinkviewAppInner({
       }
       const extracted =
         await queryExtractedStoreysForBuilding(activeBuildingId);
-      if (cancelled) return;
+      if (stale()) return;
       if (extracted.length > 0) {
         autoSelectRef.current = activeBuildingId;
         await openStoreyPlan(
@@ -858,7 +917,7 @@ function LinkviewAppInner({
         .where("buildingId")
         .equals(activeBuildingId)
         .toArray()) as StoreyRecord[];
-      if (cancelled) return;
+      if (stale()) return;
       if (storeyRows.length === 0) return; // nothing yet — don't claim
       storeyRows.sort((a, b) => a.elevation - b.elevation);
       autoSelectRef.current = activeBuildingId;
@@ -874,6 +933,70 @@ function LinkviewAppInner({
     extractedStoreysSignal,
     openStoreyPlan,
   ]);
+
+  // ── LinkView dual location ────────────────────────────────────────
+  // Creation: a 3D tap on the shared surface also stores the matching
+  // plan pin + plan snapshot (and origin 'linkview') through the
+  // tasks-react creation seam. The enricher reads refs, so it always sees
+  // the sheet that is open right now; it returns null (an ordinary 3D
+  // task) when no calibrated sheet is open or the point is off the page.
+  const activePdfVersionIdRef = useRef(activePdfVersionId);
+  activePdfVersionIdRef.current = activePdfVersionId;
+  useEffect(() => {
+    setTaskLocationEnricher((location, { projectId: pid, taskId }) => {
+      const cal = overlayCalibrationRef.current;
+      if (!cal || cal.versionId !== activePdfVersionIdRef.current) return null;
+      const made = linkviewLocationFromBim(location, {
+        pdfFileId: cal.pdfFileId,
+        versionId: cal.versionId,
+        calibration: cal.calibration,
+        pageWidth: cal.pageWidth,
+        pageHeight: cal.pageHeight,
+      });
+      if (!made) return null;
+      // plan snapshot cropped around the pin; null -> no thumb, creation never blocks
+      const dataUrl = pdfOverlayRef.current?.getPageSnapshot?.(1, made.uv, 400) ?? null;
+      const { location: withThumb, thumb } = attachPlanSnapshotThumb(dataUrl, pid, taskId, made.location);
+      return { location: withThumb, thumb2d: thumb };
+    });
+    return () => setTaskLocationEnricher(null);
+  }, []);
+
+  // Quick access: a LinkView task opens the sheet at its pin AND restores
+  // the 3D view. The sheet switch claims the building's auto-select so the
+  // "first mapped PDF" default does not replace it.
+  const openTaskSheetVersion = useCallback(
+    (versionId: string) => {
+      autoSelectRef.current = useModelsToolStore.getState().activeBuildingId;
+      setActivePdfVersionId(versionId);
+      setActiveStoreyId(null);
+    },
+    [],
+  );
+  useLinkviewTaskOpen({
+    overlayRef: pdfOverlayRef,
+    viewerRef,
+    activeBuildingId,
+    activePdfVersionId,
+    openVersion: openTaskSheetVersion,
+    // Opening a calibrated sheet re-seeds the first-person camera: restore after it.
+    cameraSettled:
+      mode !== "split" ||
+      activePdfVersionId === null ||
+      (navKey !== null && navSeededFor === navKey),
+  });
+
+  // 2D task pins on the open sheet (the pin quick access highlights).
+  const planPins =
+    activePdfVersionId && overlayCalibration && overlayCalibration.versionId === activePdfVersionId ? (
+      <TaskCalloutLayer2D
+        key={activePdfVersionId}
+        getSurface={() => pdfOverlayRef.current}
+        pdfFileId={overlayCalibration.pdfFileId}
+        pageSize={{ width: overlayCalibration.pageWidth, height: overlayCalibration.pageHeight }}
+        buildingId={activeBuildingId}
+      />
+    ) : null;
 
   // ── Wave 55: the tools toolbar + panel slot, anchored to the RIGHT
   // (3D) pane by LinkviewSplitCanvas' `chrome` slot ──────────────────
@@ -940,6 +1063,7 @@ function LinkviewAppInner({
         surfaceLoaded={surfaceLoaded}
         chrome={chrome}
         pdfOverlayRef={pdfOverlayRef}
+        planOverlay={planPins}
         onPdfClick={navActive ? handleNavPdfClick : undefined}
         measureCalibration={
           overlayCalibration

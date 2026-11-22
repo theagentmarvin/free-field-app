@@ -2,6 +2,9 @@ import { describe, it, expect } from "vitest";
 
 import {
   buildEditPatch,
+  EXTENDED_PATCH_KEYS,
+  MAX_SHEET_REFS,
+  normalizeSheetRefs,
   checklistProgress,
   diffTaskFields,
   inverseVerb,
@@ -118,5 +121,74 @@ describe("DemoTaskSource.deleteTask", () => {
     un();
     expect(seen[0]).toBe(1);
     expect(seen[seen.length - 1]).toBe(0);
+  });
+});
+
+describe("sheet references (attach from project)", () => {
+  const a = { pdfFileId: "f1", pdfVersionId: "f1v1", versionNumber: 1, name: "A101.pdf" };
+  const b = { pdfFileId: "f2", pdfVersionId: "f2v3", versionNumber: 3, name: "A102.pdf", page: 2 };
+
+  it("diff words attach / remove and drops no-ops", () => {
+    expect(diffTaskFields({ sheetRefs: [a] }, { sheetRefs: [a] })).toEqual([]);
+    const add = diffTaskFields({ sheetRefs: [a] }, { sheetRefs: [a, b] });
+    expect(add).toHaveLength(1);
+    expect(add[0]).toMatchObject({ key: "sheetRefs", text: "attached sheet A102.pdf" });
+    const rem = diffTaskFields({ sheetRefs: [a, b] }, { sheetRefs: [b] });
+    expect(rem[0].text).toBe("removed sheet A101.pdf");
+    const both = diffTaskFields({ sheetRefs: [a] }, { sheetRefs: [b] });
+    expect(both[0].text).toBe("attached sheet A102.pdf; removed sheet A101.pdf");
+  });
+
+  it("edit patch carries the list (a reference, never a copy)", () => {
+    const changes = diffTaskFields({}, { sheetRefs: [a] });
+    expect(buildEditPatch({ sheetRefs: [a] }, changes, null)).toEqual({ sheetRefs: [a] });
+  });
+
+  it("is an extended (rules-gated) field", () => {
+    expect(EXTENDED_PATCH_KEYS).toContain("sheetRefs");
+  });
+
+  it("normalizeSheetRefs drops malformed entries, dedupes by file+version and caps the list", () => {
+    expect(normalizeSheetRefs("x")).toEqual([]);
+    expect(normalizeSheetRefs([a, a, { pdfFileId: "", pdfVersionId: "v", name: "n" }, null, { pdfFileId: "f", name: "n" }, b])).toEqual([a, b]);
+    const many = Array.from({ length: 40 }, (_, i) => ({ pdfFileId: `f${i}`, pdfVersionId: `v${i}`, name: `n${i}` }));
+    expect(normalizeSheetRefs(many)).toHaveLength(MAX_SHEET_REFS);
+  });
+
+  it("a queued create and a queued patch overlay show the refs optimistically", () => {
+    const createRow = {
+      id: "r1",
+      state: "added",
+      createdAt: 1,
+      payload: buildActionPayload({
+        verb: "create",
+        projectId: "p",
+        taskId: "t1",
+        statusFrom: null,
+        actor: { uid: "u", name: "U" },
+        title: "T",
+        at: 1,
+        createDoc: { description: "", type: "task", deadline: null, buildingId: null, assigneeUid: null, assigneeName: null, location: null, photos: [], sheetRefs: [a] },
+      }),
+    } as unknown as OutboxRecord;
+    const v1 = mergeTaskViews([], [createRow]);
+    expect(v1[0].sheetRefs).toEqual([a]);
+    const patchRow = {
+      id: "r2",
+      state: "added",
+      createdAt: 2,
+      payload: buildActionPayload({
+        verb: "edit",
+        projectId: "p",
+        taskId: "t1",
+        statusFrom: 10,
+        actor: { uid: "u", name: "U" },
+        title: "T",
+        at: 2,
+        patch: { sheetRefs: [a, b] },
+      }),
+    } as unknown as OutboxRecord;
+    const v2 = mergeTaskViews([], [createRow, patchRow]);
+    expect(v2[0].sheetRefs).toEqual([a, b]);
   });
 });

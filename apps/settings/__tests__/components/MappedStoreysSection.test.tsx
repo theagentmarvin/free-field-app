@@ -99,6 +99,7 @@ function makeMockHandle(
     getContainer,
     zoom: vi.fn(),
     setActiveTool: vi.fn(),
+    setMemoryPressure: vi.fn(),
     activeTool: null,
     // Task 19/21: no-ops for methods not exercised by
     // MappedStoreysSection tests (the section only uses

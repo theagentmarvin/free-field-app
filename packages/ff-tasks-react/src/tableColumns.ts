@@ -1,7 +1,7 @@
 import { createElement, Fragment } from "react";
 import type { ReactNode } from "react";
 
-import { normalizeChecklist, PRIORITY_LABELS, PRIORITY_RANK, priorityOf, checklistProgress, type TaskView } from "@ff/tasks";
+import { isLinkviewLocation, normalizeChecklist, normalizeLocationThumb2dPath, PRIORITY_LABELS, PRIORITY_RANK, priorityOf, checklistProgress, type TaskView } from "@ff/tasks";
 
 import { fmtDdMmm, formatTaskNum, initialsOf, STATUS_LABELS } from "./logic";
 import {
@@ -14,7 +14,7 @@ import {
 import type { PhotoUrlResolver } from "./usePhotoUrl";
 import { ChecklistProgress, DeadlineChip, PriorityChip } from "./TaskChips";
 import { TaskTableThumb } from "./TaskTableThumb";
-import { LocationThumb } from "./LocationThumb";
+import { OpenableLocationThumb } from "./LocationThumb";
 
 /**
  * Wave 5A — tasks table column registry + pure picker/sort logic.
@@ -221,12 +221,33 @@ const buildingRender = (row: TaskTableRow): ReactNode => {
 
 const locationRender = (row: TaskTableRow, ctx: ColumnRenderCtx): ReactNode => {
   const kind = locationKind(row.location);
+  // LinkView dual location: plan | 3D thumbs side by side (compact, no text chip).
+  const path2d = normalizeLocationThumb2dPath(row.location);
+  if (kind && row.locationThumbPath && path2d && isLinkviewLocation(row.location)) {
+    return createElement(
+      "span",
+      {
+        className: "ff-task-table-location ff-task-table-location-dual",
+        "data-testid": "ff-task-table-location-dual",
+        style: { display: "inline-flex", alignItems: "center", padding: "1px 2px", whiteSpace: "nowrap" },
+      },
+      createElement(OpenableLocationThumb, {
+        task: row,
+        path: row.locationThumbPath,
+        path2d,
+        resolve: ctx.resolvePhotoUrl,
+        label: `Location snapshot for ${formatTaskNum(row.num)}`,
+        style: { width: 30, height: 22, borderRadius: 4, marginRight: 0 },
+      }),
+    );
+  }
   if (!kind) {
     // A location thumb can exist even when the parsed kind is null
     // (e.g. a snapshot captured but the loc shape is post-v1) — show
     // just the thumb then.
     const thumb = row.locationThumbPath
-      ? createElement(LocationThumb, {
+      ? createElement(OpenableLocationThumb, {
+          task: row,
           path: row.locationThumbPath,
           resolve: ctx.resolvePhotoUrl,
           label: "Location snapshot",
@@ -251,7 +272,8 @@ const locationRender = (row: TaskTableRow, ctx: ColumnRenderCtx): ReactNode => {
       },
     },
     row.locationThumbPath
-      ? createElement(LocationThumb, {
+      ? createElement(OpenableLocationThumb, {
+          task: row,
           path: row.locationThumbPath,
           resolve: ctx.resolvePhotoUrl,
           label: `Location snapshot for ${formatTaskNum(row.num)}`,

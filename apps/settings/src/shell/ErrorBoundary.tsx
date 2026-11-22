@@ -11,6 +11,7 @@
 
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { reportBoundaryError } from "@ff/telemetry";
 
 export interface ErrorBoundaryProps {
   children: ReactNode;
@@ -40,6 +41,9 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   componentDidCatch(error: Error, info: ErrorInfo): void {
     // eslint-disable-next-line no-console
     console.error(`[ErrorBoundary${this.props.label ? `:${this.props.label}` : ""}]`, error, info.componentStack);
+    // Render errors never reach window.onerror; send them to telemetry
+    // (no-op unless telemetry/Channel A is enabled; never throws).
+    reportBoundaryError(error, { module: this.props.label, componentStack: info.componentStack });
   }
 
   componentDidUpdate(prev: ErrorBoundaryProps): void {

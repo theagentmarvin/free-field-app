@@ -25,6 +25,16 @@ import { createPortal } from "react-dom";
 
 import type { PdfOverlayHandle } from "@ff/viewer-react";
 
+import {
+  FloatingBar,
+  barRowStyle,
+  clearButtonStyle,
+  menuRowStyle,
+  menuStyle,
+  readoutChipStyle,
+  segButtonStyle,
+  segGroupStyle,
+} from "../components/floatingBar";
 import { formatArea, formatLength, scaleBadgeText } from "./format";
 import {
   centroid,
@@ -164,6 +174,7 @@ export default function PdfMeasureLayer({
   }, [key, store]);
 
   const [hover, setHover] = useState<Point | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [scaleInput, setScaleInput] = useState("");
   const [scaleUnit, setScaleUnit] = useState<LengthUnit>("m");
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -406,15 +417,21 @@ export default function PdfMeasureLayer({
     setScaleInput("");
   };
 
-  const toolBtn = (t: "length" | "area" | "scale", label: string): ReactNode => (
+  const toolLabels = { length: "Length", area: "Area", scale: "Set scale" } as const;
+  const toolRow = (t: "length" | "area" | "scale"): ReactNode => (
     <button
       type="button"
+      role="menuitemradio"
+      aria-checked={tool === t}
       data-testid={`pdf-measure-tool-${t}`}
       aria-pressed={tool === t}
-      onClick={() => store.getState().setTool(tool === t ? "none" : t)}
-      style={{ ...btnStyle, ...(tool === t ? btnActiveStyle : null) }}
+      onClick={() => {
+        store.getState().setTool(tool === t ? "none" : t);
+        setMenuOpen(false);
+      }}
+      style={menuRowStyle(tool === t)}
     >
-      {label}
+      {toolLabels[t]}
     </button>
   );
 
@@ -432,25 +449,51 @@ export default function PdfMeasureLayer({
   return (
     <>
       {svg}
-      <div style={barStyle} data-testid="pdf-measure-bar" onPointerDown={(e) => e.stopPropagation()}>
-        <div style={rowStyle}>
-          {toolBtn("length", "Length")}
-          {toolBtn("area", "Area")}
-          {toolBtn("scale", "Set scale")}
-          {measurements.length > 0 ? (
+      <FloatingBar
+        data-testid="pdf-measure-bar"
+        aria-label="Measure tools"
+        style={{ maxWidth: "calc(100% - 24px)" }}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        {menuOpen ? (
+          <div
+            data-testid="pdf-measure-menu"
+            role="menu"
+            aria-label="Measurement tools"
+            className="ff-frosted"
+            style={menuStyle()}
+          >
+            {toolRow("length")}
+            {toolRow("area")}
+            {toolRow("scale")}
+          </div>
+        ) : null}
+        <div style={barRowStyle()}>
+          <div role="group" aria-label="Measure" style={segGroupStyle()}>
             <button
               type="button"
-              data-testid="pdf-measure-clear"
-              style={btnStyle}
-              onClick={() => store.getState().clearPage(key)}
+              data-testid="pdf-measure-menu-button"
+              aria-pressed={tool !== "none"}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((o) => !o)}
+              style={segButtonStyle(tool !== "none" || menuOpen)}
             >
-              Clear all
+              {"📏"} {tool === "none" ? "Measure" : toolLabels[tool]}
+              <span aria-hidden style={{ fontSize: 10, marginLeft: 2 }}>
+                {"▾"}
+              </span>
             </button>
+          </div>
+          {hint ? (
+            <span data-testid="pdf-measure-hint" style={hintStyle}>
+              {hint}
+            </span>
           ) : null}
           <span
             data-testid="pdf-measure-scale-badge"
             data-scale-source={scale.source}
-            style={{ ...badgeStyle, ...(scale.source === "none" ? badgeWarnStyle : null) }}
+            style={readoutChipStyle(scale.source === "none" ? "warn" : "info")}
             title={
               scale.metresPerUnit === null
                 ? "No calibration for this page: values are in PDF points. Use Set scale."
@@ -463,14 +506,25 @@ export default function PdfMeasureLayer({
             <button
               type="button"
               data-testid="pdf-measure-scale-reset"
-              style={btnStyle}
+              style={clearButtonStyle("done")}
               onClick={() => store.getState().setManualScale(key, null)}
             >
               Reset scale
             </button>
           ) : null}
+          {measurements.length > 0 ? (
+            <button
+              type="button"
+              data-testid="pdf-measure-clear"
+              aria-label="Clear measurements"
+              style={clearButtonStyle()}
+              onClick={() => store.getState().clearPage(key)}
+            >
+              {"⌫"} clear
+            </button>
+          ) : null}
         </div>
-        {hint ? <div style={hintStyle}>{hint}</div> : null}
+
         {scaleDraftReady ? (
           <div style={rowStyle} data-testid="pdf-measure-scale-form">
             <input
@@ -522,7 +576,7 @@ export default function PdfMeasureLayer({
             ))}
           </ul>
         ) : null}
-      </div>
+      </FloatingBar>
     </>
   );
 }
@@ -532,24 +586,7 @@ function summarize(m: Measurement, scale: PageScale): string {
   return `Area ${formatArea(polygonArea(m.points), scale)} · P ${formatLength(polygonPerimeter(m.points), scale)}`;
 }
 
-const barStyle: CSSProperties = {
-  position: "absolute",
-  left: 12,
-  bottom: 12,
-  zIndex: 5,
-  display: "flex",
-  flexDirection: "column",
-  gap: 6,
-  maxWidth: "calc(100% - 24px)",
-  padding: 8,
-  borderRadius: 8,
-  background: "rgba(255,255,255,0.94)",
-  boxShadow: "0 2px 10px rgba(0,0,0,0.18)",
-  fontSize: 12,
-  color: "#1f2933",
-  pointerEvents: "auto",
-};
-const rowStyle: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" };
+const rowStyle: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", padding: "0 6px" };
 const btnStyle: CSSProperties = {
   font: "inherit",
   padding: "3px 8px",
@@ -559,9 +596,6 @@ const btnStyle: CSSProperties = {
   color: "inherit",
   cursor: "pointer",
 };
-const btnActiveStyle: CSSProperties = { background: "#1971c2", borderColor: "#1971c2", color: "#fff" };
-const badgeStyle: CSSProperties = { padding: "2px 8px", borderRadius: 10, background: "#e7f5e9", color: "#1b6b2f" };
-const badgeWarnStyle: CSSProperties = { background: "#fff3cd", color: "#8a5a00" };
-const hintStyle: CSSProperties = { color: "#52606d" };
+const hintStyle: CSSProperties = { color: "#5b626b", fontSize: 12, whiteSpace: "nowrap" };
 const listStyle: CSSProperties = { listStyle: "none", margin: 0, padding: 0, maxHeight: 120, overflowY: "auto" };
 const liStyle: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "2px 0" };

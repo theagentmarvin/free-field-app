@@ -1,3 +1,6 @@
+import { useSheetCatalog } from "./sheetCatalog";
+import { useOpenTaskLocation } from "./taskTarget";
+import { effectiveTaskBuildingId, useTaskBuildingIndex, type BuildingScopedTask } from "./taskBuilding";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 
@@ -9,10 +12,12 @@ import {
   diffTaskFields,
   displayStatus,
   isEditableStatus,
+  isLinkviewLocation,
   mergeTaskEntries,
   mergeTaskViews,
   normalizeChecklist,
   normalizeWatchers,
+  normalizeSheetRefs,
   verbForEdit,
   type EditableTaskFields,
   type TaskVerb,
@@ -70,6 +75,7 @@ interface QueuedCreate {
   description: string;
   location: TaskLocation | null;
   buildingId?: string | null;
+  sheetRefs?: unknown;
 }
 
 export function TaskDetailHost({
@@ -129,6 +135,7 @@ export function TaskDetailHost({
   // priority, checklist, watchers, location…) overlay the committed doc
   // immediately — the same merge the list rows use — so an inline save
   // shows at once and settles when the commit lands.
+  const buildingIndex = useTaskBuildingIndex();
   const liveTask = useMemo<(Task & Partial<TaskView>) | null>(() => {
     if (!task) return null;
     const mine = rows.filter((r) => (r.payload as { taskId?: string } | undefined)?.taskId === taskId);
@@ -229,6 +236,7 @@ export function TaskDetailHost({
           description: p.createDoc?.description ?? "",
           location: p.createDoc?.location ?? null,
           buildingId: (p.createDoc as { buildingId?: string | null } | undefined)?.buildingId ?? null,
+          sheetRefs: (p.createDoc as { sheetRefs?: unknown } | undefined)?.sheetRefs,
         };
       }
     }
@@ -278,6 +286,21 @@ export function TaskDetailHost({
     }
   }
 
+  // The stamped building, else the one the task is pinned in (old tasks).
+  const effectiveBuildingId = effectiveTaskBuildingId(
+    {
+      buildingId: liveTask?.buildingId ?? queuedCreate?.buildingId ?? null,
+      location: (liveTask?.location ?? queuedCreate?.location ?? null) as BuildingScopedTask["location"],
+    },
+    buildingIndex,
+  );
+
+  const sheetCatalog = useSheetCatalog(projectId ?? null);
+  const openLocation = useOpenTaskLocation();
+  const taskLoc = (liveTask?.location ?? queuedCreate?.location ?? null) as BuildingScopedTask["location"] & { bim?: { worldPoint?: unknown } | null };
+  const hasBimLoc = !!taskLoc?.bim?.worldPoint;
+  const hasPdfLoc = !!taskLoc?.pdf;
+
   const buildingNameOf = (id: string | null): string | null =>
     id ? (buildings?.find((b) => b.id === id)?.name ?? null) : null;
 
@@ -293,6 +316,7 @@ export function TaskDetailHost({
       delete next.priority;
       delete next.checklist;
       delete next.watchers;
+      delete next.sheetRefs;
     }
     const pid = requireProjectId(projectId); // write: never without a project
     const loc = liveTask.location as TaskLocation | null;
@@ -309,6 +333,7 @@ export function TaskDetailHost({
       priority: liveTask.priority as EditableTaskFields["priority"] | undefined,
       checklist: normalizeChecklist(liveTask.checklist),
       watchers: normalizeWatchers(liveTask.watchers),
+      sheetRefs: normalizeSheetRefs(liveTask.sheetRefs),
     };
     const changes = diffTaskFields(before, next, { buildingName: buildingNameOf });
     if (changes.length === 0) return;
@@ -356,11 +381,13 @@ export function TaskDetailHost({
   async function handlePrint(): Promise<void> {
     let photoUrls: Record<string, string> | undefined;
     let locationThumbUrl: string | null = null;
+    let locationThumb2dUrl: string | null = null;
     try {
       const paths = new Set<string>();
       for (const e of views) for (const p of e.photos ?? []) if (p.storagePath) paths.add(p.storagePath);
       const thumbPath = (task?.location ?? queuedCreate?.location)?.thumb?.storagePath ?? null;
-      if ((paths.size > 0 || thumbPath) && resolvePhoto) {
+      const thumb2dPath = (task?.location ?? queuedCreate?.location)?.thumb2d?.storagePath ?? null;
+      if ((paths.size > 0 || thumbPath || thumb2dPath) && resolvePhoto) {
         if (paths.size > 0) {
           const resolved = await Promise.allSettled(
             [...paths].map((p) => resolvePhoto(p).then((url) => [p, url] as const))
@@ -373,6 +400,13 @@ export function TaskDetailHost({
             locationThumbUrl = await resolvePhoto(thumbPath);
           } catch {
             locationThumbUrl = null;
+          }
+        }
+        if (thumb2dPath) {
+          try {
+            locationThumb2dUrl = await resolvePhoto(thumb2dPath);
+          } catch {
+            locationThumb2dUrl = null;
           }
         }
       }
@@ -398,6 +432,7 @@ export function TaskDetailHost({
       entries: views,
       photoUrls,
       locationThumbUrl,
+      locationThumb2dUrl,
       printedBy: actor.name,
     };
     openPrintView(buildTaskPrintHtml(input));
@@ -421,12 +456,8 @@ export function TaskDetailHost({
       updatedBy={updatedBy}
       updatedAt={updatedAt}
       projectName={projectName}
-      buildingId={liveTask?.buildingId ?? queuedCreate?.buildingId ?? null}
-      buildingName={(() => {
-        const bid = liveTask?.buildingId ?? queuedCreate?.buildingId ?? null;
-        if (!bid) return null;
-        return buildings?.find((b) => b.id === bid)?.name ?? null;
-      })()}
+      buildingId={effectiveBuildingId}
+      buildingName={effectiveBuildingId ? (buildings?.find((b) => b.id === effectiveBuildingId)?.name ?? null) : null}
       people={members ?? undefined}
       onAssign={assignTo}
       editable={caps.canWrite && !!engine && !!liveTask && status !== null && isEditableStatus(status)}
@@ -435,6 +466,9 @@ export function TaskDetailHost({
       priority={(liveTask?.priority as string | null | undefined) ?? null}
       checklist={normalizeChecklist(liveTask?.checklist)}
       watchers={normalizeWatchers(liveTask?.watchers)}
+      sheetRefs={normalizeSheetRefs(liveTask?.sheetRefs ?? queuedCreate?.sheetRefs)}
+      sheetCatalog={sheetCatalog}
+      projectId={projectId ?? null}
       currentUid={actor.uid || null}
       extendedFields={caps.extendedFields}
       buildingOptions={buildings}
@@ -448,8 +482,20 @@ export function TaskDetailHost({
       onRetryEntry={(guid) => {
         if (engine) void engine.retryNow(guid);
       }}
-      onShowIn3D={onShowIn3D}
-      onShowOnPlan={onShowOnPlan}
+      // Hosts that own a viewer restore the view in place; anywhere else the
+      // location card is quick access to the module the task was made in.
+      // A task created in LinkView always opens LinkView (both sides), even
+      // from a host that would otherwise restore only its own half in place.
+      onShowIn3D={
+        liveTask && isLinkviewLocation(taskLoc)
+          ? () => openLocation(liveTask)
+          : (onShowIn3D ?? (hasBimLoc && liveTask ? () => openLocation(liveTask) : undefined))
+      }
+      onShowOnPlan={
+        liveTask && isLinkviewLocation(taskLoc)
+          ? () => openLocation(liveTask)
+          : (onShowOnPlan ?? (hasPdfLoc && liveTask ? () => openLocation(liveTask) : undefined))
+      }
       onHideInstance={onHideInstance}
       onPrint={task || queuedCreate ? () => void handlePrint() : undefined}
       onClose={onClose}

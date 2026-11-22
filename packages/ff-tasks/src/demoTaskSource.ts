@@ -4,7 +4,7 @@ import type { OutboxRecord } from '@ff/types';
 import type { TaskActionPayload } from './action';
 import type { OutboxExecutor } from './outbox';
 import type { BlobSource } from './repository';
-import { locationThumbPath } from './photos';
+import { locationThumb2dPath, locationThumbPath } from './photos';
 import {
   allocateNum,
   buildCreateTaskDto,
@@ -263,6 +263,16 @@ export class DemoTaskSource {
           if ((await this.store.getPhoto(path)) === undefined) {
             const blob = await blobs.get(thumb.blobKey);
             if (!blob) throw new Error(`blob-lost:${thumb.blobKey}`);
+            await this.store.putPhoto(path, await blobToDataUrl(blob));
+          }
+        }
+        // LinkView dual location: the plan snapshot, same discipline.
+        const thumb2d = payload.locationThumb2d;
+        if (thumb2d) {
+          const path = locationThumb2dPath(payload.projectId, payload.taskId);
+          if ((await this.store.getPhoto(path)) === undefined) {
+            const blob = await blobs.get(thumb2d.blobKey);
+            if (!blob) throw new Error(`blob-lost:${thumb2d.blobKey}`);
             await this.store.putPhoto(path, await blobToDataUrl(blob));
           }
         }

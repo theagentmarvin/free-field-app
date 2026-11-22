@@ -14,7 +14,8 @@
     "build": "tsc --noEmit",
     "test": "vitest run --no-file-parallelism --passWithNoTests",
     "lint": "eslint . --ext .ts,.tsx",
-    "lint:drift": "node ../../apps/settings/scripts/toe-drift-check.js src"
+    "lint:drift": "node ../../apps/settings/scripts/toe-drift-check.js src",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@ff/auth": "workspace:*",
@@ -24,7 +25,7 @@
     "firebase": "^11.0.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
-    "react-router-dom": "^6.26.0",
+    "react-router-dom": "^6.30.6",
     "zod": "^3.23.8"
   },
   "devDependencies": {

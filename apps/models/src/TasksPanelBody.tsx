@@ -33,6 +33,7 @@ import {
 } from "@ff/tasks-react";
 
 import type { IfcViewerHandle } from "@ff/viewer-react";
+import { useModelsToolStore } from "@ff/viewer-tools";
 import type { RefObject } from "react";
 
 const { color: c, radius: r, fontSize: f } = tokens;
@@ -52,7 +53,10 @@ export default function TasksPanelBody({
   storeyName = null,
   onOpenTask,
 }: TasksPanelBodyProps): JSX.Element {
-  const tasks = usePanelTasks();
+  // 2026-11-14 — only the active building's tasks (Models and LinkView
+  // share this panel; the Tasks module lists across buildings).
+  const activeBuildingId = useModelsToolStore((s) => s.activeBuildingId);
+  const tasks = usePanelTasks({ buildingId: activeBuildingId });
   const actorUid = usePanelActorUid();
 
   const [scope, setScope] = useState<PanelScope>("inview");

@@ -37,6 +37,7 @@ import {
 } from "react";
 
 import { useProjectId } from "@ff/auth";
+import { isMappablePdf } from "@ff/data";
 import { usePdfFiles } from "@hooks/usePdfFiles";
 import type { PdfFileWithVersions } from "@hooks/usePdfFiles";
 import { usePdfPipeline } from "@hooks/usePdfPipeline";
@@ -50,6 +51,7 @@ import MappedStoreysSection from "./MappedStoreysSection";
 import ConfirmDialog from "./ConfirmDialog";
 import MappedCalibrationsList from "./MappedCalibrationsList";
 import PdfFoldersSidebar from "./PdfFoldersSidebar";
+import { BundleImportStatus, BundleImportTrigger, useBundleImport } from "./BundleImportButton";
 
 export interface PdfSidebarBlockProps {
   buildingId: string | null;
@@ -95,6 +97,7 @@ const subTabStyle = (active: boolean, clickable: boolean): React.CSSProperties =
   flexShrink: 0,
 });
 
+// Boxed 30 x 30 button: the same look as the IFC "+" (UploadButton) and the bundle button.
 const addSubTabLabelStyle = (enabled: boolean): React.CSSProperties => ({
   display: "inline-flex",
   alignItems: "center",
@@ -103,15 +106,57 @@ const addSubTabLabelStyle = (enabled: boolean): React.CSSProperties => ({
   height: 30,
   marginLeft: "auto",
   borderRadius: 4,
-  color: "var(--ff-text-muted)",
+  border: "1px solid var(--ff-border)",
+  background: "var(--ff-bg-app)",
+  color: "var(--ff-text-primary)",
   cursor: enabled ? "pointer" : "not-allowed",
   opacity: enabled ? 1 : 0.4,
+  flexShrink: 0,
 });
 
 const bodyStyle: React.CSSProperties = {
   flex: 1,
   overflowY: "auto",
   minHeight: 0,
+};
+
+const bulkNoteStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+  gap: 8,
+  margin: "6px 12px",
+  padding: "6px 10px",
+  fontSize: 12,
+  lineHeight: 1.4,
+  color: "var(--ff-text-primary)",
+  background: "var(--ff-bg-hover)",
+  borderRadius: 6,
+};
+
+const bulkDismissStyle: React.CSSProperties = {
+  marginLeft: "auto",
+  border: "none",
+  background: "transparent",
+  cursor: "pointer",
+  color: "var(--ff-text-muted)",
+  fontSize: 14,
+  lineHeight: 1,
+};
+
+const docRowStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+};
+
+const pageBadgeStyle: React.CSSProperties = {
+  flexShrink: 0,
+  marginRight: 8,
+  padding: "1px 6px",
+  fontSize: 11,
+  borderRadius: 999,
+  border: "1px solid var(--ff-border)",
+  color: "var(--ff-text-muted)",
 };
 
 const emptyStyle: React.CSSProperties = {
@@ -254,7 +299,7 @@ export default function PdfSidebarBlock({
 }: PdfSidebarBlockProps): ReactNode {
   // The PDF list is sourced from Dexie via usePdfFiles.
   const files = usePdfFiles(buildingId);
-  const { loadPdf, replacePdfVersion, deletePdf, error } =
+  const { loadPdfs, replacePdfVersion, deletePdf, error } =
     usePdfPipeline();
 
   // Live list of calibrations for the active project. Used to
@@ -274,11 +319,21 @@ export default function PdfSidebarBlock({
   // calibrations list.
   const [activeTab, setActiveTab] = useState<SubTab>("pdfs");
 
+  // Bundle import: the icon button sits next to the "+" (below), status under the tab bar.
+  const bundleImport = useBundleImport({
+    projectId: projectId ?? null,
+    buildingId,
+    onImported: (r) => {
+      if (r.lastPdfVersionId) setActivePdfVersionId(r.lastPdfVersionId);
+    },
+  });
+
   // Chevron state for the three sub-sections in the PDFs tab.
   // The "Unmapped" section's count is `files.length`; "Mapped"
   // is the count of files with at least one calibration.
   const [unmappedOpen, setUnmappedOpen] = useState(true);
   const [mappedOpen, setMappedOpen] = useState(true);
+  const [documentsOpen, setDocumentsOpen] = useState(true);
 
   // Hidden <input type="file"> for both the `+` upload flow
   // AND the kebab "Replace version" flow. Two refs so the two
@@ -295,19 +350,32 @@ export default function PdfSidebarBlock({
     null,
   );
 
+  // 2026-11-16 — bulk upload: several PDFs at once, imported one at a
+  // time with progress, then a summary (imported / failed).
+  const [bulkProgress, setBulkProgress] = useState<string | null>(null);
+  const [bulkSummary, setBulkSummary] = useState<string | null>(null);
   const handleUploadFilePicked = useCallback(
     async (e: ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
+      const files = Array.from(e.target.files ?? []);
       e.target.value = "";
-      if (!file || !buildingId) return;
-      try {
-        const result = await loadPdf(file, buildingId);
-        setActivePdfVersionId(result.versionId);
-      } catch {
-        // Pipeline surfaces the error via its own state.
+      if (files.length === 0 || !buildingId) return;
+      setBulkSummary(null);
+      const result = await loadPdfs(files, buildingId, (i, total, name) =>
+        setBulkProgress(total > 1 ? `Importing ${i + 1} of ${total} — ${name}` : `Importing ${name}`),
+      );
+      setBulkProgress(null);
+      const last = result.imported[result.imported.length - 1];
+      if (last) setActivePdfVersionId(last.versionId);
+      if (files.length > 1 || result.failed.length > 0) {
+        const ok = `${result.imported.length} of ${files.length} imported`;
+        setBulkSummary(
+          result.failed.length === 0
+            ? ok
+            : `${ok}. Failed: ${result.failed.map((f) => `${f.name} (${f.error.message})`).join("; ")}`,
+        );
       }
     },
-    [buildingId, loadPdf, setActivePdfVersionId],
+    [buildingId, loadPdfs, setActivePdfVersionId],
   );
 
   const handleRequestReplace = useCallback((pdfFileId: string) => {
@@ -362,6 +430,10 @@ export default function PdfSidebarBlock({
   // also set activePdfVersionId.
   const handleRequestMap = useCallback(
     (pdfFileId: string) => {
+      // 2026-11-16 — only single-page plans can be mapped. Documents
+      // render no Map button; this guards any other caller.
+      const entry = files.find((f) => f.file.id === pdfFileId);
+      if (entry && !isMappablePdf(entry.latestVersion)) return;
       const started = startCalibrationForPdf(pdfFileId);
       if (!started) {
         // The button is disabled in this case, but we guard
@@ -372,7 +444,7 @@ export default function PdfSidebarBlock({
         );
       }
     },
-    [startCalibrationForPdf],
+    [startCalibrationForPdf, files],
   );
 
   // Split the PDF list by "is mapped" (has ≥1 calibration for the
@@ -380,12 +452,17 @@ export default function PdfSidebarBlock({
   // PdfRowWithMapButton is shared between both sections so the
   // user can re-Map a previously mapped PDF to a different level
   // without leaving the PDFs tab.
-  const unmappedFiles = files.filter(
+  // 2026-11-16 — Plans (single page, mappable) vs Documents
+  // (multi-page, never mappable), by the latest version's page count.
+  const planFiles = files.filter((entry) => isMappablePdf(entry.latestVersion));
+  const documentFiles = files.filter((entry) => !isMappablePdf(entry.latestVersion));
+  const unmappedFiles = planFiles.filter(
     (entry) => !byPdfFileId.has(entry.file.id),
   );
-  const mappedFiles = files.filter((entry) =>
+  const mappedFiles = planFiles.filter((entry) =>
     byPdfFileId.has(entry.file.id),
   );
+  const documentCount = documentFiles.length;
   const fileCount = files.length;
   const unmappedCount = unmappedFiles.length;
   const mappedCount = mappedFiles.length;
@@ -445,15 +522,31 @@ export default function PdfSidebarBlock({
             <PlusIcon />
           </span>
         )}
+        <BundleImportTrigger state={bundleImport} />
       </div>
 
+      <BundleImportStatus state={bundleImport} />
+
       {error ? <ImportErrorNotice error={error} testId="pdf-error" /> : null}
+      {bulkProgress ? (
+        <div style={bulkNoteStyle} data-testid="pdf-bulk-progress" role="status">
+          {bulkProgress}
+        </div>
+      ) : null}
+      {bulkSummary ? (
+        <div style={bulkNoteStyle} data-testid="pdf-bulk-summary" role="status">
+          {bulkSummary}
+          <button type="button" style={bulkDismissStyle} aria-label="Dismiss" onClick={() => setBulkSummary(null)}>
+            ×
+          </button>
+        </div>
+      ) : null}
 
       <div style={bodyStyle} data-testid="pdf-list">
         {activeTab === "pdfs" ? (
           <>
             <SectionGroupHeader
-              label="Unmapped"
+              label="Plans · unmapped"
               count={unmappedCount}
               open={unmappedOpen}
               onToggle={() => setUnmappedOpen((v) => !v)}
@@ -463,12 +556,12 @@ export default function PdfSidebarBlock({
                 {fileCount === 0 ? (
                   <div style={emptyStyle}>
                     {buildingId
-                      ? "No PDF files yet. Click + above to upload a PDF (calibration uses page 1)."
+                      ? "No PDF files yet. Click + above to upload PDFs (you can pick several). Single-page PDFs are plans and can be mapped; multi-page PDFs are documents."
                       : "Select or create a building to upload PDF files."}
                   </div>
                 ) : unmappedCount === 0 ? (
                   <div style={emptyStyle} data-testid="pdf-unmapped-empty">
-                    All PDFs are mapped. Use the Mapped section below to inspect calibrations.
+                    All plans are mapped. Use the section below to inspect calibrations.
                   </div>
                 ) : (
                   unmappedFiles.map((entry) => (
@@ -488,7 +581,7 @@ export default function PdfSidebarBlock({
             )}
 
             <SectionGroupHeader
-              label="Mapped"
+              label="Plans · mapped"
               count={mappedCount}
               open={mappedOpen}
               onToggle={() => setMappedOpen((v) => !v)}
@@ -514,6 +607,41 @@ export default function PdfSidebarBlock({
               )
             )}
 
+            <SectionGroupHeader
+              label="Documents"
+              count={documentCount}
+              open={documentsOpen}
+              onToggle={() => setDocumentsOpen((v) => !v)}
+            />
+            {documentsOpen && (
+              documentCount === 0 ? (
+                <div style={emptyStyle} data-testid="pdf-documents-empty">
+                  Multi-page PDFs appear here. They can be read and measured, but not mapped.
+                </div>
+              ) : (
+                documentFiles.map((entry) => (
+                  <div key={entry.file.id} style={docRowStyle} data-testid="pdf-document-row">
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <PdfListItem
+                        entry={entry}
+                        isReplacing={replacingPdfFileId === entry.file.id}
+                        onActivate={handleActivate}
+                        onRequestReplace={handleRequestReplace}
+                        onRequestDelete={handleRequestDelete}
+                      />
+                    </div>
+                    <span
+                      style={pageBadgeStyle}
+                      data-testid="pdf-document-pages"
+                      title="Multi-page documents can't be mapped. Only single-page plans can."
+                    >
+                      {entry.latestVersion?.pageCount ?? "?"} pp
+                    </span>
+                  </div>
+                ))
+              )
+            )}
+
             <MappedStoreysSection buildingId={buildingId} />
           </>
         ) : activeTab === "folders" ? (
@@ -534,6 +662,7 @@ export default function PdfSidebarBlock({
         type="file"
         accept="application/pdf"
         onChange={handleUploadFilePicked}
+        multiple
         style={{ display: "none" }}
         data-testid="pdf-upload-input"
       />

@@ -14,7 +14,8 @@
     "test": "vitest run --no-file-parallelism",
     "build": "tsc --noEmit",
     "lint": "eslint . --ext .ts",
-    "lint:drift": "node ../../apps/settings/scripts/toe-drift-check.js src"
+    "lint:drift": "node ../../apps/settings/scripts/toe-drift-check.js src",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

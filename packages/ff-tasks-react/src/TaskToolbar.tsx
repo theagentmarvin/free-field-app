@@ -352,6 +352,13 @@ export interface TaskToolbarProps {
   onExportCsv?: () => void;
   onExportPdf?: () => void;
   exportCount?: number;
+  /** BCF export of the selection / current view (2.1 or 3.0). */
+  onExportBcf?: (version: "2.1" | "3.0") => void;
+  /** true while a BCF export is running (disables the BCF items). */
+  bcfExporting?: boolean;
+  /** Actual BCF scope: the selection when any rows are selected, else the
+   *  view. Absent = the view (`exportCount`). */
+  bcfScope?: { count: number; fromSelection: boolean };
   /** w69 — opens the keyboard cheat-sheet. */
   onShowShortcuts?: () => void;
 }
@@ -392,9 +399,14 @@ export function TaskToolbar({
   onExportCsv,
   onExportPdf,
   exportCount = 0,
+  onExportBcf,
+  bcfExporting = false,
+  bcfScope,
   onShowShortcuts,
 }: TaskToolbarProps): JSX.Element {
   const [viewsOpen, setViewsOpen] = useState(false);
+  const bcfCount = bcfScope ? bcfScope.count : exportCount;
+  const bcfFromSelection = bcfScope?.fromSelection === true;
   const [exportOpen, setExportOpen] = useState(false);
   const [exportBtn, setExportBtn] = useState<HTMLElement | null>(null);
   const [columnsBtn, setColumnsBtn] = useState<HTMLElement | null>(null);
@@ -506,7 +518,7 @@ export function TaskToolbar({
             {columnsOpen && columnsPicker && columnsPicker(columnsBtn)}
           </span>
         )}
-        {(onExportCsv || onExportPdf) && (
+        {(onExportCsv || onExportPdf || onExportBcf) && (
           <span style={{ position: "relative", display: "inline-flex", flex: "0 0 auto" }}>
             <ToolbarButton
               className="ff-task-export-button"
@@ -561,6 +573,41 @@ export function TaskToolbar({
                     style={{ ...toolbarControlStyle, height: 32, justifyContent: "flex-start", width: "100%", border: "none", background: "transparent", opacity: exportCount === 0 ? 0.5 : 1 }}
                   >
                     PDF report (with photos)
+                  </button>
+                )}
+                {onExportBcf && bcfFromSelection && (
+                  <div data-testid="export-bcf-scope" style={{ padding: "6px 10px", fontSize: f.xs, color: c.muted, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                    BCF · Selected · {bcfCount} task{bcfCount === 1 ? "" : "s"}
+                  </div>
+                )}
+                {onExportBcf && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="export-bcf-21"
+                    disabled={bcfCount === 0 || bcfExporting}
+                    onClick={() => {
+                      setExportOpen(false);
+                      onExportBcf("2.1");
+                    }}
+                    style={{ ...toolbarControlStyle, height: 32, justifyContent: "flex-start", width: "100%", border: "none", background: "transparent", opacity: bcfCount === 0 || bcfExporting ? 0.5 : 1 }}
+                  >
+                    BCF 2.1 (.bcfzip)
+                  </button>
+                )}
+                {onExportBcf && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="export-bcf-30"
+                    disabled={bcfCount === 0 || bcfExporting}
+                    onClick={() => {
+                      setExportOpen(false);
+                      onExportBcf("3.0");
+                    }}
+                    style={{ ...toolbarControlStyle, height: 32, justifyContent: "flex-start", width: "100%", border: "none", background: "transparent", opacity: bcfCount === 0 || bcfExporting ? 0.5 : 1 }}
+                  >
+                    BCF 3.0 (.bcf)
                   </button>
                 )}
               </div>

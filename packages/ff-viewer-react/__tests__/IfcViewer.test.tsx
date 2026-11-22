@@ -2379,6 +2379,126 @@ describe("<IfcViewer> multi-model element pick (Wave 19)", () => {
   });
 });
 
+describe("<IfcViewer> builtInClickPick + hidden-hit filter (Wave 76)", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.spyOn(console, "info").mockImplementation(() => undefined);
+    h.canvasListeners.clear();
+    h.highlighterInstances.length = 0;
+    h.fastPickerState.failInit = false;
+    h.fastPickerState.point = null;
+    vi.mocked(h.fastPickerInstance.getItemAt).mockReset();
+    h.fastPickerInstance.getItemAt.mockImplementation(async () => null);
+    vi.mocked(h.fastPickerInstance.getPointAt).mockClear();
+    vi.mocked(h.fastPickerInstance.getNormalAt).mockClear();
+    vi.mocked(h.fragmentsMock.highlight).mockReset();
+    h.fragmentsMock.highlight.mockImplementation(async () => undefined);
+    vi.mocked(h.fragmentsMock.resetHighlight).mockReset();
+    h.fragmentsMock.resetHighlight.mockImplementation(async () => undefined);
+  });
+
+  afterEach(() => {
+    delete (h.fragmentsMock as unknown as { raycast?: unknown }).raycast;
+    vi.restoreAllMocks();
+  });
+
+  const mount = async (props: { builtInClickPick?: boolean } = {}) => {
+    const ref = createRef<IfcViewerHandle>();
+    const utils = render(
+      <IfcViewer ref={ref} projectId="p" activeBuildingId="b" {...props} />,
+    );
+    await waitFor(() => expect(ref.current).not.toBeNull());
+    await waitFor(() => expect(createLevelPlanController).toHaveBeenCalled());
+    return { ref, ...utils };
+  };
+
+  it("builtInClickPick=false: a canvas click runs no pick pipeline", async () => {
+    const raycast = vi.fn(async () => ({
+      localId: 1,
+      itemId: 9,
+      fragments: { modelId: "m" },
+      point: { x: 0, y: 0, z: 0 },
+    }));
+    (h.fragmentsMock as unknown as { raycast?: unknown }).raycast = raycast;
+    h.fastPickerInstance.getItemAt.mockResolvedValue({ modelId: "m", localId: 1 } as never);
+    const { ref, unmount } = await mount({ builtInClickPick: false });
+    const events: unknown[] = [];
+    ref.current!.setOnElementPick((e) => events.push(e));
+    const handlers = h.canvasListeners.get("click") ?? [];
+    for (const fn of handlers) await fn({ clientX: 400, clientY: 300, button: 0 });
+    expect(raycast).not.toHaveBeenCalled();
+    expect(h.fastPickerInstance.getItemAt).not.toHaveBeenCalled();
+    expect(h.fastPickerInstance.getPointAt).not.toHaveBeenCalled();
+    expect(h.fastPickerInstance.getNormalAt).not.toHaveBeenCalled();
+    expect(events).toEqual([]);
+    expect(ref.current!.getSelection().size).toBe(0);
+    unmount();
+  });
+
+  it("builtInClickPick=false: selectElement / clearSelection still work", async () => {
+    const { ref, unmount } = await mount({ builtInClickPick: false });
+    let count = 0;
+    ref.current!.onSelectionChange(() => {
+      count += 1;
+    });
+    ref.current!.selectElement("m-1", 42);
+    expect(ref.current!.getSelection().get("m-1")?.has(42)).toBe(true);
+    await waitFor(() => expect(h.fragmentsMock.highlight).toHaveBeenCalled());
+    ref.current!.clearSelection();
+    expect(ref.current!.getSelection().size).toBe(0);
+    expect(count).toBeGreaterThanOrEqual(2);
+    unmount();
+  });
+
+  it("toggling builtInClickPick at runtime takes effect without remounting", async () => {
+    h.fastPickerInstance.getItemAt.mockResolvedValue({ modelId: "m", localId: 1 } as never);
+    const ref = createRef<IfcViewerHandle>();
+    const utils = render(
+      <IfcViewer ref={ref} projectId="p" activeBuildingId="b" builtInClickPick={false} />,
+    );
+    await waitFor(() => expect(ref.current).not.toBeNull());
+    await waitFor(() => expect(createLevelPlanController).toHaveBeenCalled());
+    ref.current!.setOnElementPick(() => undefined);
+    const click = async () => {
+      for (const fn of h.canvasListeners.get("click") ?? [])
+        await fn({ clientX: 400, clientY: 300, button: 0 });
+    };
+    await click();
+    expect(h.fastPickerInstance.getItemAt).not.toHaveBeenCalled();
+    utils.rerender(
+      <IfcViewer ref={ref} projectId="p" activeBuildingId="b" builtInClickPick />,
+    );
+    await click();
+    expect(h.fastPickerInstance.getItemAt).toHaveBeenCalledTimes(1);
+    utils.unmount();
+  });
+
+  it("a pick landing on an element hidden via setElementVisibility is a miss", async () => {
+    (h.fragmentsMock as unknown as { raycast?: unknown }).raycast = vi.fn(async () => ({
+      localId: 7,
+      itemId: 99,
+      fragments: { modelId: "m" },
+      point: { x: 1, y: 2, z: 3 },
+    }));
+    const { ref, unmount } = await mount();
+    const events: Array<{ expressId?: number } | null> = [];
+    ref.current!.setOnElementPick((e) => events.push(e ? { expressId: e.expressId } : null));
+    ref.current!.setElementVisibility("m", new Set([7]), false);
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    await h.canvasListeners.get("click")![0]!({ clientX: 400, clientY: 300, button: 0 });
+    expect(events).toEqual([null]);
+    expect(ref.current!.getSelection().size).toBe(0);
+    // Show it again: the same click now selects.
+    ref.current!.setElementVisibility("m", new Set([7]), true);
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    await h.canvasListeners.get("click")![0]!({ clientX: 400, clientY: 300, button: 0 });
+    expect(events[1]).toEqual({ expressId: 7 });
+    expect(ref.current!.getSelection().get("m")?.has(7)).toBe(true);
+    unmount();
+  });
+});
+
 // ─── Wave 45: raycast-primary pick (worker virtual raycast) ──────────
 //
 // The boss requirement: instant MEP selection regardless of model size or
@@ -3133,7 +3253,7 @@ describe("<IfcViewer> wave 31 version hot-swap", () => {
     unmount();
   });
 
-  it("wave 63: a remount (new registerFragments) reloads models and resets per-model refs", async () => {
+  it("wave 73: a new registerFragments identity does NOT rebuild the world; a real remount still reloads", async () => {
     const ref = createRef<IfcViewerHandle>();
     const files = list([{ file: FILE, latestVersion: V1 }]);
     const regA = vi.fn();
@@ -3149,23 +3269,44 @@ describe("<IfcViewer> wave 31 version hot-swap", () => {
     );
     await waitFor(() => expect(h.fragmentsMock.core.load).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(ref.current!.loadedModelIds.has("f1")).toBe(true));
+    expect(regA).toHaveBeenCalledWith(h.fragmentsMock);
     const regB = vi.fn();
-    utils.rerender(
+    const createdBefore = h.rendererInstances.length;
+    for (let i = 0; i < 3; i++) {
+      // an inline arrow per render: the pattern that used to tear the world down
+      utils.rerender(
+        <IfcViewer
+          ref={ref}
+          projectId="p"
+          activeBuildingId="b"
+          files={files}
+          registerFragments={(f) => regB(f)}
+          getFragBlob={(async () => fakeBlob) as never}
+        />,
+      );
+    }
+    await new Promise((r) => setTimeout(r, 120));
+    expect(h.fragmentsMock.core.load).toHaveBeenCalledTimes(1);
+    expect(h.rendererInstances.length).toBe(createdBefore);
+    expect(regA).not.toHaveBeenCalledWith(null);
+    // The LATEST callback receives the unmount notification.
+    utils.unmount();
+    expect(regB).toHaveBeenCalledWith(null);
+
+    // A genuine remount (new component instance) reloads from scratch.
+    const utils2 = render(
       <IfcViewer
         ref={ref}
         projectId="p"
         activeBuildingId="b"
         files={files}
-        registerFragments={regB}
         getFragBlob={(async () => fakeBlob) as never}
       />,
     );
-    // The mount effect re-ran: the new fragments instance must get the
-    // model again (the stale per-model refs used to say "already loaded").
     await waitFor(() => expect(h.fragmentsMock.core.load).toHaveBeenCalledTimes(2), {
       timeout: 4000,
     });
-    utils.unmount();
+    utils2.unmount();
   });
 
   it("swaps in the new version when the same file id gets a new blob key", async () => {
@@ -4756,6 +4897,293 @@ describe("<IfcViewer> render on demand", () => {
     await p;
     await Promise.resolve();
     expect(renderer.needsUpdate).toBe(true);
+    unmount();
+  });
+});
+
+// ── Wave 73: mobile-host integration ────────────────────────────────
+describe("<IfcViewer> wave 73 mobile host API", () => {
+  type RaycastSurface = { raycast?: unknown };
+  const FILE = { id: "f1", name: "tower.ifc", buildingId: "b" };
+  const V1 = { id: "v1", fragBlobKey: "f1__v1", versionNumber: 1 };
+  const fakeBlob = { size: 8, arrayBuffer: async () => new ArrayBuffer(8) };
+  const list = (files: Array<{ file: typeof FILE; latestVersion: typeof V1 | null }>) =>
+    files as never;
+
+  beforeEach(() => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.spyOn(console, "info").mockImplementation(() => undefined);
+    h.canvasListeners.clear();
+    h.fragmentsMock.core.models.list.clear();
+    h.cameraInstances.length = 0;
+    h.fastPickerState.failInit = false;
+    delete (h.fragmentsMock as unknown as RaycastSurface).raycast;
+    vi.mocked(h.fastPickerInstance.getItemAt).mockReset();
+    h.fastPickerInstance.getItemAt.mockImplementation(async () => null);
+    vi.mocked(h.fragmentsMock.core.load).mockClear();
+    vi.mocked(h.fragmentsMock.core.load).mockImplementation((async () => {
+      const model = {
+        object: {},
+        setLodMode: vi.fn(async () => undefined),
+        box: { min: { x: 0, y: 0, z: 0 }, max: { x: 10, y: 4, z: 20 } },
+      };
+      h.fragmentsMock.core.models.list.set("f1", model as never);
+      return model;
+    }) as never);
+  });
+
+  afterEach(() => {
+    delete (h.fragmentsMock as unknown as RaycastSurface).raycast;
+    vi.restoreAllMocks();
+  });
+
+  it("onReady hands the live engine objects once, and survives a new callback identity", async () => {
+    const calls: Array<Record<string, unknown>> = [];
+    const ref = createRef<IfcViewerHandle>();
+    const utils = render(
+      <IfcViewer
+        ref={ref}
+        projectId="p"
+        activeBuildingId="b"
+        onReady={(ctx) => calls.push(ctx as never)}
+      />,
+    );
+    await waitFor(() => expect(calls).toHaveLength(1));
+    const ctx = calls[0]!;
+    expect(ctx.fragments).toBe(h.fragmentsMock);
+    expect(ctx.world).toBe(h.worldMock);
+    expect(ctx.renderer).toBe(h.worldMock.renderer);
+    expect(ctx.camera).toBe(h.worldMock.camera);
+    expect(ctx.components).toBeTruthy();
+    // New identity on re-render: no second ready, no rebuild.
+    utils.rerender(
+      <IfcViewer ref={ref} projectId="p" activeBuildingId="b" onReady={() => undefined} />,
+    );
+    await new Promise((r) => setTimeout(r, 50));
+    expect(calls).toHaveLength(1);
+    utils.unmount();
+  });
+
+  it("onReady's onDispose cleanups run on unmount, and a throwing onReady does not break the viewer", async () => {
+    const cleanup = vi.fn();
+    const ref = createRef<IfcViewerHandle>();
+    const { unmount } = render(
+      <IfcViewer
+        ref={ref}
+        projectId="p"
+        activeBuildingId="b"
+        onReady={(ctx) => {
+          ctx.onDispose(cleanup);
+          throw new Error("consumer bug");
+        }}
+      />,
+    );
+    await waitFor(() => expect(createLevelPlanController).toHaveBeenCalled());
+    await waitFor(() => expect(cleanup).not.toHaveBeenCalled());
+    unmount();
+    expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it("showEngineLogo={false} hides the engine logo; the default leaves it alone", async () => {
+    h.rendererInstances.length = 0;
+    const a = render(<IfcViewer projectId="p" activeBuildingId="b" />);
+    await waitFor(() => expect(h.rendererInstances.length).toBeGreaterThan(0));
+    expect((h.rendererInstances[0] as unknown as { showLogo?: boolean }).showLogo).toBeUndefined();
+    a.unmount();
+
+    h.rendererInstances.length = 0;
+    // The engine renderer exposes `showLogo` (default true).
+    const proto = h.RendererWith2DClass.prototype as unknown as { showLogo?: boolean };
+    Object.defineProperty(proto, "showLogo", { value: true, writable: true, configurable: true });
+    try {
+      const b = render(<IfcViewer projectId="p" activeBuildingId="b" showEngineLogo={false} />);
+      await waitFor(() => expect(h.rendererInstances.length).toBeGreaterThan(0));
+      expect((h.rendererInstances[0] as unknown as { showLogo?: boolean }).showLogo).toBe(false);
+      b.rerender(<IfcViewer projectId="p" activeBuildingId="b" showEngineLogo />);
+      await waitFor(() =>
+        expect((h.rendererInstances[0] as unknown as { showLogo?: boolean }).showLogo).toBe(true),
+      );
+      b.unmount();
+    } finally {
+      delete (proto as { showLogo?: boolean }).showLogo;
+    }
+  });
+
+  it("getElementDataWithGuid adds the GlobalId; getGlobalIds batches", async () => {
+    const model = {
+      object: {},
+      setLodMode: vi.fn(async () => undefined),
+      getItemsData: vi.fn(async () => [{ Name: { value: "Wall 1" } }]),
+      getGuidsByLocalIds: vi.fn(async (ids: number[]) => ids.map((i) => `GUID-${i}`)),
+    };
+    vi.mocked(h.fragmentsMock.core.load).mockImplementation((async () => {
+      h.fragmentsMock.core.models.list.set("f1", model as never);
+      return model;
+    }) as never);
+    const ref = createRef<IfcViewerHandle>();
+    const { unmount } = render(
+      <IfcViewer
+        ref={ref}
+        projectId="p"
+        activeBuildingId="b"
+        files={list([{ file: FILE, latestVersion: V1 }])}
+        getFragBlob={(async () => fakeBlob) as never}
+      />,
+    );
+    await waitFor(() => expect(ref.current!.loadedModelIds.has("f1")).toBe(true));
+    const out = await ref.current!.getElementDataWithGuid!("f1", 77);
+    expect(out).toEqual({ attributes: { Name: "Wall 1", GlobalId: "GUID-77" }, globalId: "GUID-77" });
+    expect(await ref.current!.getGlobalIds!("f1", [1, 2])).toEqual(["GUID-1", "GUID-2"]);
+    expect(await ref.current!.getElementDataWithGuid!("nope", 1)).toBeNull();
+    expect(await ref.current!.getGlobalIds!("nope", [1])).toBeNull();
+    model.getGuidsByLocalIds.mockRejectedValueOnce(new Error("worker"));
+    expect(await ref.current!.getGlobalIds!("f1", [1])).toBeNull();
+    unmount();
+  });
+
+  const mountFit = async (fit: boolean) => {
+    const ref = createRef<IfcViewerHandle>();
+    const utils = render(
+      <IfcViewer
+        ref={ref}
+        projectId="p"
+        activeBuildingId="b"
+        files={list([{ file: FILE, latestVersion: V1 }])}
+        getFragBlob={(async () => fakeBlob) as never}
+        fitOnFirstLoad={fit}
+      />,
+    );
+    await waitFor(() => expect(ref.current!.loadedModelIds.has("f1")).toBe(true));
+    const spy = h.cameraInstances[h.cameraInstances.length - 1]!.controls.setLookAt as unknown as {
+      mock: { calls: number[][] };
+    };
+    return { spy, utils };
+  };
+
+  it("fitOnFirstLoad frames the loaded model, not the demo pose", async () => {
+    const on = await mountFit(true);
+    await waitFor(() => {
+      const fitted = on.spy.mock.calls.find((c) => Math.abs(c[3]! - 5) < 1e-6);
+      expect(fitted, JSON.stringify(on.spy.mock.calls)).toBeTruthy();
+    });
+    expect(on.spy.mock.calls.some((c) => c[0] === 15 && c[1] === 15 && c[2] === 15)).toBe(false);
+    on.utils.unmount();
+  });
+
+  it("the default keeps the historical demo pose (web behaviour unchanged)", async () => {
+    const off = await mountFit(false);
+    await new Promise((r) => setTimeout(r, 400));
+    expect(off.spy.mock.calls.some((c) => c[0] === 15 && c[1] === 15 && c[2] === 15)).toBe(true);
+    expect(off.spy.mock.calls.some((c) => Math.abs(c[3]! - 5) < 1e-6)).toBe(false);
+    off.utils.unmount();
+  });
+
+  it("a host pose set before the load finishes wins over fitOnFirstLoad", async () => {
+    h.cameraInstances.length = 0;
+    const ref = createRef<IfcViewerHandle>();
+    const { unmount } = render(
+      <IfcViewer
+        ref={ref}
+        projectId="p"
+        activeBuildingId="b"
+        files={list([{ file: FILE, latestVersion: V1 }])}
+        getFragBlob={(async () => fakeBlob) as never}
+        fitOnFirstLoad
+      />,
+    );
+    await waitFor(() => expect(ref.current).not.toBeNull());
+    ref.current!.setViewPose({ pos: [1, 2, 3], target: [0, 0, 0], fov: 50, isOrtho: false });
+    const spy = vi.spyOn(h.cameraInstances[h.cameraInstances.length - 1]!.controls, "setLookAt");
+    await waitFor(() => expect(ref.current!.loadedModelIds.has("f1")).toBe(true));
+    await new Promise((r) => setTimeout(r, 500));
+    expect(spy.mock.calls.some((c) => Math.abs((c[3] as number) - 5) < 1e-6)).toBe(false);
+    unmount();
+  });
+
+  it("user input on the viewer before the load finishes also wins over fitOnFirstLoad", async () => {
+    h.cameraInstances.length = 0;
+    const ref = createRef<IfcViewerHandle>();
+    const { unmount, container } = render(
+      <IfcViewer
+        ref={ref}
+        projectId="p"
+        activeBuildingId="b"
+        files={list([{ file: FILE, latestVersion: V1 }])}
+        getFragBlob={(async () => fakeBlob) as never}
+        fitOnFirstLoad
+      />,
+    );
+    // Synchronously after mount: the (mock) load has not had a tick to finish.
+    container.querySelector(".ifc-viewer")!.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    const spy = h.cameraInstances[h.cameraInstances.length - 1]!.controls.setLookAt as unknown as {
+      mock: { calls: number[][] };
+    };
+    await waitFor(() => expect(ref.current!.loadedModelIds.has("f1")).toBe(true));
+    await new Promise((r) => setTimeout(r, 500));
+    expect(spy.mock.calls.some((c) => Math.abs(c[3]! - 5) < 1e-6)).toBe(false);
+    unmount();
+  });
+
+  it("a touch tap that misses the exact pixel is retried around it (tolerant raycast)", async () => {
+    const seen: Array<{ x: number; y: number }> = [];
+    (h.fragmentsMock as unknown as RaycastSurface).raycast = vi.fn(async (d: unknown) => {
+      const m = (d as { mouse: { x: number; y: number } }).mouse;
+      seen.push({ x: m.x, y: m.y });
+      // thin geometry 10 px right of the tap
+      return Math.abs(m.x - 410) < 1e-6 && Math.abs(m.y - 300) < 1e-6
+        ? { localId: 5, fragments: { modelId: "mep" }, point: { x: 1, y: 1, z: 1 } }
+        : null;
+    });
+    const ref = createRef<IfcViewerHandle>();
+    const { unmount } = render(<IfcViewer ref={ref} projectId="p" activeBuildingId="b" />);
+    await waitFor(() => expect(ref.current).not.toBeNull());
+    await waitFor(() => expect(createLevelPlanController).toHaveBeenCalled());
+    const events: Array<{ expressId?: number } | null> = [];
+    ref.current!.setOnElementPick((e) => events.push(e ? { expressId: e.expressId } : null));
+
+    // touch: ring retry finds the element
+    await h.canvasListeners.get("click")![0]!({ clientX: 400, clientY: 300, button: 0, pointerType: "touch" });
+    expect(events).toEqual([{ expressId: 5 }]);
+
+    // the mouse stays exact: the same miss is a miss (deselect)
+    events.length = 0;
+    seen.length = 0;
+    await h.canvasListeners.get("click")![0]!({ clientX: 400, clientY: 300, button: 0, pointerType: "mouse" });
+    expect(seen).toHaveLength(1);
+    expect(events).toEqual([null]);
+    unmount();
+  });
+
+  it("a finger tap with 8 px of jitter is a tap, not a drag (pointer events)", async () => {
+    (h.fragmentsMock as unknown as RaycastSurface).raycast = vi.fn(async () => ({
+      localId: 9,
+      fragments: { modelId: "mep" },
+      point: { x: 0, y: 0, z: 0 },
+    }));
+    const ref = createRef<IfcViewerHandle>();
+    const { unmount } = render(<IfcViewer ref={ref} projectId="p" activeBuildingId="b" />);
+    await waitFor(() => expect(ref.current).not.toBeNull());
+    await waitFor(() => expect(createLevelPlanController).toHaveBeenCalled());
+    const events: Array<unknown> = [];
+    ref.current!.setOnElementPick((e) => events.push(e));
+
+    const fire = (type: string, ev: Record<string, unknown>) =>
+      h.canvasListeners.get(type)?.forEach((fn) => fn(ev));
+    const base = { pointerId: 1, pointerType: "touch", button: 0 };
+    fire("pointerdown", { ...base, clientX: 100, clientY: 100 });
+    fire("pointermove", { ...base, clientX: 106, clientY: 104 }); // ~7 px
+    fire("pointerup", { ...base, clientX: 106, clientY: 104 });
+    await h.canvasListeners.get("click")![0]!({ clientX: 106, clientY: 104, button: 0, pointerType: "touch" });
+    expect(events).toHaveLength(1);
+
+    // a real drag is still dropped
+    events.length = 0;
+    fire("pointerdown", { ...base, clientX: 100, clientY: 100 });
+    fire("pointermove", { ...base, clientX: 150, clientY: 100 });
+    fire("pointerup", { ...base, clientX: 150, clientY: 100 });
+    await h.canvasListeners.get("click")![0]!({ clientX: 150, clientY: 100, button: 0, pointerType: "touch" });
+    expect(events).toHaveLength(0);
     unmount();
   });
 });

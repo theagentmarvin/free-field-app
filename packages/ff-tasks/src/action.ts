@@ -29,6 +29,8 @@ export interface TaskActionPayload {
   /** Location-snapshot thumb binary (Day-3): fixed-name Storage path,
    *  uploaded bytes-first like a photo. null/undefined = no snapshot. */
   locationThumb?: { blobKey: string; size: number; mime: string } | null;
+  /** LinkView dual location: the plan snapshot binary (own fixed path). */
+  locationThumb2d?: { blobKey: string; size: number; mime: string } | null;
 }
 
 export interface ActionRequest {
@@ -46,6 +48,7 @@ export interface ActionRequest {
   guid?: string;
   at?: number;
   locationThumb?: { blobKey: string; size: number; mime: string } | null;
+  locationThumb2d?: { blobKey: string; size: number; mime: string } | null;
 }
 
 export class IllegalTransitionError extends Error {
@@ -74,5 +77,6 @@ export function buildActionPayload(req: ActionRequest): TaskActionPayload {
     createDoc: req.createDoc,
     patch: req.patch,
     locationThumb: req.locationThumb ?? null,
+    locationThumb2d: req.locationThumb2d ?? null,
   };
 }

@@ -10,7 +10,9 @@
     "test": "turbo run test",
     "dev": "turbo run dev --parallel",
     "lint:drift": "turbo run lint:drift",
-    "typecheck": "turbo run typecheck"
+    "typecheck": "turbo run typecheck",
+    "test:emulator": "turbo run test:emulator --concurrency=1",
+    "build:selfhost": "pnpm build && node scripts/prune-demo-assets.mjs"
   },
   "devDependencies": {
     "firebase-admin": "^14.2.0",

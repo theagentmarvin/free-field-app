@@ -49,8 +49,6 @@ export interface PdfOverlayProps {
    *  (the existing viewer is destroyed and a new one is built).
    *  Changing this prop triggers a fresh mount. */
   pdfVersionId: string;
-  /** Optional close handler (shows a × button). */
-  onClose?: () => void;
   // ─── Calibration wizard (Task 12a Part 2) ──────────────────────
   /**
    * When true, the wrapper div intercepts click events. The
@@ -192,6 +190,11 @@ export interface PdfOverlayHandle {
     uv: [number, number],
     maxWidthPx?: number,
   ): string | null;
+  /**
+   * Centre the view on a normalized page point (uv, origin top-left) and
+   * zoom in to at least `minTotalScale`. Used by task quick access.
+   */
+  focusUv(uv: [number, number], minTotalScale?: number): void;
 }
 
 /**
@@ -207,7 +210,6 @@ export const PdfOverlay = forwardRef<PdfOverlayHandle, PdfOverlayProps>(
   function PdfOverlay(
     {
       pdfVersionId,
-      onClose,
       captureClicks,
       onPdfClick,
       onTap,
@@ -270,6 +272,11 @@ export const PdfOverlay = forwardRef<PdfOverlayHandle, PdfOverlayProps>(
     const tapDownRef = useRef<{ x: number; y: number; t: number } | null>(null);
 
     useEffect(() => {
+      // Per-effect flag (NOT the shared ref): under StrictMode the second
+      // mount resets the ref before the first mount's async build checks it,
+      // which let BOTH builds attach a viewer (a ghost viewer in dev that
+      // the imperative handle, measure layer and pins then pointed at).
+      let cancelled = false;
       disposedRef.current = false;
 
       const container = containerRef.current;
@@ -278,26 +285,26 @@ export const PdfOverlay = forwardRef<PdfOverlayHandle, PdfOverlayProps>(
       let pdfViewer: PdfViewer | null = null;
 
       (async () => {
-        if (disposedRef.current) return;
+        if (cancelled) return;
         const version = await getPdfVersion(pdfVersionId);
-        if (disposedRef.current) return;
+        if (cancelled) return;
         if (!version) {
           throw new Error(`PdfVersionRecord not found: ${pdfVersionId}`);
         }
         const blob = await getPdfBlob(version.blobKey);
-        if (disposedRef.current) return;
+        if (cancelled) return;
         if (!blob) {
           throw new Error(`PdfBlob missing: ${version.blobKey}`);
         }
         const buffer = await blob.arrayBuffer();
-        if (disposedRef.current) return;
+        if (cancelled) return;
         // Multi-page uploads are accepted everywhere (the settings
         // upload stores them); without `allowMultiPage` the viewer
         // is capped to page 1 below.
         const api = await loadPDF(new Uint8Array(buffer), {
           singlePage: false,
         });
-        if (disposedRef.current) {
+        if (cancelled) {
           api.destroy();
           return;
         }
@@ -323,26 +330,28 @@ export const PdfOverlay = forwardRef<PdfOverlayHandle, PdfOverlayProps>(
         // initial scale on the first tick.
         unsubScaleRef.current = pdfViewer.setOnScaleChange((e) => setRenderScale(e.renderScale));
       })().catch((err) => {
-        if (disposedRef.current) return;
+        if (cancelled) return;
         setLoadError(err instanceof Error ? err : new Error(String(err)));
       });
 
       return () => {
-        // Only run real cleanup. The strict-mode double-unmount
-        // would otherwise tear down a perfectly good viewer.
-        if (disposedRef.current) return;
+        if (cancelled) return;
+        cancelled = true;
         disposedRef.current = true;
         unsubScaleRef.current?.();
         unsubScaleRef.current = null;
         try {
-          viewerRef.current?.destroy();
+          pdfViewer?.destroy();
         } catch (err) {
           // eslint-disable-next-line no-console
           console.warn("[PdfOverlay] destroy threw:", err);
         } finally {
-          viewerRef.current = null;
-          // Task 38: drop the document handle with the viewer.
-          docRef.current = null;
+          // Only clear what this effect owns: a newer mount may already
+          // have published its own viewer.
+          if (viewerRef.current === pdfViewer) {
+            viewerRef.current = null;
+            docRef.current = null;
+          }
           setPageInfo(null);
         }
       };
@@ -372,6 +381,7 @@ export const PdfOverlay = forwardRef<PdfOverlayHandle, PdfOverlayProps>(
         getDocument: () => docRef.current,
         getPageSnapshot: (page, uv, maxWidthPx = 400) =>
           viewerRef.current?.getPageSnapshot(page, uv, maxWidthPx) ?? null,
+        focusUv: (uv, minTotalScale) => viewerRef.current?.focusUv(uv, minTotalScale),
       }),
       [],
     );
@@ -481,43 +491,6 @@ export const PdfOverlay = forwardRef<PdfOverlayHandle, PdfOverlayProps>(
           >
             {loadError.message}
           </div>
-        ) : null}
-        {onClose ? (
-          <button
-            type="button"
-            data-testid="pdf-overlay-close"
-            onClick={onClose}
-            aria-label="Close PDF and return to 3D viewer"
-            title="Close PDF"
-            style={{
-              position: "absolute",
-              top: 8,
-              right: 8,
-              width: 32,
-              height: 32,
-              // 2026-06-03 (Task 15 follow-up): the close
-              // button opts back into pointer-events: auto
-              // because the absolute wrapper around PdfOverlay
-              // in ViewerPanel is pointer-events: none (so
-              // the IfcViewer behind still receives events).
-              // Without this, the button is unclickable and
-              // the user is stuck on the PDF.
-              pointerEvents: "auto",
-              borderRadius: 4,
-              border: "1px solid rgba(255, 255, 255, 0.2)",
-              background: "rgba(0, 0, 0, 0.55)",
-              color: "#e8eaed",
-              cursor: "pointer",
-              fontSize: 20,
-              lineHeight: 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 10,
-            }}
-          >
-            ×
-          </button>
         ) : null}
         {!loadError && pageInfo ? (
           <div

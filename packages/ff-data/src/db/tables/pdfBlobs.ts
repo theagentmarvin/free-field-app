@@ -6,6 +6,7 @@
 // keep the bytes in IndexedDB without materializing them in memory.
 
 import { db } from "../database";
+import { runBlobMissHandler } from "./blobMiss";
 
 /** Store or overwrite a raw PDF blob. */
 export async function putPdfBlob(key: string, bytes: Blob): Promise<void> {
@@ -18,7 +19,11 @@ export async function putPdfBlob(key: string, bytes: Blob): Promise<void> {
  *  type-mismatch source after the Phase-1-lite extraction. */
 export async function getPdfBlob(key: string): Promise<Blob | null> {
   const row = await db.pdfBlobs.get(key);
-  return row?.bytes ?? null;
+  if (row) return row.bytes;
+  if (await runBlobMissHandler("pdf", key)) {
+    return (await db.pdfBlobs.get(key))?.bytes ?? null;
+  }
+  return null;
 }
 
 /** Delete a raw PDF blob. */

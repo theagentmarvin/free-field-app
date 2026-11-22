@@ -1,5 +1,6 @@
 /// <reference types="vitest" />
 import { defineConfig } from 'vite';
+import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 
 // apps/users is consumed at runtime by apps/settings via the
@@ -12,8 +13,8 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@ff/auth': new URL('../../packages/ff-auth/src', import.meta.url).pathname,
-      '@ff/firestore': new URL('../../packages/ff-firestore/src', import.meta.url).pathname,
+      '@ff/auth': fileURLToPath(new URL('../../packages/ff-auth/src', import.meta.url)),
+      '@ff/firestore': fileURLToPath(new URL('../../packages/ff-firestore/src', import.meta.url)),
     },
   },
   test: {

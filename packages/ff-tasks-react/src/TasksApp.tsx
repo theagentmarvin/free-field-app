@@ -1,6 +1,9 @@
+import { useTaskBuildingIndex, withEffectiveBuilding } from "./taskBuilding";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { requireProjectId, useCurrentProject, useProjectId } from "@ff/auth";
 import {
+  exportBcf as defaultExportBcf,
+  type ExportBcf,
   buildActionPayload,
   clearDraft,
   latestDraft,
@@ -13,7 +16,8 @@ import { draftTable, useTaskEngine } from "./useTaskEngine";
 import { useTaskPeople } from "./useTaskPeople";
 import { useTasksFirestore, useTasksSource } from "./tasksSource";
 import { TaskComposeSheet } from "./TaskComposeSheet";
-import { draftToCompose, type ComposeFields } from "./composeModel";
+import { type ComposeFields } from "./composeModel";
+import { restoreDraftCompose } from "./draftRestore";
 import { TasksListPanel } from "./TasksListPanel";
 import { TaskTablePanel } from "./TaskTablePanel";
 import { TaskBoardPanel, BOARD_COLUMNS } from "./TaskBoardPanel";
@@ -29,6 +33,7 @@ import { planBoardMove } from "./boardMove";
 import {
   buildCsv,
   buildTasksReportHtml,
+  downloadBlob,
   downloadText,
   exportFileName,
   REPORT_MAX_PHOTOS,
@@ -36,6 +41,19 @@ import {
   type ReportTask,
 } from "./exportTasks";
 import { openPrintView } from "./printDocument";
+import {
+  BCF_MAX_TOPICS,
+  bcfCapMessage,
+  bcfDoneMessage,
+  bcfProgressMessage,
+  buildBcfBundles,
+  buildBcfUserDirectory,
+  selectBcfScope,
+  type TasksBcfContext,
+} from "./bcfExport";
+import { convertToPng, fetchBinaryFromUrl } from "./bcfBrowser";
+import { loadMemberEmails } from "./memberEmails";
+import { loadSheetCatalog } from "./sheetCatalog";
 import { TaskDetailHost } from "./TaskDetailHost";
 import { TaskOutboxSheet } from "./TaskOutboxSheet";
 import { TaskToolbar } from "./TaskToolbar";
@@ -94,6 +112,12 @@ export interface TasksAppProps {
   /** fired when the user flips This-building / All-buildings (host may
    *  mirror/persist; the toggle state itself lives in the module). */
   onScopeChange?: (scope: ScopeMode) => void;
+  /** BCF export — host resolvers (IFC GlobalIds, base-model shift, deep
+   *  link). Absent = BCF is exported without components and without a
+   *  camera (snapshot only). See docs/integration/bcf-export-tasks-react.md. */
+  bcfContext?: TasksBcfContext;
+  /** BCF writer override (tests); defaults to @ff/tasks exportBcf. */
+  bcfExporter?: ExportBcf;
 }
 
 const MOVE_WORDS: Record<string, string> = {
@@ -116,6 +140,8 @@ export function TasksApp({
   buildingName = null,
   buildings,
   onScopeChange,
+  bcfContext,
+  bcfExporter,
 }: TasksAppProps): JSX.Element {
   const projectId = useProjectId();
   const currentProject = useCurrentProject();
@@ -250,7 +276,11 @@ export function TasksApp({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [cloud, rows, search, sort, source.overlaySending, activeView, actor.uid, Math.floor(nowTs / 60_000)]
   );
-  const preQuick = useMemo(() => scopeRowsToBuilding(merged, buildingId, scope), [merged, buildingId, scope]);
+  // Old tasks without a stamped building show (and scope by) the building
+  // they are pinned in.
+  const buildingIndex = useTaskBuildingIndex();
+  const mergedEff = useMemo(() => withEffectiveBuilding(merged, buildingIndex), [merged, buildingIndex]);
+  const preQuick = useMemo(() => scopeRowsToBuilding(mergedEff, buildingId, scope), [mergedEff, buildingId, scope]);
   const quickCounts = useMemo(
     () => ({
       mine: preQuick.filter((t) => !!actor.uid && t.assigneeUid === actor.uid && matchesChip(t.status, "open")).length,
@@ -532,6 +562,60 @@ export function TasksApp({
     downloadText(exportFileName("tasks", "csv"), buildCsv(exportRows, Date.now()));
     setToast({ message: `Exported ${exportRows.length} task${exportRows.length === 1 ? "" : "s"} to CSV` });
   }
+  const [bcfBusy, setBcfBusy] = useState(false);
+  async function exportBcfFile(version: "2.1" | "3.0"): Promise<void> {
+    if (bcfBusy || !projectId) return;
+    const scoped = selectBcfScope(selectedRows, exportRows);
+    if (scoped.rows.length === 0) return;
+    setBcfBusy(true);
+    try {
+      const total = scoped.rows.length;
+      setToast({ message: bcfProgressMessage(0, total) });
+      const resolve = photoResolver;
+      const fetchBinary = async (path: string, opts: { mime?: string; measure?: boolean }) => {
+        if (!resolve) return null;
+        const url = await resolve(path);
+        return url ? fetchBinaryFromUrl(url, opts) : null;
+      };
+      let sheetNames: ReadonlyMap<string, { name: string }> | null = null;
+      try {
+        sheetNames = (await loadSheetCatalog(projectId)).files;
+      } catch {
+        sheetNames = null;
+      }
+      const built = await buildBcfBundles(scoped.rows, {
+        projectId,
+        source,
+        fetchBinary,
+        sheetName: (id) => sheetNames?.get(id)?.name,
+        context: bcfContext,
+        onProgress: (d, n) => setToast({ message: bcfProgressMessage(d, n) }),
+      });
+      const people = [
+        ...(db ? await loadMemberEmails(db, projectId) : []),
+        ...(members ?? []).map((m) => ({ uid: m.uid, name: m.name })),
+        { uid: actor.uid, name: actor.name },
+      ];
+      const result = await (bcfExporter ?? defaultExportBcf)(built.bundles, {
+        version,
+        project: { id: projectId, name: projectName },
+        users: buildBcfUserDirectory(people),
+        baseShift: (taskId) => built.shifts.get(taskId) ?? null,
+        taskUrl: bcfContext?.taskUrl,
+        convertToPng,
+      });
+      downloadBlob(result.filename, result.blob);
+      if (result.warnings.length > 0) console.info("[bcf-export] warnings", result.warnings);
+      setToast({
+        message: bcfDoneMessage(result.topicCount, version, result.warnings, { skipped: built.skippedPhotos, budgetSkipped: built.budgetSkippedPhotos }) + (scoped.capped ? ` · ${bcfCapMessage(scoped.total, BCF_MAX_TOPICS)}` : ""),
+      });
+    } catch (e) {
+      console.error("[bcf-export] failed", e);
+      setToast({ message: "BCF export failed" });
+    } finally {
+      setBcfBusy(false);
+    }
+  }
   async function exportPdf(): Promise<void> {
     const picked = exportRows.slice(0, REPORT_MAX_TASKS);
     setToast({ message: `Preparing report for ${picked.length} task${picked.length === 1 ? "" : "s"}…` });
@@ -627,6 +711,9 @@ export function TasksApp({
         onExportCsv={exportCsv}
         onExportPdf={() => void exportPdf()}
         exportCount={exportRows.length}
+        onExportBcf={(v) => void exportBcfFile(v)}
+        bcfExporting={bcfBusy}
+        bcfScope={{ count: selectedRows.length > 0 ? selectedRows.length : exportRows.length, fromSelection: selectedRows.length > 0 }}
         onShowShortcuts={() => setShortcutsOpen(true)}
       />
       {draft && engine && (
@@ -636,8 +723,11 @@ export function TasksApp({
             type="button"
             onClick={() => {
               setDetailTaskId(null);
-              setCompose({ taskId: draft.id, initial: draftToCompose(draft.fields) });
+              const restoring = draft;
               setDraft(null);
+              void restoreDraftCompose(restoring.fields).then((initial) =>
+                setCompose({ taskId: restoring.id, initial }),
+              );
             }}
             style={{ border: "1px solid #b8860b", background: "#fff", borderRadius: 6, padding: "2px 10px", cursor: "pointer" }}
           >
@@ -666,6 +756,7 @@ export function TasksApp({
                 now={Date.now()}
                 groupBy={groupBy}
                 activeId={activeId}
+                resolvePhotoUrl={photoResolver}
                 onMove={moveOnBoard}
                 hasMoreRemote={hasMoreRemote}
                 onLoadMore={loadMoreRemote}

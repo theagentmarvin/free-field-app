@@ -379,6 +379,9 @@ export function createLevelPlanController(
   // Switching storey keeps the original pose — it is only replaced
   // when a plan opens from the 3D view.
   let savedPose: SavedCameraPose | null = null;
+  // Wave 73: set by `dispose()`. The world is being torn down, so nothing
+  // may touch its camera any more (see `restoreCamera`).
+  let disposed = false;
 
   /** Dispose the drawing + reset the measure machine; camera untouched. */
   const closeDrawing = (): void => {
@@ -409,6 +412,19 @@ export function createLevelPlanController(
     const pose = savedPose;
     savedPose = null;
     const apply = (): void => {
+      // Wave 73: this runs again from a promise continuation. By then a
+      // viewer unmount may have disposed the world, and `world.camera`
+      // THROWS ("No camera initialized!") once the engine has dropped it,
+      // which surfaced as an uncaught page error on every unmount / reload
+      // (and once at first mount under StrictMode).
+      if (disposed) return;
+      try {
+        applyPose();
+      } catch {
+        // camera gone: nothing left to restore
+      }
+    };
+    const applyPose = (): void => {
       if (pose) {
         cameraSetLookAt(world, ...pose.pos, ...pose.target);
       } else {
@@ -416,10 +432,15 @@ export function createLevelPlanController(
       }
     };
     apply();
-    const cam = world.camera as unknown as {
+    let cam: {
       projection?: { set: (p: OBC.CameraProjection) => Promise<void> };
       set?: (mode: string) => void;
     };
+    try {
+      cam = world.camera as unknown as typeof cam;
+    } catch {
+      return; // world already disposed
+    }
     if (cam.projection && cam.set) {
       const projection = pose?.projection ?? "Perspective";
       // The projection switch moves the camera to match the old
@@ -691,7 +712,15 @@ export function createLevelPlanController(
     },
 
     dispose(): void {
-      handle.close();
+      // Wave 73: disposal is NOT a "close the plan" gesture. The viewer
+      // calls this while it tears the whole world down, so the camera must
+      // be left alone (restoring the 3D pose here scheduled a continuation
+      // that ran after the camera was disposed). Drop the drawing and the
+      // measure state only.
+      if (disposed) return;
+      disposed = true;
+      savedPose = null;
+      closeDrawing();
       storeyMap.clear();
     },
   };

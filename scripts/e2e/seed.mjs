@@ -31,7 +31,7 @@ process.env.GCLOUD_PROJECT = FIREBASE_PROJECT;
 
 const { initializeApp, getApps } = await import('firebase-admin/app');
 const { getAuth } = await import('firebase-admin/auth');
-const { getFirestore } = await import('firebase-admin/firestore');
+const { getFirestore, Timestamp } = await import('firebase-admin/firestore');
 
 if (getApps().length === 0) initializeApp({ projectId: FIREBASE_PROJECT });
 const auth = getAuth();
@@ -85,9 +85,13 @@ console.log(`✓ project doc projects/${PID}`);
 // Member docs.
 const roleMap = { A: 'member', B: 'member', admin: 'admin' };
 for (const role of ['A', 'B', 'admin']) {
+  // `uid` is what the collection-group membership query matches on
+  // (rules: resource.data.uid == request.auth.uid); joinedAt is a Timestamp
+  // like every member doc the Cloud Functions write.
   await db.doc(`projects/${PID}/members/${uids[role]}`).set({
+    uid: uids[role],
     role: roleMap[role],
-    joinedAt: now,
+    joinedAt: Timestamp.fromMillis(now),
     invitedBy: 'e2e-seed',
     status: 'active',
   });

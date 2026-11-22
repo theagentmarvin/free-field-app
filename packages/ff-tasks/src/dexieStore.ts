@@ -18,12 +18,18 @@ export interface DexieishTable<T> {
     anyOf(values: readonly unknown[]): {
       sortBy(field: string): Promise<T[]>;
       toArray(): Promise<T[]>;
+      count?(): Promise<number>;
     };
     equals(value: unknown): { toArray(): Promise<T[]> };
   };
 }
 
+/** A row belongs to the task engine unless it is one of the sync kinds. */
+const isTaskRow = (r: OutboxRecord): boolean => r.kind === undefined || r.kind === "task-action";
+
 export function makeDexieOutboxStore(outbox: DexieishTable<OutboxRecord>): OutboxStore {
+  // The shared `outbox` table also carries the Phase 1c/1d sync kinds; the
+  // task engine must never pick those up, so `next` / `list` filter by kind.
   return {
     async add(row) {
       await outbox.put(row);
@@ -36,13 +42,18 @@ export function makeDexieOutboxStore(outbox: DexieishTable<OutboxRecord>): Outbo
     },
     async next(states: readonly OutboxState[]) {
       const rows = await outbox.where("state").anyOf(states).sortBy("createdAt");
-      return rows[0];
+      return rows.find(isTaskRow);
     },
     async list(states: readonly OutboxState[]) {
-      return outbox.where("state").anyOf(states).sortBy("createdAt");
+      return (await outbox.where("state").anyOf(states).sortBy("createdAt")).filter(isTaskRow);
     },
     async delete(id) {
       await outbox.delete(id);
+    },
+    // Index-only (state index); counts every kind, so it can only over-count.
+    async count(states: readonly OutboxState[]) {
+      const c = outbox.where("state").anyOf(states);
+      return c.count ? c.count() : (await c.toArray()).length;
     },
   };
 }

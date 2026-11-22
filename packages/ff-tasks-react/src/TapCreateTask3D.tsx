@@ -9,7 +9,7 @@ import { useTaskPeople } from "./useTaskPeople";
 import { useTasksFirestore } from "./tasksSource";
 import { TaskComposeSheet } from "./TaskComposeSheet";
 import { TapCreateMarker3D } from "./TapCreateMarker3D";
-import { attachSnapshotThumb } from "./snapshot";
+import { attachSnapshotThumb, enrichTaskLocation } from "./snapshot";
 import type { ComposeLocationThumb } from "./composeModel";
 
 /**
@@ -38,12 +38,17 @@ export interface TapCreateTask3DProps {
   /** Wave 53 — when a task detail opens (id becomes non-null), give way
    *  to it by closing the compose sheet. */
   detailTaskId?: string | null;
+  /** The viewer's active building — every task created here belongs to
+   *  it (2026-11-14: viewer task pins/lists are building-scoped). */
+  buildingId?: string | null;
 }
 
 interface PendingPin {
   taskId: string;
   location: TaskLocation;
   locationThumb: ComposeLocationThumb | null;
+  /** LinkView dual location: the plan snapshot (only when a host enriched the location). */
+  locationThumb2d: ComposeLocationThumb | null;
 }
 
 export function TapCreateTask3D({
@@ -51,6 +56,7 @@ export function TapCreateTask3D({
   storeyName = null,
   onComposeOpen,
   detailTaskId = null,
+  buildingId = null,
 }: TapCreateTask3DProps): JSX.Element | null {
   const engine = useTaskEngine();
   const projectId = useProjectId();
@@ -78,7 +84,10 @@ export function TapCreateTask3D({
     const handle = getHandle();
     const dataUrl = handle?.getSnapshot?.(400) ?? null;
     const { location: located, thumb } = attachSnapshotThumb(dataUrl, pid, taskId, location);
-    setPending({ taskId, location: located, locationThumb: thumb });
+    // LinkView (and only LinkView) registers an enricher that adds the
+    // matching plan pin + plan snapshot; elsewhere this is a no-op.
+    const { location: enriched, thumb2d } = enrichTaskLocation(located, { projectId: pid, taskId });
+    setPending({ taskId, location: enriched, locationThumb: thumb, locationThumb2d: thumb2d });
   }
 
   return (
@@ -94,6 +103,8 @@ export function TapCreateTask3D({
           draftTable={draftTable}
           location={pending.location}
           locationThumb={pending.locationThumb}
+          locationThumb2d={pending.locationThumb2d}
+          buildingId={buildingId}
           onDone={() => setPending(null)}
           onClose={() => setPending(null)}
         />

@@ -30,42 +30,26 @@ import fragmentsWorkerAssetUrl from "@thatopen/fragments/worker?url";
 //   • **offline / restricted deployments** could never load a model.
 export const FRAGMENTS_WORKER_BUNDLE_URL: string = fragmentsWorkerAssetUrl;
 
-// ── Fallback only: unpkg ───────────────────────────────────────────
+// ── No third-party fallback (security) ─────────────────────────────
 //
-// The @ characters are URL-encoded as %40 to bypass Cloudflare's
-// email-obfuscation feature (fragments@<version> gets rewritten to
-// "[email protected]" otherwise). The %40 trick also avoids the unpkg
-// v1 vs v2 redirect quirks. Kept for hosts that consume this package
-// without a Vite asset pipeline — and for the (rare) case where the
-// emitted asset itself fails to load.
-//
-// FragmentsModels.getWorker() (added in @thatopen/fragments 3.4.x)
-// fetches from unpkg too, with the literal @ in the URL, so it hits
-// the same Cloudflare bug; the %40 form is why we still do this
-// ourselves instead of calling that helper.
-export const FRAGMENTS_WORKER_CDN =
-  "https://unpkg.com/%40thatopen/fragments%403.4.5/dist/worker/worker.mjs";
-
-// Resolution order, exported so tests can pin "bundle first, CDN
-// second" without re-deriving it from behavior.
+// The worker is ONLY ever served from the app's own origin. An earlier
+// revision fell back to a CDN copy when the bundled asset failed to
+// fetch; that executed unpinned third-party code as a same-origin
+// worker and is incompatible with a strict Content-Security-Policy
+// (connect-src 'self'). If the bundled asset is missing the load now
+// fails loudly and the next mount retries.
 export const FRAGMENTS_WORKER_SOURCES: readonly string[] = [
   FRAGMENTS_WORKER_BUNDLE_URL,
-  FRAGMENTS_WORKER_CDN,
 ];
 
 // ── Why the script is blob-wrapped ─────────────────────────────────
 //
-// We never hand a source URL straight to the Worker constructor. A
-// cross-origin worker (jsdelivr / unpkg) is blocked by the browser's
-// CORP check even when the CDN serves `CORP: cross-origin`, because
-// the page is not using COEP/COOP. The robust workaround is the
-// blob-URL pattern the library's own getWorker() uses internally:
-// fetch the script ourselves, wrap it in a Blob, and hand the
-// same-origin blob URL to `new Worker(url, { type: "module" })`.
-//
-// Fetching also doubles as the fallback trigger: if the bundled asset
-// is missing (404 / no asset pipeline), we find out HERE, before the
-// engine has a wedged worker to blame it on.
+// We never hand a source URL straight to the Worker constructor: we
+// fetch the same-origin script ourselves, wrap it in a Blob and hand
+// the blob URL to `new Worker(url, { type: "module" })` (the pattern
+// the library's own getWorker() uses). The CSP therefore needs
+// `worker-src 'self' blob:`. Fetching also surfaces a missing
+// asset HERE, before the engine has a wedged worker to blame it on.
 
 let workerBlobUrlPromise: Promise<string> | null = null;
 

@@ -23,7 +23,7 @@ pnpm --filter settings lint:drift  # module boundary check
 pnpm build
 ```
 
-`@ff/firestore` tests require the Firebase emulator (`firebase-tools`), Java, and the Cloud Functions package's own dependencies: run `npm ci --prefix packages/ff-firestore/functions` once, then `pnpm --filter @ff/firestore test`; pure schema tests run with `npx vitest run __tests__/schema-*.test.ts`. A few UI tests can be flaky in a full run; re-run the single test before reporting.
+`pnpm test` runs unit tests only and needs no emulator. The `@ff/firestore` rules/functions suites and the `@ff/sync` emulator suite run with `pnpm test:emulator`: they need JDK 21 (the Firestore emulator refuses older Java) and the Cloud Functions package's own dependencies (run `npm ci --prefix packages/ff-firestore/functions` once). Pure schema tests run with `npx vitest run __tests__/schema-*.test.ts` inside `packages/ff-firestore`. A few UI tests can be flaky in a full run; re-run the single test before reporting.
 
 ## Pull requests
 

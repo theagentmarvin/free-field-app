@@ -77,4 +77,4 @@ export type {
   RaycastIdHit,
   RaycastFirstResult,
   RaycastFirstDeps,
-} from "./pickSeam";
+} from "./pickSeam";export { HiddenElementTracker, filterHiddenHit } from "./hiddenFilter";

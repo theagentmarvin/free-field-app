@@ -198,3 +198,27 @@ export function flattenItemData(
   });
   return out;
 }
+
+/**
+ * Wave 73: add the IFC GlobalId to a flat attribute record without clobbering
+ * a `GlobalId` the record already has. Pure; the record's own symbol-keyed
+ * pset grouping (see {@link flattenItemData}) is carried over to the copy.
+ */
+export function mergeGuidIntoAttributes(
+  attributes: Record<string, string>,
+  guid: string | null,
+): { attributes: Record<string, string>; globalId: string | null } {
+  const out: Record<string, string> = { ...attributes };
+  for (const sym of Object.getOwnPropertySymbols(attributes)) {
+    Object.defineProperty(out, sym, {
+      value: (attributes as unknown as Record<symbol, unknown>)[sym],
+      enumerable: false,
+      configurable: true,
+    });
+  }
+  const existing = typeof out.GlobalId === "string" && out.GlobalId !== "" ? out.GlobalId : null;
+  const globalId = existing ?? guid;
+  if (!existing && guid) out.GlobalId = guid;
+  return { attributes: out, globalId };
+}
+

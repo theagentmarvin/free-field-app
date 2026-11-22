@@ -50,3 +50,18 @@ export function useTaskCapabilities(): TaskCapabilities {
     hardDelete: envFlag("VITE_TASKS_HARD_DELETE"),
   });
 }
+
+/**
+ * `extendedFields` for components that may render outside an
+ * <AuthProvider> (tests, embeds): false there instead of throwing. The
+ * throw happens at the same hook position on every render, so hook order
+ * stays stable.
+ */
+export function useExtendedFieldsEnabled(): boolean {
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    return useTaskCapabilities().extendedFields;
+  } catch {
+    return false;
+  }
+}

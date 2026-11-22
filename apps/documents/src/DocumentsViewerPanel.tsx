@@ -3,8 +3,8 @@
 // Right panel for the Documents module: hosts <PdfOverlay>
 // (from @ff/viewer-react) keyed on the active PDF version id.
 // Mirrors apps/settings/src/components/ViewerPanel.tsx's
-// PdfOverlay mounting exactly — same props, same onClose
-// behavior, same CSS class hooks — so the user sees the same
+// PdfOverlay mounting exactly — same props and
+// CSS class hooks (no × close control) — so the user sees the same
 // PDF viewer they get in Settings, just without the IFC
 // model underneath.
 //
@@ -26,13 +26,14 @@ import { useProjectId } from "@ff/auth";
 import { db } from "@ff/data/db/database";
 import { PdfMeasureLayer, pickCalibrationScale } from "@ff/viewer-tools/pdf-measure";
 
+import CompareViewer from "./compare/viewer/CompareViewer";
+import { useCompareStore } from "./compare/compareStore";
 import { TaskPinDock, type PinVersionMeta, type TaskPinDockHandle } from "./TaskPinDock";
+import SheetDataLayer, { type SheetDataLayerHandle } from "./sheetData/SheetDataLayer";
 
 export interface DocumentsViewerPanelProps {
   /** The PDF version id to display, or null when nothing is selected. */
   activePdfVersionId: string | null;
-  /** Fired when the user closes the PDF viewer. The parent clears the active id. */
-  onClose: () => void;
   /**
    * Imperative handle of the mounted <PdfOverlay> (Task 38).
    * The Documents sidebar's outline + thumbnail panel reads the
@@ -41,13 +42,18 @@ export interface DocumentsViewerPanelProps {
   pdfOverlayRef?: RefObject<PdfOverlayHandle> | null;
   /** Active building — scopes the plan's task pins. */
   buildingId?: string | null;
+  /** Open another PDF version (sheet links, "Back to <sheet>"). */
+  onNavigate?: (pdfVersionId: string) => void;
+  /** A tap picked an element of the drawing (opens the Properties panel). */
+  onElementTapped?: () => void;
 }
 
 export default function DocumentsViewerPanel({
   activePdfVersionId,
-  onClose,
   pdfOverlayRef,
   buildingId,
+  onNavigate,
+  onElementTapped,
 }: DocumentsViewerPanelProps): ReactNode {
   // ── 2D task pins + tap-to-create (chunk 4 / Wave 5B) ───────
   // The panel owns the lightweight pin state (which PDF metadata is
@@ -57,6 +63,7 @@ export default function DocumentsViewerPanel({
   // existing tests) never boots the tasks engine.
   const [version, setVersion] = useState<PinVersionMeta | null>(null);
   const dockRef = useRef<TaskPinDockHandle | null>(null);
+  const sheetRef = useRef<SheetDataLayerHandle | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -64,7 +71,7 @@ export default function DocumentsViewerPanel({
     if (!activePdfVersionId) return;
     void getPdfVersion(activePdfVersionId).then((row) => {
       if (!alive || !row) return;
-      setVersion({ pdfFileId: row.pdfFileId, width: row.width, height: row.height });
+      setVersion({ id: row.id, pdfFileId: row.pdfFileId, width: row.width, height: row.height });
     });
     return () => {
       alive = false;
@@ -82,18 +89,21 @@ export default function DocumentsViewerPanel({
   );
   const calibrationMetresPerUnit = pickCalibrationScale(calibrationRows ?? [], projectId);
 
+  const compareActive = useCompareStore((s) => s.active);
+
   const getSurface = (): PdfPinSurface | null => pdfOverlayRef?.current ?? null;
 
-  // Wave 63 — the × close button is back: since wave 56 the shared 3D
-  // surface sits under the PDF, so closing the PDF has somewhere to go
-  // (and it was otherwise impossible to get back to the model).
+  // The PDF viewer has no × close control: another sheet is picked from
+  // the Documents panel, and the 3D model lives in the Models module.
   return (
     <div
       className="ff-documents-viewer-panel"
       style={panelStyle}
       data-testid="documents-viewer-panel"
     >
-      {activePdfVersionId === null ? (
+      {compareActive ? (
+        <CompareViewer />
+      ) : activePdfVersionId === null ? (
         <div style={emptyStyle} data-testid="documents-viewer-empty">
           <div style={emptyTitleStyle}>No PDF selected</div>
           <div style={emptyHintStyle}>
@@ -103,7 +113,7 @@ export default function DocumentsViewerPanel({
       ) : (
         // Same wrapper shape as apps/settings's ViewerPanel: a
         // full-bleed positioned container with pointer-events
-        // enabled so the toolbar buttons (zoom/pan/close) are
+        // enabled so the toolbar buttons (zoom/pan) are
         // interactive. data-testid lets tests target the overlay
         // mount without depending on @ff/viewer-react internals.
         <div
@@ -123,11 +133,10 @@ export default function DocumentsViewerPanel({
             // anchors the + marker (the dock resolves the calibration
             // and opens compose on marker tap). No armed mode anymore —
             // the + marker is the sole creation entry point.
-            onTap={(coords) => dockRef.current?.handleTap(coords)}
-            // × → back to the 3D surface underneath (wave 56 put it
-            // there; the old "nothing to return to" rationale for
-            // hiding the button no longer holds).
-            onClose={onClose}
+            onTap={(coords) => {
+              sheetRef.current?.handleTap(coords);
+              dockRef.current?.handleTap(coords);
+            }}
           />
           <PdfMeasureLayer
             key={`measure-${activePdfVersionId}`}
@@ -136,6 +145,17 @@ export default function DocumentsViewerPanel({
             calibrationMetresPerUnit={calibrationMetresPerUnit}
             fallbackPageSize={version ? { width: version.width, height: version.height } : null}
           />
+          {onNavigate ? (
+            <SheetDataLayer
+              ref={sheetRef}
+              overlayRef={pdfOverlayRef}
+              pdfVersionId={activePdfVersionId}
+              pdfFileId={version?.pdfFileId ?? null}
+              page={version ? { width: version.width, height: version.height } : null}
+              onNavigate={onNavigate}
+              onElementTapped={onElementTapped}
+            />
+          ) : null}
           {version ? (
             <TaskPinDock
               ref={dockRef}

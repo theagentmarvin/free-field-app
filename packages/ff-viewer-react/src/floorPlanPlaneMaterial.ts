@@ -20,6 +20,41 @@ export function clampFloorPlanOpacity(v: number): number {
   return Math.min(1, Math.max(0, v));
 }
 
+/**
+ * Placement of a floor-plan plane: an (un-rotated) world rectangle
+ * `worldBounds` centred on the transformed page centre, turned by
+ * `rotation` (radians, the similarity's rotation) about its centre.
+ *
+ * Calibration maps a PDF point p to world (X, Z) = scale * R(rotation) * p + t
+ * with R = [cos, -sin; sin, cos]. A three.js rotation of phi about +Y maps
+ * (x, z) to (x cos phi + z sin phi, -x sin phi + z cos phi), so the mesh needs
+ * `rotationY = -rotation`. With rotation 0 this is exactly the old
+ * axis-aligned placement.
+ */
+export function computeFloorPlanPlacement(
+  worldBounds: { minX: number; minZ: number; maxX: number; maxZ: number },
+  elevation: number,
+  rotation = 0,
+): {
+  width: number;
+  depth: number;
+  position: { x: number; y: number; z: number };
+  rotationY: number;
+} {
+  const width = worldBounds.maxX - worldBounds.minX;
+  const depth = worldBounds.maxZ - worldBounds.minZ;
+  return {
+    width,
+    depth,
+    position: {
+      x: worldBounds.minX + width / 2,
+      y: elevation,
+      z: worldBounds.minZ + depth / 2,
+    },
+    rotationY: Number.isFinite(rotation) && rotation !== 0 ? -rotation : 0,
+  };
+}
+
 export function createFloorPlanPlaneMaterial(
   canvas: HTMLCanvasElement,
   options: { opacity?: number; maxAnisotropy?: number } = {},

@@ -6,15 +6,22 @@
 // the legacy build instead, which parses in-process (fake worker), so
 // the hand-written 2-page fixture is genuinely parsed here.
 
+import { createRequire } from "node:module";
+import { pathToFileURL } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("pdfjs-dist", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("pdfjs-dist")>();
-  const legacy = await import("pdfjs-dist/legacy/build/pdf.mjs");
+vi.mock("pdfjs-dist/legacy/build/pdf.mjs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("pdfjs-dist/legacy/build/pdf.mjs")>();
   return {
     ...actual,
-    getDocument: (params: { data: ArrayBuffer }) =>
-      legacy.getDocument({ data: new Uint8Array(params.data) }),
+    getDocument: (params: { data: ArrayBuffer }) => {
+      // loadPdf points workerSrc at a Vite `?url`; Node's in-process "fake
+      // worker" needs the real file URL of the legacy worker instead.
+      actual.GlobalWorkerOptions.workerSrc = pathToFileURL(
+        createRequire(import.meta.url).resolve("pdfjs-dist/legacy/build/pdf.worker.min.mjs"),
+      ).href;
+      return actual.getDocument({ data: new Uint8Array(params.data) });
+    },
   };
 });
 

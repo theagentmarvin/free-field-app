@@ -37,20 +37,19 @@ import {
   TaskCalloutLayer2D,
   TaskComposeSheet,
   TaskDetailHost,
-  TaskMiniPanel,
   attachSnapshotThumb,
-  usePanelTasks,
   useTaskEngine,
   useTaskPeople,
   useTaskPhotoResolver,
   useTasksFirestore,
   type ComposeLocationThumb,
-  type PanelTask,
   type PdfPinSurface,
 } from "@ff/tasks-react";
 
 /** The active PDF's pin-relevant metadata (from PdfVersionRecord). */
 export interface PinVersionMeta {
+  /** PdfVersionRecord.id — stamped on new pins so a revised plan does not inherit them (w72). Optional for older callers. */
+  id?: string;
   pdfFileId: string;
   /** page width in PDF points */
   width: number;
@@ -123,31 +122,6 @@ export const TaskPinDock = forwardRef<TaskPinDockHandle, TaskPinDockProps>(
     const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
     const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Wave 9 — the in-context task panel (2D). The panel scopes
-    // "In view" on the CURRENT page, which we track with the same
-    // 250 ms re-read loop <TaskCalloutLayer2D> uses (PdfOverlay has
-    // no dedicated page-change event).
-    const panelTasks = usePanelTasks();
-    const [currentPage, setCurrentPage] = useState<number>(1);
-
-    useEffect(() => {
-      let cancelled = false;
-      const tick = () => {
-        if (cancelled) return;
-        const page = getSurface()?.getCurrentPage();
-        if (typeof page === "number" && page >= 1) {
-          setCurrentPage((c) => (c === page ? c : page));
-        }
-      };
-      tick();
-      const t = setInterval(tick, 250);
-      return () => {
-        cancelled = true;
-        clearInterval(t);
-      };
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
     useEffect(
       () => () => {
         if (hintTimer.current !== null) clearTimeout(hintTimer.current);
@@ -194,6 +168,7 @@ export const TaskPinDock = forwardRef<TaskPinDockHandle, TaskPinDockProps>(
         version.pdfFileId,
         page,
         calib,
+        version.id,
       );
       if (!location) {
         showHint(CALIBRATION_HINT);
@@ -244,21 +219,6 @@ export const TaskPinDock = forwardRef<TaskPinDockHandle, TaskPinDockProps>(
           onMarkerTap={openCompose}
         />
 
-        <TaskMiniPanel
-          tasks={panelTasks}
-          actorUid={actor.uid}
-          pdfPage={currentPage}
-          variant="2d"
-          onLocate={(task: PanelTask) => {
-            const pdf = task.location?.pdf;
-            // Page-jump → the existing 2D marker layer already renders
-            // the pin on that page, so the jump is the locate.
-            if (pdf && typeof pdf.page === "number" && pdf.page >= 1) {
-              getSurface()?.goToPage(pdf.page);
-            }
-          }}
-        />
-
         {hint ? (
           <div role="status" data-testid="task-pin-hint" style={hintStyle}>
             {hint}
@@ -286,6 +246,7 @@ export const TaskPinDock = forwardRef<TaskPinDockHandle, TaskPinDockProps>(
             draftTable={draftTable}
             location={pending.location}
             locationThumb={pending.locationThumb}
+            buildingId={buildingId ?? null}
             onDone={() => setPending(null)}
             onClose={() => setPending(null)}
           />

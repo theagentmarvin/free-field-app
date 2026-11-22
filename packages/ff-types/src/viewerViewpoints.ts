@@ -72,4 +72,6 @@ export interface ViewerViewpointRecord {
   createdAt: number;
   /** JSON-encoded ViewerViewpointSnapshot. */
   blob: string;
+  /** Phase 1c: server `updatedAt` (epoch ms) of the last synced doc. Absent = local-only. */
+  remoteUpdatedAt?: number;
 }

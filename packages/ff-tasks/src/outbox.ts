@@ -10,6 +10,9 @@ import type { TaskActionPayload } from "./action";
 
 export const BACKOFF_MS: readonly [number, number, number] = [1000, 5000, 20000];
 export const MAX_ATTEMPTS = 3;
+/** Network-unreachable backoff: first wait and cap (doubles per consecutive failure). */
+export const NETWORK_BACKOFF_BASE_MS = 5000;
+export const NETWORK_BACKOFF_MAX_MS = 60000;
 export const SENT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
 export interface OutboxStore {
@@ -24,6 +27,60 @@ export interface OutboxStore {
   list?(states: readonly OutboxState[]): Promise<OutboxRecord[]>;
   /** Hard delete (pruning). Without it, pruning only tombstones. */
   delete?(id: string): Promise<void>;
+  /**
+   * Index-only row count for these states (never hydrates rows). Lets
+   * `pickNext` skip the full active-row scan when nothing can block the
+   * oldest `added` row. May over-count (rows of other kinds/projects); an
+   * over-count only costs the slow path, never correctness.
+   */
+  count?(states: readonly OutboxState[]): Promise<number>;
+}
+
+// ── Cross-tab lock ─────────────────────────────────────────────────
+
+/**
+ * Mutual exclusion for the drain and for the cold-start repair. Backed by
+ * the Web Locks API so only ONE tab drains a given outbox at a time and a
+ * tab never demotes (`recoverStale`) a row another live tab is sending.
+ */
+export interface OutboxLock {
+  /** Run `fn` while holding the lock; waits for the current holder. */
+  run<T>(fn: () => Promise<T>): Promise<T>;
+}
+
+interface LockManagerLike {
+  request<T>(name: string, callback: () => Promise<T>): Promise<T>;
+}
+
+const inProcessTails = new Map<string, Promise<unknown>>();
+
+/**
+ * `ff-outbox-<scope>` lock. Uses `navigator.locks` when present (cross-tab);
+ * otherwise falls back to an in-process queue per name, which still
+ * serialises drain/recover inside this tab but cannot see other tabs
+ * (very old browsers; every supported evergreen browser has Web Locks).
+ * The lock is released automatically when a tab dies, so a crashed holder
+ * never wedges the outbox.
+ */
+export function createOutboxLock(name: string, locks?: LockManagerLike | null): OutboxLock {
+  const mgr: LockManagerLike | null =
+    locks !== undefined
+      ? locks
+      : ((globalThis as { navigator?: { locks?: LockManagerLike } }).navigator?.locks ?? null);
+  if (mgr && typeof mgr.request === "function") {
+    return { run: <T,>(fn: () => Promise<T>) => mgr.request(name, fn) };
+  }
+  return {
+    run<T>(fn: () => Promise<T>): Promise<T> {
+      const prev = inProcessTails.get(name) ?? Promise.resolve();
+      const result = prev.then(fn, fn);
+      inProcessTails.set(
+        name,
+        result.catch(() => undefined),
+      );
+      return result;
+    },
+  };
 }
 
 // ── Error classes ──────────────────────────────────────────────────
@@ -75,7 +132,9 @@ function errorCode(err: unknown): string | null {
  * recovered from the stored row later (`classifyOutboxError(string)`).
  */
 export function describeOutboxError(err: unknown): string {
-  const message = err instanceof Error ? err.message : String(err);
+  const rawMsg = (err as { message?: unknown } | null)?.message;
+  const message =
+    err instanceof Error ? err.message : typeof rawMsg === "string" ? rawMsg : String(err);
   const code = errorCode(err);
   return code && !message.startsWith(`[${code}]`) ? `[${code}] ${message}` : message;
 }
@@ -133,6 +192,23 @@ export interface OutboxTransition {
   state: OutboxState;
 }
 
+/**
+ * Backend reachability derived from drain outcomes (not navigator.onLine).
+ * - `unknown`: no commit has succeeded or hit a network error yet.
+ * - `ok`: the last decisive outcome reached the backend (a commit
+ *   succeeded, or the server answered with a fatal rejection).
+ * - `unreachable`: the last attempt failed with a `network`-class error.
+ */
+export type OutboxReachabilityState = "ok" | "unreachable" | "unknown";
+
+export interface OutboxReachability {
+  state: OutboxReachabilityState;
+  /** Epoch ms (injected clock) of the last network-class failure, or null. */
+  lastNetworkErrorAt: number | null;
+  /** Epoch ms of the last successful commit, or null. */
+  lastSuccessAt: number | null;
+}
+
 export interface OutboxEngineOptions {
   store: OutboxStore;
   executor: OutboxExecutor;
@@ -157,12 +233,32 @@ export interface OutboxEngineOptions {
    * the row goes back to `added` for the next `online` event.
    */
   isOnline?: () => boolean;
+  /**
+   * Per-key ordering (default: the payload's `taskId`). Rows sharing a key
+   * run strictly in creation order: a row waits while an earlier row of the
+   * same key is unsent. Rows with a `null` key are independent. The Phase
+   * 1c/1d sync queue keys on the synced doc / blob version id so a version
+   * doc never overtakes its blob upload.
+   */
+  orderKey?: (row: OutboxRecord) => string | null;
+  /** Called whenever the reachability snapshot changes (state or timestamps). */
+  onReachabilityChange?: (reachability: OutboxReachability) => void;
+  /**
+   * Cross-tab exclusion (see `createOutboxLock`). When set, the drain loop
+   * and `recoverStale` run only while holding it. Omitted = single-writer
+   * behaviour as before (unit tests, injected engines).
+   */
+  lock?: OutboxLock;
 }
 
 export class OutboxEngine {
   private opts: OutboxEngineOptions;
   private draining = false;
   private scheduled = new Map<string, unknown>();
+  private networkTimer: unknown = undefined;
+  private networkStreak = 0;
+  private reach: OutboxReachability = { state: "unknown", lastNetworkErrorAt: null, lastSuccessAt: null };
+  private reachListeners = new Set<(r: OutboxReachability) => void>();
 
   constructor(opts: OutboxEngineOptions) {
     this.opts = opts;
@@ -189,6 +285,18 @@ export class OutboxEngine {
   }
 
   /**
+   * Enqueue a ready-built row of any kind (Phase 1c/1d sync kinds use this;
+   * `enqueue` stays the task-action path). The row must be in state `added`.
+   */
+  async enqueueRow(row: OutboxRecord): Promise<OutboxRecord> {
+    await this.opts.store.add(row);
+    this.notify(row);
+    this.transition(row); // added
+    void this.drain();
+    return row;
+  }
+
+  /**
    * Serially processes `added` rows, oldest first, but IN ORDER PER
    * TASK: a row waits while an earlier row of the same task is still
    * unsent (backing off in `sending`, or `failed` awaiting retry or
@@ -202,14 +310,22 @@ export class OutboxEngine {
     if (this.draining) return;
     this.draining = true;
     try {
-      for (;;) {
-        if (!this.isOnline()) break;
-        const row = await this.pickNext();
-        if (!row) break;
-        await this.process(row);
-      }
+      // With a lock, a second tab waits here until the holder's loop ends
+      // and then re-lists the queue, so rows enqueued meanwhile are not missed.
+      if (this.opts.lock) await this.opts.lock.run(() => this.drainLoop());
+      else await this.drainLoop();
     } finally {
       this.draining = false;
+    }
+  }
+
+  private async drainLoop(): Promise<void> {
+    for (;;) {
+      if (!this.isOnline()) break;
+      if (this.networkTimer !== undefined) break; // backing off: backend unreachable
+      const row = await this.pickNext();
+      if (!row) break;
+      await this.process(row);
     }
   }
 
@@ -220,6 +336,7 @@ export class OutboxEngine {
    */
   async reviveNetworkFailed(): Promise<number> {
     const { store } = this.opts;
+    this.clearNetworkBackoff();
     let revived = 0;
     if (store.list) {
       for (const row of await store.list(["failed"])) {
@@ -236,6 +353,45 @@ export class OutboxEngine {
     return revived;
   }
 
+  /** Current reachability snapshot (a copy). */
+  getReachability(): OutboxReachability {
+    return { ...this.reach };
+  }
+
+  /** Subscribe to reachability changes; returns an unsubscribe fn. */
+  subscribeReachability(listener: (r: OutboxReachability) => void): () => void {
+    this.reachListeners.add(listener);
+    return () => this.reachListeners.delete(listener);
+  }
+
+  /** Cancel any network backoff and drain now (manual "retry" / connectivity hint). */
+  async resumeNow(): Promise<void> {
+    this.clearNetworkBackoff();
+    await this.drain();
+  }
+
+  private clearNetworkBackoff(): void {
+    if (this.networkTimer !== undefined) {
+      this.opts.clock.clearTimeout(this.networkTimer);
+      this.networkTimer = undefined;
+    }
+  }
+
+  private setReach(patch: Partial<OutboxReachability>): void {
+    const next = { ...this.reach, ...patch };
+    const changed =
+      next.state !== this.reach.state ||
+      next.lastNetworkErrorAt !== this.reach.lastNetworkErrorAt ||
+      next.lastSuccessAt !== this.reach.lastSuccessAt;
+    if (!changed) return;
+    this.reach = next;
+    const snap = { ...next };
+    for (const l of [...this.reachListeners]) {
+      try { l(snap); } catch { /* listener must not break the engine */ }
+    }
+    try { this.opts.onReachabilityChange?.(snap); } catch { /* ditto */ }
+  }
+
   private isOnline(): boolean {
     try {
       return this.opts.isOnline ? this.opts.isOnline() : true;
@@ -247,15 +403,27 @@ export class OutboxEngine {
   private async pickNext(): Promise<OutboxRecord | undefined> {
     const { store } = this.opts;
     if (!store.list) return store.next(["added"]);
+    // Fast path: with no `sending`/`failed` rows nothing can block the
+    // oldest `added` row (an earlier unsent row of the same key would itself
+    // be the oldest `added`). Avoids hydrating and walking every active row
+    // on each loop iteration (O(n) per row, O(n^2) per drain).
+    if (store.count && (await store.count(["sending", "failed"])) === 0) {
+      return store.next(["added"]);
+    }
     const rows = await store.list(ACTIVE_OUTBOX_STATES);
     const blocked = new Set<string>();
     for (const row of rows) {
-      const taskId = (row.payload as { taskId?: unknown } | undefined)?.taskId;
-      const key = typeof taskId === "string" ? taskId : null;
+      const key = this.orderKeyOf(row);
       if (row.state === "added" && (key === null || !blocked.has(key))) return row;
       if (key !== null) blocked.add(key);
     }
     return undefined;
+  }
+
+  private orderKeyOf(row: OutboxRecord): string | null {
+    if (this.opts.orderKey) return this.opts.orderKey(row);
+    const taskId = (row.payload as { taskId?: unknown } | undefined)?.taskId;
+    return typeof taskId === "string" ? taskId : null;
   }
 
   /** Manual retry-now from the failed-row sheet: zero attempts, re-drain. */
@@ -268,6 +436,7 @@ export class OutboxEngine {
     await this.opts.store.put(row);
     this.notify(row);
     this.transition(row); // failed → added (manual retry)
+    this.clearNetworkBackoff();
     void this.drain();
   }
 
@@ -298,6 +467,17 @@ export class OutboxEngine {
    * photo upload dedupes on the sha-named path.
    */
   async recoverStale(): Promise<void> {
+    // Only while holding the outbox lock: a tab that holds it is the sole
+    // sender, so every persisted `sending` row is stale. If another live
+    // tab is mid-send we wait for it to finish instead of demoting its rows.
+    if (this.opts.lock) {
+      await this.opts.lock.run(() => this.recoverStaleLocked());
+      return;
+    }
+    await this.recoverStaleLocked();
+  }
+
+  private async recoverStaleLocked(): Promise<void> {
     for (;;) {
       const row = await this.opts.store.next(["sending"]);
       if (!row) break;
@@ -353,6 +533,8 @@ export class OutboxEngine {
       const result = await executor.commit(row);
       const fresh = await store.get(row.id);
       if (!fresh || fresh.state === "killed") return; // tombstoned mid-flight
+      this.networkStreak = 0;
+      this.setReach({ state: "ok", lastSuccessAt: clock.now() });
       fresh.state = "sent";
       fresh.sentAt = clock.now();
       const taskId = (result as { taskId?: string } | undefined)?.taskId;
@@ -373,8 +555,31 @@ export class OutboxEngine {
         this.transition(fresh); // sending → added (offline)
         return;
       }
+      const cls = classifyOutboxError(err);
+      if (cls === "network") {
+        // OS says online but the backend is unreachable (captive portal,
+        // LAN without uplink): not the row's fault. No attempt counted,
+        // row stays pending (`added`) with lastError, and the whole drain
+        // pauses on a capped exponential timer instead of spinning.
+        fresh.state = "added";
+        await store.put(fresh);
+        this.notify(fresh);
+        this.transition(fresh); // sending → added (backend unreachable)
+        this.networkStreak += 1;
+        this.setReach({ state: "unreachable", lastNetworkErrorAt: clock.now() });
+        const delay =
+          Math.min(NETWORK_BACKOFF_MAX_MS, NETWORK_BACKOFF_BASE_MS * 2 ** (this.networkStreak - 1)) +
+          Math.floor(clock.random() * 500);
+        this.clearNetworkBackoff();
+        this.networkTimer = clock.setTimeout(() => {
+          this.networkTimer = undefined;
+          void this.drain();
+        }, delay);
+        return;
+      }
+      if (cls === "fatal") this.setReach({ state: "ok" }); // the server answered
       fresh.attempts += 1;
-      if (classifyOutboxError(err) === "fatal" || fresh.attempts >= MAX_ATTEMPTS) {
+      if (cls === "fatal" || fresh.attempts >= MAX_ATTEMPTS) {
         fresh.state = "failed";
         await store.put(fresh);
         this.notify(fresh);

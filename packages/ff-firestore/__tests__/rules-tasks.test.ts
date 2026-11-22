@@ -313,6 +313,96 @@ describe("tasks — location thumb (Day-3)", () => {
   });
 });
 
+describe("tasks — LinkView dual location (thumb2d + origin)", () => {
+  const dual = task({
+    location: {
+      storeyName: "L1",
+      origin: "linkview",
+      thumb: { storagePath: "projects/p1/tasks/t1/location-thumb.jpg" },
+      thumb2d: { storagePath: "projects/p1/tasks/t1/location-thumb-2d.jpg" },
+      bim: {
+        elements: [{ modelId: "m1", expressId: 7 }],
+        worldPoint: [1, 2, 3],
+        cameraPose: { pos: [0, 0, 5], target: [1, 2, 3], fov: 45, isOrtho: false },
+      },
+      pdf: { pdfFileId: "f1", page: 1, uv: [0.5, 0.25], calibId: "f1__L1", pdfVersionId: "f1v1" },
+    },
+  });
+
+  it("member can create and read a task with both sides, both thumbs and the origin", async () => {
+    await assertSucceeds(createTaskWrite(await memberDb(), "t1", dual));
+    const snap = await getDoc(doc(await memberDb(), TASK));
+    expect(snap.data()?.location?.origin).toBe("linkview");
+    expect(snap.data()?.location?.thumb2d?.storagePath).toBe("projects/p1/tasks/t1/location-thumb-2d.jpg");
+  });
+
+  it("the plan pin inside a dual location still needs a valid pdfVersionId", async () => {
+    const bad = task({ location: { ...(dual.location as object), pdf: { pdfFileId: "f1", page: 1, uv: [0.5, 0.25], calibId: "c", pdfVersionId: "" } } });
+    await assertFails(createTaskWrite(await memberDb(), "t1", bad));
+  });
+});
+
+describe("tasks — plan pin pdfVersionId (w72)", () => {
+  const pdfLoc = (extra: Record<string, unknown> = {}) => ({
+    storeyName: "L1",
+    bim: null,
+    pdf: { pdfFileId: "f1", page: 1, uv: [0.5, 0.25], calibId: "c1", ...extra },
+  });
+
+  it("allows a pin WITHOUT pdfVersionId (pre-w72 docs stay valid)", async () => {
+    await assertSucceeds(createTaskWrite(await memberDb(), "t1", { location: pdfLoc() }));
+  });
+
+  it("allows a pin WITH a string pdfVersionId, and the uncalibrated sentinel", async () => {
+    await assertSucceeds(
+      createTaskWrite(await memberDb(), "t1", { location: pdfLoc({ pdfVersionId: "v2" }) })
+    );
+    await assertSucceeds(
+      createTaskWrite(await memberDb("m2"), "t2", {
+        num: 2,
+        createdByUid: "m2",
+        location: pdfLoc({ calibId: "uncalibrated", pdfVersionId: "v1" }),
+      })
+    );
+  });
+
+  it("denies a wrong-typed or empty pdfVersionId on create", async () => {
+    await assertFails(
+      createTaskWrite(await memberDb(), "t1", { location: pdfLoc({ pdfVersionId: 7 }) })
+    );
+    await assertFails(
+      createTaskWrite(await memberDb(), "t1", { location: pdfLoc({ pdfVersionId: null }) })
+    );
+    await assertFails(
+      createTaskWrite(await memberDb(), "t1", { location: pdfLoc({ pdfVersionId: "" }) })
+    );
+  });
+
+  it("update: allows adding a string pdfVersionId, denies a wrong type", async () => {
+    await seedDoc(TASK, task({ location: pdfLoc() }));
+    await seedDoc("projects/p1/tasks/t1/entries/gv1", {
+      id: "gv1", action: "edit", text: "", by: "Ana", byUid: "m1", at: 2,
+      statusFrom: 10, statusTo: 10, photos: [], clientGuid: "gv1",
+    });
+    await assertSucceeds(
+      updateDoc(doc(await memberDb(), TASK), {
+        location: pdfLoc({ pdfVersionId: "v3" }),
+        lastAction: "edit", entryCount: 2, updatedAt: 2,
+      })
+    );
+    await seedDoc("projects/p1/tasks/t1/entries/gv2", {
+      id: "gv2", action: "edit", text: "", by: "Ana", byUid: "m1", at: 3,
+      statusFrom: 10, statusTo: 10, photos: [], clientGuid: "gv2",
+    });
+    await assertFails(
+      updateDoc(doc(await memberDb(), TASK), {
+        location: pdfLoc({ pdfVersionId: 42 }),
+        lastAction: "edit", entryCount: 3, updatedAt: 3,
+      })
+    );
+  });
+});
+
 describe("taskCounters — display-number atomicity", () => {
   const C = COUNTER;
 
@@ -489,5 +579,94 @@ describe("tasks — real repository transaction (wave 63 parity)", () => {
     expect(t2.data()?.entryCount).toBe(3);
     const counter = await getDoc(doc(db, COUNTER));
     expect(counter.data()?.next).toBe(2);
+  });
+});
+
+describe("tasks — additive fields: priority, checklist, watchers, sheetRefs", () => {
+  const ref = (i: number) => ({
+    pdfFileId: `f${i}`, pdfVersionId: `v${i}`, versionNumber: 1, name: `A10${i}.pdf`, page: 1,
+  });
+  const refs = (n: number) => Array.from({ length: n }, (_, i) => ref(i));
+  const items = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({ id: `c${i}`, text: `item ${i}`, done: false }));
+
+  /** One edit action on t1: seed the entry, then patch the task with the bump. */
+  async function edit(n: number, patch: Record<string, unknown>): Promise<void> {
+    const guid = `gx${n}`;
+    await seedDoc(`projects/p1/tasks/t1/entries/${guid}`, {
+      id: guid, action: "edit", text: "", by: "Ana", byUid: "m1", at: n + 1,
+      statusFrom: 10, statusTo: 10, photos: [], clientGuid: guid,
+    });
+    await updateDoc(doc(await memberDb(), TASK), {
+      ...patch, lastAction: "edit", entryCount: n + 1, updatedAt: n + 1,
+    });
+  }
+
+  it("docs without the new fields keep creating as before", async () => {
+    await assertSucceeds(createTaskWrite(await memberDb(), "t1"));
+  });
+
+  it("create with sheetRefs of 1 and 20 entries is allowed, 21 is denied", async () => {
+    await assertSucceeds(createTaskWrite(await memberDb(), "t1", { sheetRefs: refs(1) }));
+    await testEnv.clearFirestore();
+    await assertSucceeds(createTaskWrite(await memberDb(), "t1", { sheetRefs: refs(20) }));
+    await testEnv.clearFirestore();
+    await assertFails(createTaskWrite(await memberDb(), "t1", { sheetRefs: refs(21) }));
+  });
+
+  it("a non-list sheetRefs is denied", async () => {
+    await assertFails(createTaskWrite(await memberDb(), "t1", { sheetRefs: ref(0) }));
+    await assertFails(createTaskWrite(await memberDb(), "t1", { sheetRefs: "f1" }));
+  });
+
+  it("update adding and removing a sheet reference is allowed", async () => {
+    await seedDoc(TASK, task());
+    await assertSucceeds(edit(1, { sheetRefs: refs(2) }));
+    await assertSucceeds(edit(2, { sheetRefs: refs(1) }));
+    await assertSucceeds(edit(3, { sheetRefs: [] }));
+  });
+
+  it("update past 20 sheet references is denied", async () => {
+    await seedDoc(TASK, task({ sheetRefs: refs(20) }));
+    await assertFails(edit(1, { sheetRefs: refs(21) }));
+  });
+
+  it("priority accepts the four levels and rejects anything else", async () => {
+    for (const p of ["low", "normal", "high", "critical"]) {
+      await testEnv.clearFirestore();
+      await assertSucceeds(createTaskWrite(await memberDb(), "t1", { priority: p }));
+    }
+    await testEnv.clearFirestore();
+    await assertFails(createTaskWrite(await memberDb(), "t1", { priority: "urgent" }));
+    await assertFails(createTaskWrite(await memberDb(), "t1", { priority: 3 }));
+  });
+
+  it("checklist up to 50 items and watchers up to 100 are allowed, over is denied", async () => {
+    await assertSucceeds(
+      createTaskWrite(await memberDb(), "t1", {
+        checklist: items(50),
+        watchers: Array.from({ length: 100 }, (_, i) => `u${i}`),
+      })
+    );
+    await testEnv.clearFirestore();
+    await assertFails(createTaskWrite(await memberDb(), "t1", { checklist: items(51) }));
+    await assertFails(
+      createTaskWrite(await memberDb(), "t1", { watchers: Array.from({ length: 101 }, (_, i) => `u${i}`) })
+    );
+    await assertFails(createTaskWrite(await memberDb(), "t1", { checklist: "x" }));
+  });
+
+  it("update can set priority, toggle the checklist and follow", async () => {
+    await seedDoc(TASK, task());
+    await assertSucceeds(edit(1, { priority: "high" }));
+    await assertSucceeds(edit(2, { checklist: [{ id: "c1", text: "Check rebar", done: true }] }));
+    await assertSucceeds(edit(3, { watchers: ["m1"] }));
+    await assertFails(edit(4, { priority: "urgent" }));
+  });
+
+  it("non-members still cannot write the new fields", async () => {
+    await assertFails(
+      createTaskWrite(authedDb("x9"), "t1", { createdByUid: "x9", sheetRefs: refs(1) })
+    );
   });
 });

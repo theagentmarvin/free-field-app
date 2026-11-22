@@ -11,7 +11,8 @@
   },
   "scripts": {
     "test": "vitest run --no-file-parallelism --passWithNoTests",
-    "lint": "eslint . --ext .ts,.tsx"
+    "lint": "eslint . --ext .ts,.tsx",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@ff/auth": "workspace:*",

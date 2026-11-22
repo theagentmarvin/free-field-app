@@ -80,6 +80,12 @@ describe("storage — task photos (members)", () => {
     await assertSucceeds(getBytes(ref(await member("m2"), PHOTO)));
   });
 
+  it("member can upload the LinkView plan snapshot (location-thumb-2d.jpg) with no rules change", async () => {
+    await assertSucceeds(
+      uploadBytes(ref(await member(), "projects/p1/tasks/t1/location-thumb-2d.jpg"), JPEG, { contentType: "image/jpeg" }),
+    );
+  });
+
   it("png / webp photos are allowed; non-image content types are not", async () => {
     await assertSucceeds(
       uploadBytes(ref(await member(), "projects/p1/tasks/t1/aa-1.png"), JPEG, { contentType: "image/png" })

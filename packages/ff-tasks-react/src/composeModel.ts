@@ -1,6 +1,8 @@
 import {
   buildActionPayload,
   composePhotoPath,
+  normalizeSheetRefs,
+  type SheetRef,
   type TaskActionPayload,
 } from "@ff/tasks";
 import type { OutboxPhotoRef } from "@ff/types";
@@ -39,8 +41,12 @@ export interface ComposeFields {
    *  Inherited from the rail via <TasksApp>, one-tap overridable. */
   buildingId?: string | null;
   photos: ComposePhoto[];
+  /** project sheets attached by reference (never a copy) */
+  sheetRefs?: SheetRef[];
   location: TaskLocation | null;
   locationThumb: ComposeLocationThumb | null;
+  /** LinkView dual location: the plan snapshot (absent everywhere else). */
+  locationThumb2d?: ComposeLocationThumb | null;
 }
 
 export interface ComposeMeta {
@@ -126,6 +132,13 @@ export function buildComposeEnqueues(
           mime: fields.locationThumb.mime,
         }
       : null,
+    locationThumb2d: fields.locationThumb2d
+      ? {
+          blobKey: fields.locationThumb2d.blobKey,
+          size: fields.locationThumb2d.size,
+          mime: fields.locationThumb2d.mime,
+        }
+      : null,
     createDoc: {
       description: fields.description,
       type: fields.type || "task",
@@ -135,6 +148,9 @@ export function buildComposeEnqueues(
       assigneeName: null,
       location: fields.location,
       photos: composePhotoMeta(meta.projectId, meta.taskId, fields.photos),
+      ...(fields.sheetRefs && fields.sheetRefs.length > 0
+        ? { sheetRefs: normalizeSheetRefs(fields.sheetRefs) }
+        : {}),
     },
   });
   if (!fields.assigneeUid) return [create];
@@ -165,12 +181,20 @@ export function toDraftFields(f: ComposeFields, projectId: string, taskId: strin
     assigneeName: f.assigneeName,
     deadline: f.deadline,
     buildingId: f.buildingId ?? null,
+    ...(f.sheetRefs && f.sheetRefs.length > 0 ? { sheetRefs: normalizeSheetRefs(f.sheetRefs) } : {}),
     location: f.location,
     locationThumb: f.locationThumb
       ? {
           blobKey: f.locationThumb.blobKey,
           size: f.locationThumb.size,
           mime: f.locationThumb.mime,
+        }
+      : null,
+    locationThumb2d: f.locationThumb2d
+      ? {
+          blobKey: f.locationThumb2d.blobKey,
+          size: f.locationThumb2d.size,
+          mime: f.locationThumb2d.mime,
         }
       : null,
     photoPaths: f.photos.map((p, i) => ({
@@ -192,8 +216,10 @@ export function draftToCompose(d: {
   assigneeName: string | null;
   deadline: number | null;
   buildingId?: string | null;
+  sheetRefs?: SheetRef[];
   location: TaskLocation | null;
   locationThumb: { blobKey: string; size: number; mime: string } | null;
+  locationThumb2d?: { blobKey: string; size: number; mime: string } | null;
   photoPaths: { blobKey: string; sha256: string; size: number; mime: string }[];
 }): ComposeFields {
   return {
@@ -204,9 +230,11 @@ export function draftToCompose(d: {
     assigneeName: d.assigneeName,
     deadline: d.deadline,
     buildingId: d.buildingId ?? null,
+    sheetRefs: normalizeSheetRefs(d.sheetRefs),
     // blobs are in-memory only — restored drafts show counts, not previews
     photos: d.photoPaths.map((p) => ({ ...p })),
     location: d.location,
     locationThumb: d.locationThumb ? { ...d.locationThumb } : null,
+    locationThumb2d: d.locationThumb2d ? { ...d.locationThumb2d } : null,
   };
 }

@@ -1,5 +1,6 @@
 /// <reference types="vitest" />
 import { defineConfig } from "vite";
+import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
 import fs from "node:fs";
@@ -158,9 +159,9 @@ export default defineConfig({
     // viewer (in packages/ff-viewer-react) use their own vitest config.
     alias: {
       three:
-        new URL("./__tests__/__mocks__/three.ts", import.meta.url).pathname,
+        fileURLToPath(new URL("./__tests__/__mocks__/three.ts", import.meta.url)),
       "@thatopen/components-front":
-        new URL("./__tests__/__mocks__/obc-front.ts", import.meta.url).pathname,
+        fileURLToPath(new URL("./__tests__/__mocks__/obc-front.ts", import.meta.url)),
     },
   },
 });

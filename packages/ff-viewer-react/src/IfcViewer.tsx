@@ -43,6 +43,13 @@ import * as OBCF from "@thatopen/components-front";
 // with no per-vertex `id` (which the GPU id pass hides and can never
 // pick). `LodMode` is a public runtime export of @thatopen/fragments;
 // it must NOT be re-derived from raw three.js (TOE resolution rules).
+import { guardFragmentsManager, disposeFragmentsManager, setBaseCoordinates } from "./fragmentsDisposeGuard";
+import {
+  createTapTracker,
+  feedEngineMouse,
+  withTouchTolerance,
+  type PointerLike,
+} from "./picking/pointerPick";
 import { LodMode } from "@thatopen/fragments";
 // Navigation speedups (motion mode: frozen tile refresh, motion draw
 // budget, reduced pixel ratio) — see src/perf/.
@@ -97,6 +104,15 @@ import {
 // (engine patch `TileCache`); this builds the per-load option.
 import { resolveTileCache, type TileCacheConfig } from "./perf/tileCache";
 import type { RenderSchedulerStats } from "./perf/renderScheduler";
+// Wave 78: opt-in memory tuning for low-RAM devices (graphics quality,
+// LOD mode, tile / mesh cache budgets, worker pool, pressure response).
+import {
+  clearEngineBudget,
+  effectiveMemory,
+  publishEngineBudget,
+  type MemoryPressure,
+  type MemoryTuning,
+} from "./perf/memoryTuning";
 // Wave 14: picking backend seam (pure, drift-clean modules — no
 // three.js import; they take/return plain {x,y,z} objects).
 import {
@@ -118,6 +134,8 @@ import {
   withStallGuard,
   PICK_STALL_BUDGET_MS,
   type IdPickHit,
+  HiddenElementTracker,
+  filterHiddenHit,
 } from "./picking";
 import type {
   FastElementPicker,
@@ -166,7 +184,7 @@ import {
 // Task 21: per-element property flattening lives in its own
 // module so it can be unit-tested without triggering the heavy
 // OBC + Three.js module load that IfcViewer.tsx pulls in.
-import { flattenItemData, type IfcItemData } from "./flattenItemData";
+import { mergeGuidIntoAttributes, flattenItemData, type IfcItemData } from "./flattenItemData";
 import { ModelUnloadedError } from "./modelUnloadedError";
 import {
   ensureViewerTelemetry,
@@ -180,6 +198,7 @@ import { shipDebugPerf } from "./telemetry/viewerTelemetry";
 import {
   clampFloorPlanOpacity,
   createFloorPlanPlaneMaterial,
+  computeFloorPlanPlacement,
 } from "./floorPlanPlaneMaterial";
 // Wave 30: fragments worker resolution (bundled asset + CDN fallback).
 import { getFragmentsWorkerBlobUrl } from "./worker/fragmentsWorkerUrl";
@@ -488,6 +507,47 @@ function restoreOrbitMouseButtons(world: OBC.World): void {
 }
 
 /**
+ * Wave 73: `world.camera` THROWS ("No camera initialized!") once the world is
+ * disposed (the engine nulls it and the getter guards). Closures that outlive
+ * a mount (render-on-demand signature, navigation speedups, projection
+ * handlers) read the camera through this instead, so a late call after
+ * dispose is a no-op rather than an uncaught page error.
+ */
+function safeWorldCamera(world: OBC.World | null | undefined): unknown {
+  try {
+    return world?.camera;
+  } catch {
+    return undefined;
+  }
+}
+
+/** A `click` that came from a finger / pen (PointerEvent.pointerType). */
+function isTouchLikeClick(ev: MouseEvent): boolean {
+  const t = (ev as PointerEvent).pointerType;
+  return t === "touch" || t === "pen";
+}
+
+/**
+ * Wave 73: the engine draws its own logo bottom-left of the canvas
+ * (`SimpleRenderer.showLogo`, MIT-licensed library, documented switch). Apply
+ * the host's choice; a renderer without the switch (older engine, test
+ * double) is left alone.
+ */
+interface EngineLogoTarget {
+  showLogo?: boolean;
+}
+function applyEngineLogo(renderer: EngineLogoTarget | null | undefined, show: boolean): void {
+  if (!renderer) return;
+  try {
+    if ("showLogo" in renderer || renderer.showLogo !== undefined) {
+      renderer.showLogo = show;
+    }
+  } catch {
+    // engine shape drift: the logo stays as the engine draws it
+  }
+}
+
+/**
  * Paint a WebGL canvas (or any canvas) onto an offscreen canvas sized
  * to `maxWidthPx` wide, preserving aspect, and return a jpeg dataURL.
  *
@@ -545,7 +605,13 @@ const STREAM_RENDER_INTERVAL_MS = 100;
 const OVERLAY_RENDER_INTERVAL_MS = 250;
 
 /** Worker-pool options for `FragmentsManager.init` (see the call site). */
-function fragmentsPoolOptions(): { maxWorkers: number } | undefined {
+function fragmentsPoolOptions(
+  override?: number,
+): { maxWorkers: number } | undefined {
+  if (override !== undefined && override >= 1) {
+    // The engine needs at least one worker; the pool never exceeds it.
+    return { maxWorkers: Math.floor(override) };
+  }
   const cores =
     typeof navigator !== "undefined" ? navigator.hardwareConcurrency ?? 0 : 0;
   // Engine default: max(cores - 3, 2). Raise it to 3 where that is < 3
@@ -711,6 +777,20 @@ export interface IfcViewerProps {
    */
   disableSelection?: boolean;
   /**
+   * Wave 76 - opt out of the viewer's built-in click/tap pick. Default
+   * `true` (unchanged behaviour).
+   *
+   * When `false`, NO click-driven pick work runs: no worker raycast, no
+   * GPU id pass, no depth pass, no normal pass, and the Highlighter's
+   * auto-highlight-on-click is switched off. Host-driven selection
+   * (`selectElement`, `clearSelection`, `getSelection`,
+   * `onSelectionChange`) is unaffected, as are measure mode's own click
+   * handlers and `pickWorldPoint`. Safe to flip at runtime (read via a
+   * ref and applied in an effect; nothing is rebuilt). Contrast with
+   * `disableSelection`, which also closes the selection API.
+   */
+  builtInClickPick?: boolean;
+  /**
    * Wave 52 — suppress the full-screen loading overlay. Default `true`.
    *
    * Set `false` for a SECONDARY viewer (e.g. Linkview's left pane)
@@ -773,6 +853,55 @@ export interface IfcViewerProps {
    * a miss just builds. `false` turns it off. Read once at mount.
    */
   tileCache?: TileCacheConfig | boolean;
+  /**
+   * Wave 78: memory tuning for low-RAM devices (see
+   * `perf/memoryTuning.ts`). Unset, the engine defaults apply and the
+   * web viewer is unchanged. Read once at mount; the pressure response
+   * ({@link IfcViewerHandle.setMemoryPressure}) adjusts it live.
+   */
+  memoryTuning?: MemoryTuning;
+  /**
+   * Called once per mount when the engine world (scene / camera / renderer /
+   * fragments manager) is up and the pick pipeline is installed. The same
+   * objects are what a consumer used to reach through hacks (digging the
+   * world out of `fragments.components`). The context is valid until the
+   * viewer unmounts (see {@link IfcViewerReadyContext.onDispose}). Read via a
+   * ref: passing a new function identity never rebuilds the world.
+   */
+  onReady?: (ctx: IfcViewerReadyContext) => void;
+  /**
+   * Frame the loaded model once after the FIRST load of a mount (default
+   * `false`, which keeps the historical fixed demo pose). When `true` the
+   * camera is placed with the same fit `resetCameraToDefault()` uses, from the
+   * merged bounds of every model of the first load, then never moved again by
+   * the viewer (a later model or version swap leaves the user's camera
+   * alone). A host that restores its own pose (`setViewPose`) before the load
+   * finishes wins: the fit is skipped once the user / host has moved the
+   * camera.
+   */
+  fitOnFirstLoad?: boolean;
+  /**
+   * Show the engine's own logo overlay (bottom-left of the canvas). Default
+   * `true` (engine default, unchanged). See docs/integration/w73-viewer-mobile.md
+   * for the licence finding before turning it off.
+   */
+  showEngineLogo?: boolean;
+}
+
+/**
+ * What {@link IfcViewerProps.onReady} receives. Typed `unknown`-light on
+ * purpose: the engine classes are the ones from `@thatopen/components`.
+ */
+export interface IfcViewerReadyContext {
+  components: OBC.Components;
+  world: OBC.World;
+  /** The world's WebGL renderer wrapper (`renderer.three` is the three.js one). */
+  renderer: OBC.SimpleRenderer;
+  /** The world's camera (`camera.controls` is camera-controls). */
+  camera: OBC.OrthoPerspectiveCamera;
+  fragments: OBC.FragmentsManager;
+  /** Register a cleanup that runs right before the world is disposed. */
+  onDispose: (cb: () => void) => void;
 }
 
 /** Tuning for {@link IfcViewerProps.tileCache}. */
@@ -1154,6 +1283,14 @@ export interface IfcViewerHandle {
   selectElement: (modelId: string | null, expressId: number | null) => void;
   /** Clear all selection. Equivalent to `selectElement(null, null)`. */
   clearSelection: () => void;
+  /**
+   * Wave 78: tell the viewer the device is short on memory. `low` lowers
+   * the graphics quality and shrinks the tile / mesh caches, `critical`
+   * evicts every cached invisible tile and culls hardest; `none` returns
+   * to the `memoryTuning` values. Cheap and idempotent. Works without a
+   * `memoryTuning` prop (relative to the engine defaults).
+   */
+  setMemoryPressure: (level: MemoryPressure) => void;
   /** Snapshot of the current selection (modelId → Set<expressId>). */
   getSelection: () => ReadonlyMap<string, ReadonlySet<number>>;
   /**
@@ -1237,6 +1374,30 @@ export interface IfcViewerHandle {
     modelId: string,
     expressId: number,
   ) => Promise<Record<string, string> | null>;
+  /**
+   * Wave 73: {@link getElementData} plus the element's IFC GlobalId.
+   * The flat attribute record carries no `GlobalId` (fragments stores the
+   * GUID beside the attributes, not in them), which forced consumers to call
+   * `model.getGuidsByLocalIds` themselves. This returns the same record with
+   * a `GlobalId` entry added (only when the model knows a GUID for the
+   * element and the record has no `GlobalId` of its own), plus the guid as a
+   * separate field. `null` when the model is not loaded or the id is unknown.
+   */
+  getElementDataWithGuid?: (
+    modelId: string,
+    expressId: number,
+  ) => Promise<{ attributes: Record<string, string>; globalId: string | null } | null>;
+  /**
+   * Wave 73: GUIDs for several local ids of one model in one worker
+   * round-trip, same order as `expressIds` (`null` for ids without a GUID).
+   * `null` when the model is not loaded or the lookup fails.
+   * (Optional in the type only so test doubles of the handle keep compiling;
+   * the real handle always provides it, as with `getElementDataWithGuid`.)
+   */
+  getGlobalIds?: (
+    modelId: string,
+    expressIds: number[],
+  ) => Promise<Array<string | null> | null>;
   /**
    * Return the full local-ID set for every loaded model.
    * Keys are ifcFileIds (model IDs); values are the list of
@@ -1324,6 +1485,12 @@ export interface IfcViewerHandle {
    */
   getModelCentroid(): { x: number; y: number; z: number } | null;
   /**
+   * Coordinate shift [x, y, z] the viewer applies to every model (the
+   * base model's `getCoordinates()`): world = IFC (X, Z, -Y) + shift.
+   * `null` until a model has loaded. Optional so existing mocks stay valid.
+   */
+  getBaseCoordinates?(): [number, number, number] | null;
+  /**
    * Wave 58: the straight-down framing height (metres) the level-plan
    * view uses — `LEVEL_PLAN_FRAME_DISTANCE` from `@ff/viewer`. The
    * LinkView navigation view reuses this exact value for its
@@ -1398,6 +1565,11 @@ export interface IfcViewerHandle {
    * @param worldBounds — XZ-axis-aligned world-space rect for the
    *   plane. Derived from the calibration similarity transform.
    * @param elevation — storey floor Z (the plane sits just above it).
+   * @param options.rotation — rotation (radians) of the page about the
+   *   centre of `worldBounds`, i.e. the calibration's similarity rotation.
+   *   When non-zero, `worldBounds` must be the UN-rotated page rectangle
+   *   centred on the transformed page centre (see
+   *   `computeFloorPlanPlacement`). Default 0 = axis-aligned.
    * @param options.opacity — initial plane opacity, 0..1 (default 1:
    *   the PDF reads exactly like the 2D sheet — white paper, black ink).
    * @returns a unique plane id for later removal.
@@ -1406,7 +1578,7 @@ export interface IfcViewerHandle {
     canvas: HTMLCanvasElement,
     worldBounds: { minX: number; minZ: number; maxX: number; maxZ: number },
     elevation: number,
-    options?: { opacity?: number },
+    options?: { opacity?: number; rotation?: number },
   ): string;
   /**
    * Wave 63: change a floor-plan plane's opacity (0..1, clamped) live.
@@ -1641,12 +1813,17 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
       getStoreysForBuilding: getStoreysForBuildingProp,
       getFragBlob: getFragBlobProp,
       disableSelection = false,
+      builtInClickPick = true,
       loadingOverlay = true,
       renderPaused = false,
       motionSpeedups,
       renderOnDemand = true,
       splitTileBuild = false,
       tileCache = true,
+      memoryTuning,
+      onReady: onReadyProp,
+      fitOnFirstLoad = false,
+      showEngineLogo = true,
     },
     ref,
   ) {
@@ -1668,12 +1845,21 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
       resolveSplitTileBuild(splitTileBuild, readSplitTileBuildEnv()),
     );
     const tileCacheRef = useRef(tileCache);
+    const memoryTuningRef = useRef<MemoryTuning | undefined>(memoryTuning);
+    const memoryPressureRef = useRef<MemoryPressure>("none");
     // Wave 63: the imperative handle is built ONCE (deps []), so it
     // reads these props through refs instead of the first render's
     // values (a later `disableSelection` / `viewerSlice` change was
     // invisible to it).
     const disableSelectionRef = useRef(disableSelection);
     disableSelectionRef.current = disableSelection;
+    // Wave 76: read by the click pipeline per event + applied to the
+    // Highlighter config in an effect, so it can flip at runtime.
+    const builtInClickPickRef = useRef(builtInClickPick);
+    builtInClickPickRef.current = builtInClickPick;
+    // Wave 76: mirror of what setElementVisibility hid, so a pick that
+    // lands on a hidden element is treated as a miss.
+    const hiddenTrackerRef = useRef(new HiddenElementTracker());
     const viewerSliceRef = useRef(viewerSlice);
     viewerSliceRef.current = viewerSlice;
     const rodRef = useRef<RenderOnDemand | null>(null);
@@ -1682,6 +1868,21 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
     const requestRender = useRef((reason = "viewer", keepAliveMs?: number): void => {
       rodRef.current?.invalidate(reason, keepAliveMs);
     }).current;
+    // Wave 76: runtime toggle for the built-in click pick. The fast
+    // pipeline reads `builtInClickPickRef` per click; the Highlighter's
+    // own DOM auto-pick (non-fast backends) reads its live config, so it
+    // is flipped here. Dropping `false` also discards a queued click.
+    useEffect(() => {
+      builtInClickPickRef.current = builtInClickPick;
+      if (!builtInClickPick) pendingClickRef.current = null;
+      const hl = highlighterRef.current as unknown as
+        | { config?: { autoHighlightOnClick?: boolean } }
+        | null;
+      if (hl?.config && pickBackendRef.current !== "fast") {
+        hl.config.autoHighlightOnClick =
+          builtInClickPick && !disableSelectionRef.current;
+      }
+    }, [builtInClickPick]);
     useEffect(() => {
       renderPausedRef.current = renderPaused;
       const renderer = worldRef.current?.renderer as
@@ -1691,6 +1892,13 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
       // Resuming: the canvas still shows the frame from before the pause.
       if (!renderPaused) requestRender("resume");
     }, [renderPaused, requestRender]);
+    // Wave 73: a later `showEngineLogo` change applies to the live renderer.
+    useEffect(() => {
+      applyEngineLogo(
+        worldRef.current?.renderer as unknown as EngineLogoTarget | undefined,
+        showEngineLogo,
+      );
+    }, [showEngineLogo]);
 
     // LevelPlanController — created once in mount, disposed on unmount.
     // Replaces the previous OBC.Views cut-plane mechanism (Task 16).
@@ -1931,6 +2139,8 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
       // `screenToCast` (its input is CSS px, not NDC).
       clientX: number;
       clientY: number;
+      /** Wave 73: the tap came from a finger / pen (tolerant raycast). */
+      touch: boolean;
     } | null>(null);
     // Wave 22: chain telemetry for the degradation hunt ("delay
     // grows with click count"). Counters + rolling latencies, read
@@ -2165,45 +2375,62 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
     // over an element selected it (field report). Attach per listener
     // site; `wasDrag()` consumes the flag so the next gesture starts
     // clean.
-    const DRAG_THRESHOLD_PX = 5;
+    // Wave 73: pointer-type aware (a finger jitters more than a mouse: the
+    // old flat 5 px threshold classified ordinary touch taps as drags and
+    // dropped them), multi-touch / pointercancel aware (see
+    // picking/pointerPick.ts), and it feeds the engine's own `Mouse` helper
+    // from the pointer events: that helper only listens to `pointermove` /
+    // `touchstart`, so a tap without either left the Highlighter / picker
+    // fallback reading a stale (or never-set) position.
     function attachDragGuard(canvasEl: HTMLElement): {
       wasDrag(): boolean;
       dispose(): void;
     } {
-      const state = { down: false, moved: false, x: 0, y: 0 };
+      const tracker = createTapTracker();
+      const mouseTargets = (): Array<{ mouse?: { updateMouseInfo?: (e: Event) => void } | null }> => {
+        const w = worldRef.current;
+        const out: Array<{ mouse?: { updateMouseInfo?: (e: Event) => void } | null }> = [];
+        try {
+          if (w) {
+            const rc = componentsRef.current?.get(OBC.Raycasters).get(w);
+            if (rc) out.push(rc as unknown as (typeof out)[number]);
+          }
+        } catch {
+          // components mid-dispose: nothing to feed
+        }
+        if (fastPickerRef.current) out.push(fastPickerRef.current as unknown as (typeof out)[number]);
+        return out;
+      };
       const onPointerDown = (ev: Event): void => {
         const e = ev as PointerEvent;
-        if (e.button !== 0) return;
-        state.down = true;
-        state.moved = false;
-        state.x = e.clientX;
-        state.y = e.clientY;
+        tracker.down(e as PointerLike);
+        feedEngineMouse(mouseTargets(), e);
       };
       const onPointerMove = (ev: Event): void => {
-        if (!state.down || state.moved) return;
-        const e = ev as PointerEvent;
-        if (Math.hypot(e.clientX - state.x, e.clientY - state.y) > DRAG_THRESHOLD_PX) {
-          state.moved = true;
-        }
+        tracker.move(ev as PointerEvent as PointerLike);
       };
-      const onPointerUp = (): void => {
+      const onPointerUp = (ev: Event): void => {
         // `moved` survives until the click handler consumes it —
         // for mouse input `click` always follows `pointerup`.
-        state.down = false;
+        tracker.up(ev as PointerEvent as PointerLike);
+        feedEngineMouse(mouseTargets(), ev);
+      };
+      const onPointerCancel = (): void => {
+        tracker.cancel();
       };
       canvasEl.addEventListener("pointerdown", onPointerDown);
       canvasEl.addEventListener("pointermove", onPointerMove);
       canvasEl.addEventListener("pointerup", onPointerUp);
+      canvasEl.addEventListener("pointercancel", onPointerCancel);
       return {
         wasDrag(): boolean {
-          const m = state.moved;
-          state.moved = false;
-          return m;
+          return tracker.wasDrag();
         },
         dispose(): void {
           canvasEl.removeEventListener("pointerdown", onPointerDown);
           canvasEl.removeEventListener("pointermove", onPointerMove);
           canvasEl.removeEventListener("pointerup", onPointerUp);
+          canvasEl.removeEventListener("pointercancel", onPointerCancel);
         },
       };
     }
@@ -2403,20 +2630,70 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
     // stable for the lifetime of the component. The
     // `?? stableNoopRef.current` pattern reads from the ref
     // without re-creating the function each render.
-    const registerFragmentsNoopRef = useRef<(f: OBC.FragmentsManager | null) => void>(
-      () => undefined,
-    );
-    const getStoreysNoopRef = useRef<(b: string) => Promise<StoreyMeta[]>>(
-      async () => [],
-    );
-    const getFragBlobNoopRef = useRef<(k: string) => Promise<Blob | null>>(
-      async () => null,
-    );
-    const registerFragments = registerFragmentsProp ?? registerFragmentsNoopRef.current;
+    // Wave 73: every consumer callback is read through a ref and exposed to
+    // the effects as a STABLE wrapper. The mount effect depends on
+    // `registerFragments`; with the raw prop in its dep list a parent that
+    // passed an inline arrow (a new identity every render) tore the whole
+    // OBC world down and rebuilt it on every parent render. Now the world is
+    // built once per mount whatever the callback identities do.
+    const registerFragmentsPropRef = useRef(registerFragmentsProp);
+    registerFragmentsPropRef.current = registerFragmentsProp;
+    const getStoreysPropRef = useRef(getStoreysForBuildingProp);
+    getStoreysPropRef.current = getStoreysForBuildingProp;
+    const getFragBlobPropRef = useRef(getFragBlobProp);
+    getFragBlobPropRef.current = getFragBlobProp;
+    const onReadyPropRef = useRef(onReadyProp);
+    onReadyPropRef.current = onReadyProp;
+    const fitOnFirstLoadRef = useRef(fitOnFirstLoad);
+    fitOnFirstLoadRef.current = fitOnFirstLoad;
+    const showEngineLogoRef = useRef(showEngineLogo);
+    showEngineLogoRef.current = showEngineLogo;
+    // Cleanups registered through `onReady`'s `onDispose`; run (and cleared)
+    // right before the world is disposed.
+    const readyDisposersRef = useRef<Array<() => void>>([]);
+    // The component's own handle (set by useImperativeHandle) for internal
+    // callers such as fit-on-first-load.
+    const handleSelfRef = useRef<IfcViewerHandle | null>(null);
+    // True when at least one loaded model reports a finite bounding box.
+    const hasFiniteModelBounds = (): boolean => {
+      const list = fragmentsRef.current?.core.models.list;
+      if (!list) return false;
+      for (const model of list.values()) {
+        const b = (model as unknown as { box?: THREE.Box3 }).box;
+        if (
+          b &&
+          Number.isFinite(b.min.x) &&
+          Number.isFinite(b.max.x) &&
+          Number.isFinite(b.min.y) &&
+          Number.isFinite(b.max.y) &&
+          Number.isFinite(b.min.z) &&
+          Number.isFinite(b.max.z)
+        ) {
+          return true;
+        }
+      }
+      return false;
+    };
+    // Set once the first load of this mount was framed (or skipped), so the
+    // fit happens at most once per mount.
+    const firstFitDoneRef = useRef(false);
+    // True once the user or the host moved the camera (pointer input /
+    // setViewPose): fit-on-first-load then leaves it alone.
+    const cameraMovedByHostRef = useRef(false);
+    const registerFragments = useRef(
+      (f: OBC.FragmentsManager | null): void => {
+        registerFragmentsPropRef.current?.(f);
+      },
+    ).current;
+    const getStoreysForBuilding = useRef(
+      (b: string): Promise<StoreyMeta[]> =>
+        getStoreysPropRef.current ? getStoreysPropRef.current(b) : Promise.resolve([]),
+    ).current;
+    const getFragBlob = useRef(
+      (k: string): Promise<Blob | null> =>
+        getFragBlobPropRef.current ? getFragBlobPropRef.current(k) : Promise.resolve(null),
+    ).current;
     const files: IfcFileListItem[] = filesProp ?? [];
-    const getStoreysForBuilding =
-      getStoreysForBuildingProp ?? getStoreysNoopRef.current;
-    const getFragBlob = getFragBlobProp ?? getFragBlobNoopRef.current;
 
     // Wave 60: loads currently in flight, per file id. A load pass that
     // supersedes another (live-query re-emission) waits for the older
@@ -2501,6 +2778,7 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
       // nothing unless a measurement is armed or on screen.
       const renderer2D = new OBCF.RendererWith2D(components, container);
       world.renderer = renderer2D;
+      applyEngineLogo(renderer2D as unknown as EngineLogoTarget, showEngineLogoRef.current);
       labelLayerGateRef.current?.dispose();
       labelLayerGateRef.current = gateLabelLayer(
         renderer2D.three2D as unknown as LabelLayerRenderer,
@@ -2514,6 +2792,19 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
       // these for the level view's flat ortho plan rendering.
       world.camera = new OBC.OrthoPerspectiveCamera(components);
       world.camera.controls.setLookAt(10, 10, 10, 0, 0, 0);
+      // Wave 73: fit-on-first-load bookkeeping is per mount.
+      firstFitDoneRef.current = false;
+      cameraMovedByHostRef.current = false;
+      // User input on the viewer (orbit / pan / zoom gestures, wheel) means
+      // the user owns the camera now: fit-on-first-load must not undo it.
+      // DOM-level on purpose (no extra camera-controls listeners).
+      const markUserMovedCamera = (): void => {
+        cameraMovedByHostRef.current = true;
+      };
+      const USER_CAMERA_EVENTS = ["pointerdown", "wheel", "touchstart"] as const;
+      for (const type of USER_CAMERA_EVENTS) {
+        container.addEventListener(type, markUserMovedCamera, { capture: true, passive: true });
+      }
 
       // ─── Render on demand ──────────────────────────────────────
       // The renderer runs in MANUAL mode: the OBC loop still ticks every
@@ -2564,7 +2855,7 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
             .onBeforeUpdate,
           controls: world.camera.controls as unknown as Partial<CameraEventTarget>,
           getCamera: () =>
-            (world.camera as unknown as { three?: RodCamera } | undefined)?.three,
+            (safeWorldCamera(world) as { three?: RodCamera } | undefined)?.three,
           getScene: () =>
             (world.scene as unknown as { three?: RodScene } | undefined)?.three,
           inputTarget: container,
@@ -2659,7 +2950,7 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
             controls: ctl as CameraEventTarget,
             renderer,
             getCamera: () =>
-              (world.camera as { three?: THREE.Camera } | undefined)?.three,
+              (safeWorldCamera(world) as { three?: THREE.Camera } | undefined)?.three,
             getModels: () =>
               (fragmentsRef.current?.core.models.list.values() ??
                 []) as Iterable<SpeedupModel>,
@@ -2695,7 +2986,7 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
             navSpeedupsRef.current?.forceRest();
             const camera =
               (cam as THREE.Camera | undefined) ??
-              (world.camera as { three?: THREE.Camera }).three;
+              (safeWorldCamera(world) as { three?: THREE.Camera } | undefined)?.three;
             const frags = fragmentsRef.current;
             if (camera && frags) {
               for (const model of frags.core.models.list.values()) {
@@ -2778,7 +3069,27 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
         // queue behind each other. Measured on a 4-core laptop (primary
         // scenario): 3 workers lifted the overlay ~1 s sooner. Bigger
         // machines keep the engine default.
-        fragments.init(workerUrl, fragmentsPoolOptions());
+        fragments.init(
+          workerUrl,
+          fragmentsPoolOptions(memoryTuningRef.current?.maxWorkers),
+        );
+        if (memoryTuningRef.current) {
+          // New models inherit the engine setting; the budgets are read by
+          // the patched engine on every view refresh.
+          const eff = effectiveMemory(
+            memoryTuningRef.current,
+            memoryPressureRef.current,
+          );
+          const st = (
+            fragments.core as unknown as {
+              settings?: { graphicsQuality?: number };
+            }
+          )?.settings;
+          if (st) st.graphicsQuality = eff.graphicsQuality;
+          publishEngineBudget(eff);
+        }
+        // Wave 73: `fragments.core` must not throw after dispose.
+        guardFragmentsManager(fragments);
         // Wave 60: models load in PARALLEL, so the engine's
         // `autoCoordinate` (align everything to whichever model's
         // coordinates arrive first) would make the world origin a race.
@@ -2979,7 +3290,9 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
             // #2 resolves its real `{modelId, localId, point}`. The
             // Highlighter's own auto-pick must not compete in this mode.
             autoHighlightOnClick:
-              !disableSelection && pickBackendRef.current !== "fast",
+              !disableSelection &&
+              builtInClickPickRef.current &&
+              pickBackendRef.current !== "fast",
           });
           // `multiple` lives on the Highlighter instance, not the
           // HighlighterConfig — set it after setup. "none" = single
@@ -3056,7 +3369,26 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
         levelPlanRef.current = createLevelPlanController(world, fragments, components);
         install2DMeasureWiring();
 
+        if (stale()) return;
         setIsReady(true);
+        // Wave 73: hand the live engine objects to the consumer once, after
+        // everything above is wired. A throwing consumer must not take the
+        // viewer down with it.
+        try {
+          onReadyPropRef.current?.({
+            components,
+            world,
+            renderer: world.renderer as OBC.SimpleRenderer,
+            camera: world.camera,
+            fragments,
+            onDispose: (cb) => {
+              readyDisposersRef.current.push(cb);
+            },
+          });
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.warn("[IfcViewer] onReady callback threw:", err);
+        }
       })().catch((err) => {
         // If the outer effect has been disposed (StrictMode double
         // invoke, real unmount, or HMR) — or a NEWER mount has taken
@@ -3072,6 +3404,8 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
       return () => {
         if (disposedRef.current) return;
         disposedRef.current = true;
+        clearEngineBudget();
+        memoryPressureRef.current = "none";
         // Wave 32: does THIS cleanup still own the shared refs? A
         // superseded mount has already installed its own engine objects;
         // clearing those refs here is what blindsided the live viewer.
@@ -3083,6 +3417,31 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
         // eslint-disable-next-line react-hooks/exhaustive-deps
         const ownsSharedRefs = mountGenRef.current === myGen;
         try {
+          // Wave 73: consumer cleanups registered via onReady's onDispose
+          // run first, while the engine objects are still alive.
+          for (const cb of readyDisposersRef.current.splice(0)) {
+            try {
+              cb();
+            } catch {
+              // a consumer cleanup must not block the teardown
+            }
+          }
+          for (const type of USER_CAMERA_EVENTS) {
+            container.removeEventListener(type, markUserMovedCamera, { capture: true });
+          }
+          // Wave 73: stop the world's update loop FIRST. The engine keeps
+          // ticking `Components.update` (one rAF per frame) and
+          // `World.update` (scene -> camera -> renderer) until they are
+          // disabled; a tick that lands between the camera being disposed
+          // and the loop actually stopping reads `world.camera` and throws
+          // "No camera initialized!" as an uncaught page error. Disable both
+          // before any of the listeners / controllers below are torn down.
+          try {
+            components.enabled = false;
+            (world as { enabled: boolean }).enabled = false;
+          } catch {
+            // already disposed: nothing left to stop
+          }
           // Navigation speedups: leave motion mode (restores pixel
           // ratio, unfreezes models) and detach the camera / renderer
           // listeners this mount attached.
@@ -3236,7 +3595,7 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
           // may still reference it (e.g. Classifier.clear()).
           const f = fragmentsRef.current;
           if (f) {
-            void f.dispose();
+            void disposeFragmentsManager(f);
             fragmentsRef.current = null;
           }
           // Clear the active level plan name so a remount doesn't
@@ -3330,6 +3689,7 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
       modelId: string,
     ): Promise<void> => {
       closeViewerModelBuffer(modelId);
+      hiddenTrackerRef.current.clear(modelId);
       try {
         await frags.core.disposeModel(modelId);
       } catch (err) {
@@ -3444,6 +3804,7 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
           // Wave 18 U2/U7: the per-model ring buffer dies with the
           // model (§9 risk 3 — no buffer leak across switches).
           closeViewerModelBuffer(modelId);
+          hiddenTrackerRef.current.clear(modelId);
           pendingDisposes.push(
             fragments.core.disposeModel(modelId).catch((err: unknown) => {
               // eslint-disable-next-line no-console
@@ -3667,7 +4028,13 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
               });
             };
             try {
-              model.setLodMode(LodMode.ALL_GEOMETRY).then(
+              model
+                .setLodMode(
+                  memoryTuningRef.current?.lodMode === "default"
+                    ? LodMode.DEFAULT
+                    : LodMode.ALL_GEOMETRY,
+                )
+                .then(
                 () =>
                   tel.breadcrumb("model", "lod-armed", {
                     file: file.name,
@@ -3691,6 +4058,7 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
             if (
               !isVersionSwap &&
               loadedModelIdsRef.current.size === 1 &&
+              !fitOnFirstLoadRef.current &&
               world.camera.controls
             ) {
               world.camera.controls.setLookAt(15, 15, 15, 0, 0, 0);
@@ -3753,7 +4121,7 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
             const c = await coordSlots[j];
             if (core.baseCoordinates) return core.baseCoordinates;
             if (c) {
-              core.baseCoordinates = c;
+              setBaseCoordinates(core, c); // no-op on a disposed viewer's frozen core
               return c;
             }
           }
@@ -3833,10 +4201,34 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
         // which is a small bonus — fewer re-renders means fewer
         // chance of stale-closure races.
         if (cancelled) return;
+        // Wave 73: opt-in fit-to-bounds after the FIRST load of this mount.
+        if (
+          fitOnFirstLoadRef.current &&
+          !firstFitDoneRef.current &&
+          loadedModelIdsRef.current.size > 0
+        ) {
+          void (async () => {
+            // Model boxes can lag the load by a few frames; retry briefly.
+            for (let i = 0; i < 16; i++) {
+              if (cancelled || mountStale() || firstFitDoneRef.current) return;
+              if (cameraMovedByHostRef.current) {
+                firstFitDoneRef.current = true; // the host / user placed it
+                return;
+              }
+              if (hasFiniteModelBounds()) {
+                firstFitDoneRef.current = true;
+                handleSelfRef.current?.resetCameraToDefault();
+                return;
+              }
+              await new Promise((r) => setTimeout(r, 250));
+            }
+          })();
+        }
         const liveIds = new Set(buildingFiles.map((f) => f.file.id));
         for (const stale of Array.from(loadedModelIdsRef.current)) {
           if (!liveIds.has(stale)) {
             closeViewerModelBuffer(stale); // Wave 18 U2/U7
+            hiddenTrackerRef.current.clear(stale);
             try {
               await fragments.core.disposeModel(stale);
             } catch (err) {
@@ -4448,6 +4840,8 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
           const dragGuard = attachDragGuard(canvas);
           const onClick = async (ev: MouseEvent): Promise<void> => {
             if (disposedRef.current) return;
+            // Wave 76: host owns picking - no pick work at all.
+            if (!builtInClickPickRef.current) return;
             // Wave 23: an orbit/pan drag ending over the canvas fires
             // a `click` too — that is a camera gesture, not selection
             // intent. Skip the pick when the pointer travelled past
@@ -4493,6 +4887,7 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
               // same coordinate the id-pass NDC was derived from.
               clientX: ev.clientX,
               clientY: ev.clientY,
+              touch: isTouchLikeClick(ev),
             };
             chainStatsRef.current.clicks += 1;
             if (pickBusyRef.current) {
@@ -4600,7 +4995,11 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
                   const rfr = await pickElementIdRaycastFirst({
                     raycast:
                       raycastData !== null
-                        ? (fragmentsRef.current as unknown as WorkerRaycaster)
+                        ? click.touch
+                          ? (withTouchTolerance(
+                              fragmentsRef.current as unknown as WorkerRaycaster,
+                            ) as unknown as WorkerRaycaster)
+                          : (fragmentsRef.current as unknown as WorkerRaycaster)
                         : null,
                     raycastData,
                     idPassFallback: runIdPassGuarded,
@@ -4688,7 +5087,10 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
                     if (pendingPickKeyRef.current) pendingPickKeyRef.current = null;
                     return;
                   }
-                  const idHit = guarded;
+                  // Wave 76: a hit on an element the viewer hid is a miss.
+                  const idHit = filterHiddenHit(guarded, {
+                    isHidden: (m, id) => hiddenTrackerRef.current.isHidden(m, id),
+                  });
                   if (raycastAuthoritative) {
                     // Wave 45: the raycast answered this click — no id-pass
                     // render happened, so the render/RPC counters stay at
@@ -4992,6 +5394,8 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
         }
         const resolved = resolveNearestHit(hits);
         if (!resolved) return;
+        // Wave 76: a hit on a viewer-hidden element is not a pick.
+        if (hiddenTrackerRef.current.isHidden(resolved.modelId, resolved.expressId)) return;
         const listener = pickCallbackRef.current;
         if (!listener) return;
         listener({
@@ -5673,7 +6077,8 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
       // invalidates the view when called and again when it returns /
       // settles (see wrapHandleForInvalidation; read-only methods —
       // get*/is*/on*/projections/picks — are left untouched).
-      (): IfcViewerHandle => wrapHandleForInvalidation<IfcViewerHandle>({
+      (): IfcViewerHandle => {
+      const handle = wrapHandleForInvalidation<IfcViewerHandle>({
         get loadedModelIds() {
           return loadedModelIdsRef.current;
         },
@@ -6307,6 +6712,8 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
             }
             requestRender("visibility");
             for (const [modelId, { trueIds, falseIds }] of byModel) {
+              hiddenTrackerRef.current.apply(modelId, trueIds, true);
+              hiddenTrackerRef.current.apply(modelId, falseIds, false);
               if (trueIds.size > 0) {
                 void Promise.resolve(hider.set(true, { [modelId]: trueIds })).then(
                   () => requestRender("visibility"),
@@ -6473,6 +6880,26 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
           for (const cb of selectionListenersRef.current) {
             cb(selectionRef.current);
           }
+        },
+        setMemoryPressure: (level: MemoryPressure): void => {
+          if (memoryPressureRef.current === level) return;
+          memoryPressureRef.current = level;
+          const eff = effectiveMemory(memoryTuningRef.current ?? {}, level);
+          publishEngineBudget(eff);
+          const frags = fragmentsRef.current;
+          if (!frags) return;
+          const st = (
+            frags.core as unknown as { settings?: { graphicsQuality?: number } }
+          )?.settings;
+          if (st) st.graphicsQuality = eff.graphicsQuality;
+          for (const [, m] of frags.core.models.list) {
+            (m as unknown as { graphicsQuality: number }).graphicsQuality =
+              eff.graphicsQuality;
+          }
+          // The view signature includes the quality, so the next update
+          // re-culls and the workers drop what is now over budget.
+          void frags.core.update(true);
+          requestRender("memory-pressure");
         },
         clearSelection: (): void => {
           // When `disableSelection` is on, the selection surface is
@@ -6681,6 +7108,35 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
             );
             return null;
           }
+        },
+        getGlobalIds: async (
+          modelId: string,
+          expressIds: number[],
+        ): Promise<Array<string | null> | null> => {
+          const model = fragmentsRef.current?.core.models.list.get(modelId) as
+            | { getGuidsByLocalIds?: (ids: number[]) => Promise<Array<string | null>> }
+            | undefined;
+          if (!model || typeof model.getGuidsByLocalIds !== "function") return null;
+          try {
+            return await model.getGuidsByLocalIds(expressIds);
+          } catch (err) {
+            // eslint-disable-next-line no-console
+            console.warn("[IfcViewer] getGlobalIds failed", modelId, err);
+            return null;
+          }
+        },
+        getElementDataWithGuid: async (
+          modelId: string,
+          expressId: number,
+        ): Promise<{ attributes: Record<string, string>; globalId: string | null } | null> => {
+          const handle = handleSelfRef.current;
+          if (!handle?.getGlobalIds) return null;
+          const [data, guids] = await Promise.all([
+            handle.getElementData(modelId, expressId),
+            handle.getGlobalIds(modelId, [expressId]),
+          ]);
+          if (!data) return null;
+          return mergeGuidIntoAttributes(data, guids?.[0] ?? null);
         },
         // Task 21-next + Task 22: per-model local-ID enumeration
         // for filter resolution.
@@ -7092,6 +7548,12 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
             levelPlanRef.current?.getActiveStoreyMeta()?.elevation ?? null
           );
         },
+        getBaseCoordinates: (): [number, number, number] | null => {
+          const core = fragmentsRef.current?.core as unknown as
+            | CoordinatedCore
+            | undefined;
+          return core?.baseCoordinates ?? null;
+        },
         getModelCentroid: (): { x: number; y: number; z: number } | null => {
           // Walk every loaded FragmentsModel and average their
           // `box` (THREE.Box3) midpoints. Return null if there
@@ -7246,7 +7708,7 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
             maxZ: number;
           },
           elevation: number,
-          options?: { opacity?: number },
+          options?: { opacity?: number; rotation?: number },
         ): string => {
           const w = worldRef.current;
           if (!w) {
@@ -7260,9 +7722,12 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
           // clipped by the renderer. 0.04 puts it 1 cm below the clip
           // plane — enough to avoid z-fighting but invisible to the eye.
           const PDF_OFFSET = 0.04;
-          const planeY = elevation + PDF_OFFSET;
-          const width = worldBounds.maxX - worldBounds.minX;
-          const depth = worldBounds.maxZ - worldBounds.minZ;
+          const placement = computeFloorPlanPlacement(
+            worldBounds,
+            elevation + PDF_OFFSET,
+            options?.rotation,
+          );
+          const { width, depth } = placement;
           if (width <= 0 || depth <= 0) {
             console.warn(
               "[IfcViewer] addFloorPlanPlane: degenerate bounds",
@@ -7274,12 +7739,8 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
           // The PlaneGeometry lies in the XY plane by default.
           // Rotate -90° around X to lay it flat in the XZ plane.
           geom.rotateX(-Math.PI / 2);
-          // Translate to the centre of the world bounds.
-          geom.translate(
-            worldBounds.minX + width / 2,
-            planeY,
-            worldBounds.minZ + depth / 2,
-          );
+          // The mesh is centred on the world bounds and turned about
+          // its own centre by the calibration rotation.
           // Wave 63: the overlay used to look dim (hard-coded opacity
           // 0.40). Material now lives in floorPlanPlaneMaterial.ts:
           // caller-chosen opacity, unlit, not tone-mapped, sRGB,
@@ -7297,6 +7758,12 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
           // cutouts. Frustum culling is disabled here — the GPU
           // handles per-fragment clipping, and this is a single
           // textured quad so the performance cost is negligible.
+          mesh.position.set(
+            placement.position.x,
+            placement.position.y,
+            placement.position.z,
+          );
+          mesh.rotation.y = placement.rotationY;
           mesh.frustumCulled = false;
           // Render the PDF after other scene geometry so it draws
           // on top of the floor-level model and the clipper visual
@@ -7566,6 +8033,8 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
         ): void => {
           const world = worldRef.current;
           if (!world) return;
+          // Wave 73: a host-restored pose wins over fit-on-first-load.
+          cameraMovedByHostRef.current = true;
           const cam = world.camera as unknown as {
             three?: {
               fov?: number;
@@ -7845,7 +8314,10 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
           requestRender(reason ? `external:${reason}` : "external"),
         getRenderStats: (): RenderSchedulerStats | null =>
           rodRef.current?.stats() ?? null,
-      }, (reason) => requestRender(reason)),
+      }, (reason) => requestRender(reason));
+      handleSelfRef.current = handle;
+      return handle;
+      },
       [],
     );
 

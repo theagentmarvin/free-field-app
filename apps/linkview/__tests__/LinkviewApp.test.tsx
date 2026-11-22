@@ -295,6 +295,13 @@ vi.mock("@ff/data", async (importOriginal) => {
   };
 });
 
+// The 2D task-pin layer reads the tasks source (needs an AuthProvider); the
+// shell tests do not exercise it.
+vi.mock("@ff/tasks-react", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@ff/tasks-react")>()),
+  TaskCalloutLayer2D: () => null,
+}));
+
 const authMock = vi.hoisted(() => ({ projectId: "p1" as string | undefined }));
 vi.mock("@ff/auth", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@ff/auth")>()),
@@ -1276,6 +1283,14 @@ describe("LinkviewApp — wave 63 review fixes", () => {
 
     fireEvent.click(screen.getByTestId("linkview-tools-overlap"));
     await waitFor(() => expect(recorded.releaseCalls).toBe(1));
+    // Entering overlap frames the page from straight above (it used to keep the
+    // first-person eye pose: a grazing view of the plan plane).
+    await waitFor(() => expect(recorded.setViewPoseCalls.length).toBe(2));
+    const overlapPose = recorded.setViewPoseCalls[1].pose;
+    expect(overlapPose.pos[1]).toBeGreaterThan(12.5 + 5);
+    expect(overlapPose.target[1]).toBeCloseTo(12.5, 6);
+    expect(Math.abs(overlapPose.pos[0] - overlapPose.target[0])).toBeLessThan(0.1);
+    expect(recorded.setViewPoseCalls[1].animate).toBe(false);
     // Overlap moved the camera somewhere else.
     act(() => {
       recorded.getPoseResult = {
@@ -1288,8 +1303,8 @@ describe("LinkviewApp — wave 63 review fixes", () => {
     });
 
     fireEvent.click(screen.getByTestId("linkview-tools-split"));
-    await waitFor(() => expect(recorded.setViewPoseCalls.length).toBe(2));
-    const reseed = recorded.setViewPoseCalls[1];
+    await waitFor(() => expect(recorded.setViewPoseCalls.length).toBe(3));
+    const reseed = recorded.setViewPoseCalls[2];
     expect(reseed.pose.pos[1]).toBeCloseTo(12.5 + EYE_HEIGHT, 6);
     await waitFor(() => expect(recorded.restrictedCalls).toBe(2));
   });

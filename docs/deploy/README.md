@@ -1,5 +1,7 @@
 # Self-hosting FreeField on your own Firebase project
 
+> Full step-by-step guide (Firebase setup, every env variable, `APP_ORIGIN`, first admin, App Check, API-key restriction, trimming demo assets, CI): **[self-hosting.md](self-hosting.md)**. This page is the short runbook.
+
 Each organisation runs its own Firebase project (Auth, Firestore, Storage, Functions, Hosting). The web app is a static Vite build. Models, PDFs and calibrations stay in each user's browser; only tasks, members and projects live in Firestore.
 
 ## Prerequisites
@@ -20,7 +22,7 @@ Each organisation runs its own Firebase project (Auth, Firestore, Storage, Funct
 
 ```bash
 pnpm install
-pnpm --filter @free-field/settings build           # outputs apps/settings/dist
+pnpm build:selfhost                                # builds, then drops demo seed/samples; outputs apps/settings/dist
 firebase deploy --only firestore:rules,firestore:indexes,storage
 firebase deploy --only functions                   # builds packages/ff-firestore/functions
 firebase deploy --only hosting
@@ -41,9 +43,9 @@ After deploying, set the bootstrap secret (`firebase functions:secrets:set BOOTS
 
 ```bash
 firebase emulators:start      # Auth 9099, Firestore 8080, UI 4000
-firebase emulators:exec --only auth,firestore,functions,storage --project demo-freefield "pnpm --filter @ff/firestore test"
+pnpm test:emulator          # needs JDK 21; runs the @ff/firestore rules + functions and @ff/sync suites
 ```
 
 ## Not included
 
-Custom-domain wiring, CI/CD, scheduled Firestore backups and a custom email provider (Resend/SendGrid) are left to the operator.
+Custom-domain wiring, automated deploys (CI for tests/build is in `.github/workflows/ci.yml`), scheduled Firestore backups and a custom email provider (Resend/SendGrid) are left to the operator.

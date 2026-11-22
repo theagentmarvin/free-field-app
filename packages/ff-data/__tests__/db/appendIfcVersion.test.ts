@@ -168,3 +168,53 @@ describe("appendIfcVersion", () => {
     expect((await snapshot()).files).toEqual([]);
   });
 });
+
+describe("appendIfcVersion keeps the user's level work across versions (2026-11-14)", () => {
+  it("moves extracted levels and the Get Levels selection to the new version's storeys by name", async () => {
+    const v1 = await appendIfcVersion(input());
+    const v1Storeys = await db.storeys.toArray();
+    const L0 = v1Storeys.find((s) => s.name === "L0")!;
+    const L1 = v1Storeys.find((s) => s.name === "L1")!;
+    await db.extractedStoreys.bulkAdd([
+      { id: "e0", buildingId: "b1", storeyId: L0.id, updatedAt: 1 },
+      { id: "e1", buildingId: "b1", storeyId: L1.id, updatedAt: 1 },
+    ]);
+    await db.buildingLevelSelection.put({ buildingId: "b1", levelId: L1.id, selected: true, updatedAt: 1 });
+
+    // v2: L1 kept (moved a bit), L0 dropped, L2 new
+    await appendIfcVersion(
+      input({
+        ifcFileId: v1.file.id,
+        contentHash: "h2",
+        storeys: [
+          { name: "L1", elevation: 3.1, expressId: 7, height: null },
+          { name: "L2", elevation: 6, expressId: 8, height: null },
+        ],
+      }),
+    );
+    const v2Storeys = await db.storeys.toArray();
+    const newL1 = v2Storeys.find((s) => s.name === "L1")!;
+    expect(newL1.id).not.toBe(L1.id);
+
+    const extracted = await db.extractedStoreys.toArray();
+    expect(extracted.map((e) => e.storeyId)).toEqual([newL1.id]); // L1 kept, L0 gone
+    const sel = await db.buildingLevelSelection.toArray();
+    expect(sel).toEqual([expect.objectContaining({ buildingId: "b1", levelId: newL1.id, selected: true })]);
+  });
+
+  it("pairs same-named levels in elevation order", async () => {
+    const { matchStoreysByName } = await import("../../src/db/appendIfcVersion");
+    const m = matchStoreysByName(
+      [
+        { id: "oHigh", name: "Roof", elevation: 9 },
+        { id: "oLow", name: "Roof", elevation: 6 },
+      ],
+      [
+        { id: "nLow", name: "Roof", elevation: 6.2 },
+        { id: "nHigh", name: "Roof", elevation: 9.1 },
+      ],
+    );
+    expect(m.get("oLow")).toBe("nLow");
+    expect(m.get("oHigh")).toBe("nHigh");
+  });
+});

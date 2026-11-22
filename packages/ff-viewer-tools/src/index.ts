@@ -104,7 +104,9 @@ export { useViewerExpressIdMaps } from "./hooks/useViewerExpressIdMaps";
 export { useModelsToolFilter } from "./hooks/useModelsToolFilter";
 export type { UseModelsToolFilterResult } from "./hooks/useModelsToolFilter";
 export { useViewerSelectionSync } from "./hooks/useViewerSelectionSync";
-export { useFloorPlanOverlay } from "./hooks/useFloorPlanOverlay";
+export { useViewerHandle, createObservableRef } from "./hooks/useViewerHandle";
+export type { ObservableRef } from "./hooks/useViewerHandle";
+export { useFloorPlanOverlay, computeOverlayPlacement } from "./hooks/useFloorPlanOverlay";
 export type {
   FloorPlanOverlayState,
 } from "./hooks/useFloorPlanOverlay";
@@ -118,3 +120,18 @@ export type { UseFilterPresetsForBuildingResult } from "./hooks/useFilterPresets
 // ── Filter resolution (pure) ─────────────────────────────────────
 export { computeMatchingExpressIds } from "./hooks/filterResolution";
 export type { ModelsToolFilters } from "./hooks/filterResolution";
+
+// Shared bottom-centre floating bar (Models toolbar + Documents measure bar)
+export {
+  FloatingBar,
+  BAR_TOKENS,
+  floatingBarAnchorStyle,
+  barRowStyle,
+  segGroupStyle,
+  segButtonStyle,
+  menuStyle,
+  menuRowStyle,
+  readoutChipStyle,
+  clearButtonStyle,
+} from "./components/floatingBar";
+export type { FloatingBarProps } from "./components/floatingBar";

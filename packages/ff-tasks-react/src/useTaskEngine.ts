@@ -12,6 +12,7 @@ import {
   getDemoTaskSource,
   getTaskBlobStore,
   OutboxEngine,
+  createOutboxLock,
   createTaskExecutor,
   makeDexieDraftTable,
   makeDexieOutboxStore,
@@ -131,6 +132,9 @@ function createEngine(app: FirebaseApp, isDemo: boolean): OutboxEngine {
     store: makeDexieOutboxStore(localDb.outbox),
     clock: realClock,
     isOnline: browserOnline,
+    // One tab drains the task queue at a time (Web Locks; in-process
+    // fallback when `navigator.locks` is missing).
+    lock: createOutboxLock("ff-outbox-tasks"),
     onStateChange: releaseRowBlobs,
     onTransition: crumb,
   };

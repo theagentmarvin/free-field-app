@@ -1,3 +1,4 @@
+import { useTaskBuildingIndex } from "./taskBuilding";
 import { useEffect, useMemo, useState } from "react";
 
 
@@ -87,14 +88,16 @@ export function TaskCalloutLayer3D({
   }, [source, projectId]);
 
   const rows = useOutboxRows(projectId);
+  const buildingIndex = useTaskBuildingIndex();
 
   const pins = useMemo(
     () =>
       pinsForBuilding(
         mergePins(extractPins(cloud), pendingPins(rows, source.overlaySending)),
         buildingId,
+        buildingIndex,
       ),
-    [cloud, rows, source.overlaySending, buildingId],
+    [cloud, rows, source.overlaySending, buildingId, buildingIndex],
   );
 
   const [projected, setProjected] = useState<Projected[]>([]);

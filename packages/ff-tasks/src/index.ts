@@ -23,3 +23,4 @@ export {
 } from './demoTaskDb';
 export * from './taskBlobs';
 export * from './taskFields';
+export * from './bcf';

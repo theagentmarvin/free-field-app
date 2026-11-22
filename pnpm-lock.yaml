@@ -9,7 +9,7 @@ overrides:
 
 patchedDependencies:
   '@thatopen/fragments@3.6.0':
-    hash: 6b38d47aa1f101d1ab993b0d2f5d01635ba12b526c0a715403a919e95112ce04
+    hash: 66f53efefa23ed6143bed257e9f0a6636bb452b8be9b989aa1474450d9d3dc7f
     path: patches/@thatopen__fragments@3.6.0.patch
 
 importers:
@@ -385,10 +385,10 @@ importers:
         version: link:../users
       '@thatopen/components':
         specifier: ^3.6.0
-        version: 3.6.0(@thatopen/fragments@3.6.0(patch_hash=6b38d47aa1f101d1ab993b0d2f5d01635ba12b526c0a715403a919e95112ce04)(three@0.182.0)(web-ifc@0.0.77))(camera-controls@3.1.2(three@0.182.0))(three@0.182.0)(web-ifc@0.0.77)
+        version: 3.6.0(@thatopen/fragments@3.6.0(patch_hash=66f53efefa23ed6143bed257e9f0a6636bb452b8be9b989aa1474450d9d3dc7f)(three@0.182.0)(web-ifc@0.0.77))(camera-controls@3.1.2(three@0.182.0))(three@0.182.0)(web-ifc@0.0.77)
       '@thatopen/fragments':
         specifier: 3.6.0
-        version: 3.6.0(patch_hash=6b38d47aa1f101d1ab993b0d2f5d01635ba12b526c0a715403a919e95112ce04)(three@0.182.0)(web-ifc@0.0.77)
+        version: 3.6.0(patch_hash=66f53efefa23ed6143bed257e9f0a6636bb452b8be9b989aa1474450d9d3dc7f)(three@0.182.0)(web-ifc@0.0.77)
       camera-controls:
         specifier: ^3.1.2
         version: 3.1.2(three@0.182.0)
@@ -408,8 +408,8 @@ importers:
         specifier: ^3.10.1
         version: 3.10.1
       pdfjs-dist:
-        specifier: ^5.7.284
-        version: 5.7.284
+        specifier: ^6.2.108
+        version: 6.5.438
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -417,8 +417,8 @@ importers:
         specifier: ^18.3.1
         version: 18.3.1(react@18.3.1)
       react-router-dom:
-        specifier: ^6.30.4
-        version: 6.30.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        specifier: ^6.30.6
+        version: 6.30.6(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       three:
         specifier: ^0.182.0
         version: 0.182.0
@@ -517,8 +517,8 @@ importers:
         specifier: ^18.3.0
         version: 18.3.1(react@18.3.1)
       react-router-dom:
-        specifier: ^6.26.0
-        version: 6.30.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        specifier: ^6.30.6
+        version: 6.30.6(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       zod:
         specifier: ^3.23.8
         version: 3.25.76
@@ -581,8 +581,8 @@ importers:
         specifier: ^18.3.0
         version: 18.3.1
       react-router-dom:
-        specifier: ^6.26.0
-        version: 6.30.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        specifier: ^6.30.6
+        version: 6.30.6(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
     devDependencies:
       '@testing-library/react':
         specifier: ^16.0.0
@@ -619,7 +619,7 @@ importers:
         version: link:../ff-types
       '@thatopen/fragments':
         specifier: 3.6.0
-        version: 3.6.0(patch_hash=6b38d47aa1f101d1ab993b0d2f5d01635ba12b526c0a715403a919e95112ce04)(three@0.182.0)(web-ifc@0.0.77)
+        version: 3.6.0(patch_hash=66f53efefa23ed6143bed257e9f0a6636bb452b8be9b989aa1474450d9d3dc7f)(three@0.182.0)(web-ifc@0.0.77)
       dexie:
         specifier: ^4.0.10
         version: 4.4.3
@@ -688,6 +688,9 @@ importers:
         specifier: ^3.23.8
         version: 3.25.76
     devDependencies:
+      '@ff/types':
+        specifier: workspace:*
+        version: link:../ff-types
       '@firebase/rules-unit-testing':
         specifier: ^4.0.1
         version: 4.0.1(firebase@11.10.0)
@@ -716,6 +719,46 @@ importers:
         specifier: ^2.1.5
         version: 2.1.9(@types/node@22.19.19)(jsdom@25.0.1)
 
+  packages/ff-sync:
+    dependencies:
+      '@ff/data':
+        specifier: workspace:*
+        version: link:../ff-data
+      '@ff/firestore':
+        specifier: workspace:*
+        version: link:../ff-firestore
+      '@ff/tasks':
+        specifier: workspace:*
+        version: link:../ff-tasks
+      '@ff/types':
+        specifier: workspace:*
+        version: link:../ff-types
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
+      '@firebase/rules-unit-testing':
+        specifier: ^4.0.1
+        version: 4.0.1(firebase@11.10.0)
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.19
+      dexie:
+        specifier: ^4.0.10
+        version: 4.4.3
+      fake-indexeddb:
+        specifier: ^6.0.0
+        version: 6.2.5
+      firebase:
+        specifier: ^11.0.0
+        version: 11.10.0
+      typescript:
+        specifier: 5.6.3
+        version: 5.6.3
+      vitest:
+        specifier: ^2.1.5
+        version: 2.1.9(@types/node@22.19.19)(jsdom@25.0.1)
+
   packages/ff-tasks:
     dependencies:
       '@ff/firestore':
@@ -724,6 +767,9 @@ importers:
       '@ff/types':
         specifier: workspace:*
         version: link:../ff-types
+      jszip:
+        specifier: ^3.10.1
+        version: 3.10.1
       zod:
         specifier: ^3.23.8
         version: 3.25.76
@@ -752,6 +798,9 @@ importers:
       vitest:
         specifier: ^2.1.5
         version: 2.1.9(@types/node@22.19.19)(jsdom@25.0.1)
+      xmllint-wasm:
+        specifier: ^5.3.0
+        version: 5.3.0(@types/node@22.19.19)
 
   packages/ff-tasks-react:
     dependencies:
@@ -764,6 +813,9 @@ importers:
       '@ff/firestore':
         specifier: workspace:*
         version: link:../ff-firestore
+      '@ff/sync':
+        specifier: workspace:*
+        version: link:../ff-sync
       '@ff/tasks':
         specifier: workspace:*
         version: link:../ff-tasks
@@ -874,13 +926,13 @@ importers:
     dependencies:
       '@thatopen/components':
         specifier: ^3.6.0
-        version: 3.6.0(@thatopen/fragments@3.6.0(patch_hash=6b38d47aa1f101d1ab993b0d2f5d01635ba12b526c0a715403a919e95112ce04)(three@0.182.0)(web-ifc@0.0.77))(camera-controls@3.1.2(three@0.182.0))(three@0.182.0)(web-ifc@0.0.77)
+        version: 3.6.0(@thatopen/fragments@3.6.0(patch_hash=66f53efefa23ed6143bed257e9f0a6636bb452b8be9b989aa1474450d9d3dc7f)(three@0.182.0)(web-ifc@0.0.77))(camera-controls@3.1.2(three@0.182.0))(three@0.182.0)(web-ifc@0.0.77)
       '@thatopen/fragments':
         specifier: 3.6.0
-        version: 3.6.0(patch_hash=6b38d47aa1f101d1ab993b0d2f5d01635ba12b526c0a715403a919e95112ce04)(three@0.182.0)(web-ifc@0.0.77)
+        version: 3.6.0(patch_hash=66f53efefa23ed6143bed257e9f0a6636bb452b8be9b989aa1474450d9d3dc7f)(three@0.182.0)(web-ifc@0.0.77)
       pdfjs-dist:
-        specifier: ^5.7.284
-        version: 5.7.284
+        specifier: ^6.2.108
+        version: 6.5.438
       three:
         specifier: ^0.182.0
         version: 0.182.0
@@ -926,13 +978,13 @@ importers:
         version: link:../ff-viewer
       '@thatopen/components':
         specifier: ^3.6.0
-        version: 3.6.0(@thatopen/fragments@3.6.0(patch_hash=6b38d47aa1f101d1ab993b0d2f5d01635ba12b526c0a715403a919e95112ce04)(three@0.182.0)(web-ifc@0.0.77))(camera-controls@3.1.2(three@0.182.0))(three@0.182.0)(web-ifc@0.0.77)
+        version: 3.6.0(@thatopen/fragments@3.6.0(patch_hash=66f53efefa23ed6143bed257e9f0a6636bb452b8be9b989aa1474450d9d3dc7f)(three@0.182.0)(web-ifc@0.0.77))(camera-controls@3.1.2(three@0.182.0))(three@0.182.0)(web-ifc@0.0.77)
       '@thatopen/components-front':
         specifier: ^3.6.0
-        version: 3.6.0(@thatopen/components@3.6.0(@thatopen/fragments@3.6.0(patch_hash=6b38d47aa1f101d1ab993b0d2f5d01635ba12b526c0a715403a919e95112ce04)(three@0.182.0)(web-ifc@0.0.77))(camera-controls@3.1.2(three@0.182.0))(three@0.182.0)(web-ifc@0.0.77))(@thatopen/fragments@3.6.0(patch_hash=6b38d47aa1f101d1ab993b0d2f5d01635ba12b526c0a715403a919e95112ce04)(three@0.182.0)(web-ifc@0.0.77))(three@0.182.0)(web-ifc@0.0.77)
+        version: 3.6.0(@thatopen/components@3.6.0(@thatopen/fragments@3.6.0(patch_hash=66f53efefa23ed6143bed257e9f0a6636bb452b8be9b989aa1474450d9d3dc7f)(three@0.182.0)(web-ifc@0.0.77))(camera-controls@3.1.2(three@0.182.0))(three@0.182.0)(web-ifc@0.0.77))(@thatopen/fragments@3.6.0(patch_hash=66f53efefa23ed6143bed257e9f0a6636bb452b8be9b989aa1474450d9d3dc7f)(three@0.182.0)(web-ifc@0.0.77))(three@0.182.0)(web-ifc@0.0.77)
       '@thatopen/fragments':
         specifier: 3.6.0
-        version: 3.6.0(patch_hash=6b38d47aa1f101d1ab993b0d2f5d01635ba12b526c0a715403a919e95112ce04)(three@0.182.0)(web-ifc@0.0.77)
+        version: 3.6.0(patch_hash=66f53efefa23ed6143bed257e9f0a6636bb452b8be9b989aa1474450d9d3dc7f)(three@0.182.0)(web-ifc@0.0.77)
       three:
         specifier: ^0.182.0
         version: 0.182.0
@@ -2102,79 +2154,79 @@ packages:
       '@cfworker/json-schema':
         optional: true
 
-  '@napi-rs/canvas-android-arm64@0.1.100':
-    resolution: {integrity: sha512-hjhCKhntPv9+t4ckHymdx0phYNcVW+GKQR6Lzw2zE+pOVjOplSmtx9nNNknTjbEDLcuLZqA1y8ufKg1XfgftzQ==}
+  '@napi-rs/canvas-android-arm64@1.2.0':
+    resolution: {integrity: sha512-Ya2Db4BrwM5WnQtdmA2iOw5O2yZ9vcd5fuX9GjlkQ3k87iWzDUxnijVz11IJrF8c+xBxUHzEgENXmA1yPdnZ2g==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [android]
 
-  '@napi-rs/canvas-darwin-arm64@0.1.100':
-    resolution: {integrity: sha512-2PcswRaC7Ly645DGt88///zuFDhJxJYdKAs1uU3mfk1atYkXufgcgLfBpk6Tm12nCQBaNt1wpybuPZ4qOhTo8A==}
+  '@napi-rs/canvas-darwin-arm64@1.2.0':
+    resolution: {integrity: sha512-7Rq4h2J4Y+JKqxaH9Zf0PGOY3asTeAbcG51MkQNaUTB7ushbhuEgY54CWRww5WK8v8VYB8epv4bLF0GI8IPlxQ==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [darwin]
 
-  '@napi-rs/canvas-darwin-x64@0.1.100':
-    resolution: {integrity: sha512-ePNZtj7pNIva/siZMg+HmbeozkIjqUIYdoymH8HaA3qK7LfzFN4WMBM8G6HQ9ZC+H3+Dnn5pqtiXpgLykaPOhw==}
+  '@napi-rs/canvas-darwin-x64@1.2.0':
+    resolution: {integrity: sha512-LHeqXtEFqO1DDnKRWSvy7C+kXQTciKvZzShVZd0aTnvVwWskpbj9hwWc8lwTpjm6GsgS7oEKCNARj8xLI1qcww==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [darwin]
 
-  '@napi-rs/canvas-linux-arm-gnueabihf@0.1.100':
-    resolution: {integrity: sha512-d5cDB48oWFGU8/XPhUOFAlySgb/VAu7D+s8fi55K1Pcfg8aPplHWqMgibhVLU8ky7Pyg/fuiVLz4Nf3JrSTuUA==}
+  '@napi-rs/canvas-linux-arm-gnueabihf@1.2.0':
+    resolution: {integrity: sha512-er2hS9KLBWSFMyz6UCAAM5gYfFfCAkLXXdPnFJ8SL8clNa+hx5ooC5iREYKuaFxIfhsE86OHiiee3HjIuvtz5w==}
     engines: {node: '>= 10'}
     cpu: [arm]
     os: [linux]
 
-  '@napi-rs/canvas-linux-arm64-gnu@0.1.100':
-    resolution: {integrity: sha512-rDxgxRu69RvDlX/bh9o22DxLsGr8EqsNgotL9+RwQE1S0b0cqeatqsw6aW45mukm0B42DIAaAacKaYQ8cqS1nw==}
+  '@napi-rs/canvas-linux-arm64-gnu@1.2.0':
+    resolution: {integrity: sha512-wwfgI/DQOXjpQ+uLDV7R2Wh6O0lLvWRWz3mZND58csTH9fTn6+H2bfWBIu37Bcg8cjJLPE5BKjqK/a7WOYeqxA==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
-  '@napi-rs/canvas-linux-arm64-musl@0.1.100':
-    resolution: {integrity: sha512-K3mDW66N+xT2/V439u1alFANiBUjdEx2gLiNYnCmUsva5jZMxWTjafBYwTzYK+EMFMHrUoabuU+T1BIP5CgbYQ==}
+  '@napi-rs/canvas-linux-arm64-musl@1.2.0':
+    resolution: {integrity: sha512-ftJFcPZIAer2xHMQ0BXfGTVqE2AB5tl3+dm913YunKnsG+lcS91pFKNaeM5yvp7kbTLPlMxkMpi+RKXOXEwljw==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
 
-  '@napi-rs/canvas-linux-riscv64-gnu@0.1.100':
-    resolution: {integrity: sha512-mooqUBTIsccZpnoQC4NgrC1v6C1vof39etLNMnBwCY+p0gajWJvAHLGQ6g/gGyS5YrpDW+GefSN4+Cvcr08UWw==}
+  '@napi-rs/canvas-linux-riscv64-gnu@1.2.0':
+    resolution: {integrity: sha512-NFfXv9E3IuzHi3RK3KhBbjO4bCdS8PvZkUzVvkTWBCLnVw4ndNNHUCK46/lcOMcnuKg8qxQsK5X7Uwp/SPGA0g==}
     engines: {node: '>= 10'}
     cpu: [riscv64]
     os: [linux]
     libc: [glibc]
 
-  '@napi-rs/canvas-linux-x64-gnu@0.1.100':
-    resolution: {integrity: sha512-1eCvkDCazm7FFhsT7DfGOdSaHgZVK3bt/dSBl5EWHOWmnz+I7j8tPseJqqD81NF+MH21jKUK4wQSDjN0mdhnTg==}
+  '@napi-rs/canvas-linux-x64-gnu@1.2.0':
+    resolution: {integrity: sha512-+RsdhlUA8hRoktgA5JG1XR7skZ6PCVjNfodnqDnBV1eTX7dgVBYHK7O7yKdQGac/45B5t8ufgyceQEq3Rfk6JA==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
 
-  '@napi-rs/canvas-linux-x64-musl@0.1.100':
-    resolution: {integrity: sha512-20arT6lnI19S68qNlii73TSEDbECNgzMz2EpldC1V3mZFuRkeujXkcebRk0LRJe9SEUAooYiLokfMViY8IX7yA==}
+  '@napi-rs/canvas-linux-x64-musl@1.2.0':
+    resolution: {integrity: sha512-G7O6pLdb+waaiRfCVKNRymqFNulfU4tfyRKvWmOWt7Vh/VltHLvU4+oWGMMKzWehMrxLnvmeLSNkWWpzMZAy+w==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [linux]
     libc: [musl]
 
-  '@napi-rs/canvas-win32-arm64-msvc@0.1.100':
-    resolution: {integrity: sha512-DZFFT1wIAg37LJw37yhMRFfjATd3vTQzjZ1Yki8u2vhO6Hi5VE6BVaGQ1aaDu7xb4iMErz+9EOwjpS7xcxFeBw==}
+  '@napi-rs/canvas-win32-arm64-msvc@1.2.0':
+    resolution: {integrity: sha512-8xB9DHYScFsEukONZKfc45bTYJUAfEqL6daUxo3YqWrUC9YMfU6N2Zx3HCJTq0LwhnjjRXScZbasaaxviaA4uQ==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [win32]
 
-  '@napi-rs/canvas-win32-x64-msvc@0.1.100':
-    resolution: {integrity: sha512-MyT1j3mHC2+Lu4pBi9mKyMJhtP6U7k7EldY7sj/uS5gJA65gTXt8MefJQXLJo5d/vZbuWmfxzkEUNc/urV3pHA==}
+  '@napi-rs/canvas-win32-x64-msvc@1.2.0':
+    resolution: {integrity: sha512-GJ0DLyiTvLw5xNtdUJ0ncRuuT4Yv9zNXnrrvfvKr1/M08mbvtFVLoKiwQAaWixEcTsCh0U94/nMxkJTLH7ZMfw==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [win32]
 
-  '@napi-rs/canvas@0.1.100':
-    resolution: {integrity: sha512-xglYA6q3XO5P3BNJYxVZ1IV7DLVjp1Py6nwag88YntrS+3vKHyYcMqXVS4ZztJmwz2uGvz1FWhI/4LgbR5uQDA==}
+  '@napi-rs/canvas@1.2.0':
+    resolution: {integrity: sha512-6LpJr0U9BH/Iz5/z2EherYStmsjyRwmCp8wwYg0QfEnib/ip19fyJd1Y1OFbn8DbyIQKCCpSqgY1trXkIbLdEg==}
     engines: {node: '>= 10'}
 
   '@nodable/entities@2.1.1':
@@ -2378,8 +2430,8 @@ packages:
   '@protobufjs/utf8@1.1.2':
     resolution: {integrity: sha512-b1UQwcEZ4yCnMCD8DAL1VlbvBJE9/IX4FTIp7BG1xYpf29SLazLSrqUkj4w7Y5y7cCVP6E5tcqqcI0xemPkHug==}
 
-  '@remix-run/router@1.23.3':
-    resolution: {integrity: sha512-4An71tdz9X8+3sI4Qqqd2LWd9vS39J7sqd9EU4Scw7TJE/qB10Flv/UuqbPVgfQV9XoK8Np6jNquZitnZq5i+Q==}
+  '@remix-run/router@1.23.4':
+    resolution: {integrity: sha512-q7j5geK7xs3UJSdm9/iytUNclBnLmYx1EnSeCFXHPeutdqgIMeFeHtUZgS3EhlKxdBEAu8OwtJCwmLrEzpSs7Q==}
     engines: {node: '>=14.0.0'}
 
   '@rolldown/pluginutils@1.0.0-beta.27':
@@ -5077,8 +5129,8 @@ packages:
     resolution: {integrity: sha512-//nshmD55c46FuFw26xV/xFAaB5HF9Xdap7HJBBnrKdAd6/GxDBaNA1870O79+9ueg61cZLSVc+OaFlfmObYVQ==}
     engines: {node: '>= 14.16'}
 
-  pdfjs-dist@5.7.284:
-    resolution: {integrity: sha512-h4EdYQczmGhbOlqc3PPZwxevn7ApdWPbovAuWXOB/DjIyigSnwfy2oze7c6mRcSr9XgLp3eN3EeL4DyySTPMFw==}
+  pdfjs-dist@6.5.438:
+    resolution: {integrity: sha512-vg8Pw1x+AFKy4AMDvhuWl5cOYV8d698UoEANoFFhc79hqXDnZQqnOXoxw3HG907WHOg1JYOvLhP756boddFxpA==}
     engines: {node: '>=22.13.0 || >=24'}
 
   pg-cloudflare@1.4.1:
@@ -5281,15 +5333,15 @@ packages:
     resolution: {integrity: sha512-z6F7K9bV85EfseRCp2bzrpyQ0Gkw1uLoCel9XBVWPg/TjRj94SkJzUTGfOa4bs7iJvBWtQG0Wq7wnI0syw3EBQ==}
     engines: {node: '>=0.10.0'}
 
-  react-router-dom@6.30.4:
-    resolution: {integrity: sha512-q4HvNl+mmDdkS0g+MqiBZNteQJCuimWoOyHMy4T/RQLAn9Z29+E91QXRaxOujeMl2HTzRSS0KFPd7lxX3PjV0Q==}
+  react-router-dom@6.30.6:
+    resolution: {integrity: sha512-0RHKZz7wwffvkU+2MFVT2NnjK44ssLEV+m0CAJaS2Ksmorrwj7WxH00jO0SOCW26/tINUnJHToXblDs33I38YQ==}
     engines: {node: '>=14.0.0'}
     peerDependencies:
       react: '>=16.8'
       react-dom: '>=16.8'
 
-  react-router@6.30.4:
-    resolution: {integrity: sha512-SVUsDe+DybHM/WmYKIVYhZh1o5Dcuf16yM6WjG02Q9XVFMZIJyHYhwrr6bFBXZkVP6z69kNkMyBCujt8FaFLJA==}
+  react-router@6.30.6:
+    resolution: {integrity: sha512-5HfK7k5im7LTOB0EqCQmfvy4C13G92Ssj1VTmouTK3AJvyjKTnFuCV0vcMAD/JS+JC4DvDIBRrlAeJIFjh5VWg==}
     engines: {node: '>=14.0.0'}
     peerDependencies:
       react: '>=16.8'
@@ -6142,6 +6194,12 @@ packages:
 
   xmlchars@2.2.0:
     resolution: {integrity: sha512-JZnDKK8B0RCDw84FNdDAIpZK+JuJw+s7Lz8nksI7SIuU3UXJJslUthsi+uWBUYOwPFwW7W7PRLRfUKpxjtjFCw==}
+
+  xmllint-wasm@5.3.0:
+    resolution: {integrity: sha512-sEgRXdf2t13eYCFCURmCE6h2hwleEOIS9VL/jOh9JJJnez2YXIooi2Ghm05/JZEPXyPawN8sMASPVZlmh8Sd6A==}
+    engines: {node: '>=16'}
+    peerDependencies:
+      '@types/node': '>=16'
 
   xtend@4.0.2:
     resolution: {integrity: sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ==}
@@ -7325,52 +7383,52 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@napi-rs/canvas-android-arm64@0.1.100':
+  '@napi-rs/canvas-android-arm64@1.2.0':
     optional: true
 
-  '@napi-rs/canvas-darwin-arm64@0.1.100':
+  '@napi-rs/canvas-darwin-arm64@1.2.0':
     optional: true
 
-  '@napi-rs/canvas-darwin-x64@0.1.100':
+  '@napi-rs/canvas-darwin-x64@1.2.0':
     optional: true
 
-  '@napi-rs/canvas-linux-arm-gnueabihf@0.1.100':
+  '@napi-rs/canvas-linux-arm-gnueabihf@1.2.0':
     optional: true
 
-  '@napi-rs/canvas-linux-arm64-gnu@0.1.100':
+  '@napi-rs/canvas-linux-arm64-gnu@1.2.0':
     optional: true
 
-  '@napi-rs/canvas-linux-arm64-musl@0.1.100':
+  '@napi-rs/canvas-linux-arm64-musl@1.2.0':
     optional: true
 
-  '@napi-rs/canvas-linux-riscv64-gnu@0.1.100':
+  '@napi-rs/canvas-linux-riscv64-gnu@1.2.0':
     optional: true
 
-  '@napi-rs/canvas-linux-x64-gnu@0.1.100':
+  '@napi-rs/canvas-linux-x64-gnu@1.2.0':
     optional: true
 
-  '@napi-rs/canvas-linux-x64-musl@0.1.100':
+  '@napi-rs/canvas-linux-x64-musl@1.2.0':
     optional: true
 
-  '@napi-rs/canvas-win32-arm64-msvc@0.1.100':
+  '@napi-rs/canvas-win32-arm64-msvc@1.2.0':
     optional: true
 
-  '@napi-rs/canvas-win32-x64-msvc@0.1.100':
+  '@napi-rs/canvas-win32-x64-msvc@1.2.0':
     optional: true
 
-  '@napi-rs/canvas@0.1.100':
+  '@napi-rs/canvas@1.2.0':
     optionalDependencies:
-      '@napi-rs/canvas-android-arm64': 0.1.100
-      '@napi-rs/canvas-darwin-arm64': 0.1.100
-      '@napi-rs/canvas-darwin-x64': 0.1.100
-      '@napi-rs/canvas-linux-arm-gnueabihf': 0.1.100
-      '@napi-rs/canvas-linux-arm64-gnu': 0.1.100
-      '@napi-rs/canvas-linux-arm64-musl': 0.1.100
-      '@napi-rs/canvas-linux-riscv64-gnu': 0.1.100
-      '@napi-rs/canvas-linux-x64-gnu': 0.1.100
-      '@napi-rs/canvas-linux-x64-musl': 0.1.100
-      '@napi-rs/canvas-win32-arm64-msvc': 0.1.100
-      '@napi-rs/canvas-win32-x64-msvc': 0.1.100
+      '@napi-rs/canvas-android-arm64': 1.2.0
+      '@napi-rs/canvas-darwin-arm64': 1.2.0
+      '@napi-rs/canvas-darwin-x64': 1.2.0
+      '@napi-rs/canvas-linux-arm-gnueabihf': 1.2.0
+      '@napi-rs/canvas-linux-arm64-gnu': 1.2.0
+      '@napi-rs/canvas-linux-arm64-musl': 1.2.0
+      '@napi-rs/canvas-linux-riscv64-gnu': 1.2.0
+      '@napi-rs/canvas-linux-x64-gnu': 1.2.0
+      '@napi-rs/canvas-linux-x64-musl': 1.2.0
+      '@napi-rs/canvas-win32-arm64-msvc': 1.2.0
+      '@napi-rs/canvas-win32-x64-msvc': 1.2.0
     optional: true
 
   '@nodable/entities@2.1.1': {}
@@ -7492,7 +7550,7 @@ snapshots:
 
   '@protobufjs/utf8@1.1.2': {}
 
-  '@remix-run/router@1.23.3': {}
+  '@remix-run/router@1.23.4': {}
 
   '@rolldown/pluginutils@1.0.0-beta.27': {}
 
@@ -7662,17 +7720,17 @@ snapshots:
       '@types/react': 18.3.29
       '@types/react-dom': 18.3.7(@types/react@18.3.29)
 
-  '@thatopen/components-front@3.6.0(@thatopen/components@3.6.0(@thatopen/fragments@3.6.0(patch_hash=6b38d47aa1f101d1ab993b0d2f5d01635ba12b526c0a715403a919e95112ce04)(three@0.182.0)(web-ifc@0.0.77))(camera-controls@3.1.2(three@0.182.0))(three@0.182.0)(web-ifc@0.0.77))(@thatopen/fragments@3.6.0(patch_hash=6b38d47aa1f101d1ab993b0d2f5d01635ba12b526c0a715403a919e95112ce04)(three@0.182.0)(web-ifc@0.0.77))(three@0.182.0)(web-ifc@0.0.77)':
+  '@thatopen/components-front@3.6.0(@thatopen/components@3.6.0(@thatopen/fragments@3.6.0(patch_hash=66f53efefa23ed6143bed257e9f0a6636bb452b8be9b989aa1474450d9d3dc7f)(three@0.182.0)(web-ifc@0.0.77))(camera-controls@3.1.2(three@0.182.0))(three@0.182.0)(web-ifc@0.0.77))(@thatopen/fragments@3.6.0(patch_hash=66f53efefa23ed6143bed257e9f0a6636bb452b8be9b989aa1474450d9d3dc7f)(three@0.182.0)(web-ifc@0.0.77))(three@0.182.0)(web-ifc@0.0.77)':
     dependencies:
-      '@thatopen/components': 3.6.0(@thatopen/fragments@3.6.0(patch_hash=6b38d47aa1f101d1ab993b0d2f5d01635ba12b526c0a715403a919e95112ce04)(three@0.182.0)(web-ifc@0.0.77))(camera-controls@3.1.2(three@0.182.0))(three@0.182.0)(web-ifc@0.0.77)
-      '@thatopen/fragments': 3.6.0(patch_hash=6b38d47aa1f101d1ab993b0d2f5d01635ba12b526c0a715403a919e95112ce04)(three@0.182.0)(web-ifc@0.0.77)
+      '@thatopen/components': 3.6.0(@thatopen/fragments@3.6.0(patch_hash=66f53efefa23ed6143bed257e9f0a6636bb452b8be9b989aa1474450d9d3dc7f)(three@0.182.0)(web-ifc@0.0.77))(camera-controls@3.1.2(three@0.182.0))(three@0.182.0)(web-ifc@0.0.77)
+      '@thatopen/fragments': 3.6.0(patch_hash=66f53efefa23ed6143bed257e9f0a6636bb452b8be9b989aa1474450d9d3dc7f)(three@0.182.0)(web-ifc@0.0.77)
       earcut: 3.0.2
       three: 0.182.0
       web-ifc: 0.0.77
 
-  '@thatopen/components@3.6.0(@thatopen/fragments@3.6.0(patch_hash=6b38d47aa1f101d1ab993b0d2f5d01635ba12b526c0a715403a919e95112ce04)(three@0.182.0)(web-ifc@0.0.77))(camera-controls@3.1.2(three@0.182.0))(three@0.182.0)(web-ifc@0.0.77)':
+  '@thatopen/components@3.6.0(@thatopen/fragments@3.6.0(patch_hash=66f53efefa23ed6143bed257e9f0a6636bb452b8be9b989aa1474450d9d3dc7f)(three@0.182.0)(web-ifc@0.0.77))(camera-controls@3.1.2(three@0.182.0))(three@0.182.0)(web-ifc@0.0.77)':
     dependencies:
-      '@thatopen/fragments': 3.6.0(patch_hash=6b38d47aa1f101d1ab993b0d2f5d01635ba12b526c0a715403a919e95112ce04)(three@0.182.0)(web-ifc@0.0.77)
+      '@thatopen/fragments': 3.6.0(patch_hash=66f53efefa23ed6143bed257e9f0a6636bb452b8be9b989aa1474450d9d3dc7f)(three@0.182.0)(web-ifc@0.0.77)
       camera-controls: 3.1.2(three@0.182.0)
       fast-xml-parser: 5.7.2
       jszip: 3.10.1
@@ -7680,7 +7738,7 @@ snapshots:
       three-mesh-bvh: 0.9.9(three@0.182.0)
       web-ifc: 0.0.77
 
-  '@thatopen/fragments@3.6.0(patch_hash=6b38d47aa1f101d1ab993b0d2f5d01635ba12b526c0a715403a919e95112ce04)(three@0.182.0)(web-ifc@0.0.77)':
+  '@thatopen/fragments@3.6.0(patch_hash=66f53efefa23ed6143bed257e9f0a6636bb452b8be9b989aa1474450d9d3dc7f)(three@0.182.0)(web-ifc@0.0.77)':
     dependencies:
       earcut: 3.0.2
       flatbuffers: 25.2.10
@@ -10752,9 +10810,9 @@ snapshots:
 
   pathval@2.0.1: {}
 
-  pdfjs-dist@5.7.284:
+  pdfjs-dist@6.5.438:
     optionalDependencies:
-      '@napi-rs/canvas': 0.1.100
+      '@napi-rs/canvas': 1.2.0
 
   pg-cloudflare@1.4.1:
     optional: true
@@ -10968,16 +11026,16 @@ snapshots:
 
   react-refresh@0.17.0: {}
 
-  react-router-dom@6.30.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+  react-router-dom@6.30.6(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
-      '@remix-run/router': 1.23.3
+      '@remix-run/router': 1.23.4
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
-      react-router: 6.30.4(react@18.3.1)
+      react-router: 6.30.6(react@18.3.1)
 
-  react-router@6.30.4(react@18.3.1):
+  react-router@6.30.6(react@18.3.1):
     dependencies:
-      '@remix-run/router': 1.23.3
+      '@remix-run/router': 1.23.4
       react: 18.3.1
 
   react@18.3.1:
@@ -12086,6 +12144,10 @@ snapshots:
   xml-naming@0.1.0: {}
 
   xmlchars@2.2.0: {}
+
+  xmllint-wasm@5.3.0(@types/node@22.19.19):
+    dependencies:
+      '@types/node': 22.19.19
 
   xtend@4.0.2: {}
 

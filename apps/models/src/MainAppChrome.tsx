@@ -11,6 +11,7 @@ import { useCallback, type CSSProperties, type RefObject } from "react";
 import { useModelsToolStoreHydration } from "./useModelsToolStoreHydration";
 import { useModelsToolStore } from "@ff/viewer-tools";
 import { useTaskDetailStore } from "./taskDetailStore";
+import { useModelsTaskOpen } from "./useModelsTaskOpen";
 import { ViewerSurfaceHostSlot } from "./viewerSurfaceHost";
 import NavToolbar from "./NavToolbar";
 import NavPanel from "./NavPanel";
@@ -31,6 +32,8 @@ export default function MainAppChrome({
   // Wave 52 — the building id lives in the shared store (the kernel
   // auto-selects it; the module rail can switch it).
   const buildingId = useModelsToolStore((s) => s.activeBuildingId);
+  // Task quick access: restore a task's saved camera + select its elements.
+  useModelsTaskOpen(viewerRef, buildingId);
 
   // Wave 50/52 — the task detail sheet id lives in a module store now
   // (the <TaskDetailHost> renders inside the persistent surface, a

@@ -1,3 +1,8 @@
+import {
+  EMPTY_TASK_BUILDING_INDEX,
+  effectiveTaskBuildingId,
+  type TaskBuildingIndex,
+} from "./taskBuilding";
 import type { OutboxRecord } from "@ff/types";
 
 /**
@@ -65,12 +70,36 @@ export const PIN_FEED_LIMIT = 2000;
  * — the same rule as the task list's building scope. `undefined` keeps
  * every pin (a host without a building context).
  */
-export function pinsForBuilding<T extends { buildingId?: string }>(
+export function pinsForBuilding<
+  T extends {
+    buildingId?: string;
+    elements?: ReadonlyArray<{ modelId?: string | null }>;
+    pdfFileId?: string | null;
+  },
+>(
   pins: readonly T[],
   buildingId: string | null | undefined,
+  index: TaskBuildingIndex = EMPTY_TASK_BUILDING_INDEX,
 ): T[] {
+  // `undefined` = the host does not scope by building (legacy API).
   if (buildingId === undefined) return [...pins];
-  return pins.filter((p) => !p.buildingId || p.buildingId === buildingId);
+  // Strict (2026-11-14): a viewer shows ONLY its building's pins. A pin
+  // without its own buildingId is placed by where it is pinned (model /
+  // PDF → building); one that resolves to no building is not shown.
+  return pins.filter(
+    (p) =>
+      buildingId !== null &&
+      effectiveTaskBuildingId(
+        {
+          buildingId: p.buildingId,
+          location: {
+            bim: { elements: p.elements ?? [] },
+            pdf: { pdfFileId: p.pdfFileId ?? null },
+          },
+        },
+        index,
+      ) === buildingId,
+  );
 }
 
 /** `{ buildingId }` when set, else nothing (keeps legacy pins shape-equal). */

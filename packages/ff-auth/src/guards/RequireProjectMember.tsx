@@ -4,6 +4,7 @@ import { isDemoAuth } from '../demo';
 import { useAuth } from '../hooks/useAuth';
 import { useAuthContext } from '../AuthProvider';
 import { useCurrentProjectState } from '../hooks/useCurrentProject';
+import { BootLoading } from './BootLoading';
 
 /**
  * Gates member-consumption routes (documents, models, linkview).
@@ -29,7 +30,7 @@ export function RequireProjectMember({ children }: { children: ReactNode }) {
   }
 
   if (loading) {
-    return null;
+    return <BootLoading label="Signing you in…" />;
   }
 
   if (!user) {
@@ -42,7 +43,7 @@ export function RequireProjectMember({ children }: { children: ReactNode }) {
 
   // undefined means the Firestore listener hasn't fired yet.
   if (project === undefined || memberships === undefined) {
-    return null;
+    return <BootLoading />;
   }
 
   if (memberships.length === 0) {
@@ -70,7 +71,11 @@ export function ProjectLoadError({ error, onRetry }: { error: Error; onRetry: ()
         color: 'var(--ff-text-primary, #111)',
       }}
     >
-      <h2 style={{ fontSize: 18, marginBottom: 8 }}>Couldn&rsquo;t load your project</h2>
+      <h2 style={{ fontSize: 18, marginBottom: 8 }}>
+        {(error as { code?: string }).code === 'membership-timeout'
+          ? 'Can’t reach the server'
+          : 'Couldn’t load your project'}
+      </h2>
       <p style={{ marginBottom: 12, color: 'var(--ff-text-secondary, #555)' }}>{error.message}</p>
       <button
         type="button"

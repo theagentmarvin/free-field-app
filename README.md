@@ -83,6 +83,7 @@ Want sign-in, roles and a shared task list? See [Self-hosting](#self-hosting-on-
 - A PDF reader with zoom, fit, multi-page navigation, outline and thumbnails, and a folder tree with versions.
 - **Measure in real units:** lengths (with a running total) and areas (with perimeter), using the plan's calibration. An uncalibrated plan says so with an amber `pt` badge, so it never guesses metres.
 - **Tap the plan to raise an issue** right there, with an auto-cropped snapshot.
+- **Compare revisions:** put two versions of a sheet side by side, overlaid, or as a list of changed regions you can step through and export.
 
 ### Tasks: issues pinned to the exact spot
 
@@ -90,7 +91,7 @@ Want sign-in, roles and a shared task list? See [Self-hosting](#self-hosting-on-
 
 - Pin issues to a **3D element** or a **spot on a plan**. Clicking a pin flies the camera back to where the issue was raised.
 - **Table and board** views, with types (Defect, RFI, Snag, Safety, Info), deadlines, assignees, photos, comments and an activity timeline.
-- A status workflow that only allows legal moves (also enforced server-side), bulk actions, CSV export, keyboard shortcuts, and a **printable task report**.
+- A status workflow that only allows legal moves (also enforced server-side), bulk actions, CSV and **BCF 2.1/3.0 export**, keyboard shortcuts, and a **printable task report**.
 - Live sync between teammates when signed in.
 
 ### Settings: set up a building
@@ -114,7 +115,7 @@ FreeField is **local-first**. Buildings, IFC/PDF versions, calibrations and save
 
 ## Self-hosting on your own Firebase
 
-Each organisation runs its **own** Firebase project (Auth, Firestore, Storage, Functions, Hosting). Copy the `.env.example` templates, fill in your project's values, and deploy. The full guide is in [docs/deploy/README.md](docs/deploy/README.md).
+Each organisation runs its **own** Firebase project (Auth, Firestore, Storage, Functions, Hosting). Copy the `.env.example` templates, fill in your project's values, and deploy. Start with the [self-hosting guide](docs/deploy/self-hosting.md); the shorter runbook is [docs/deploy/README.md](docs/deploy/README.md).
 
 ## Tech stack
 
@@ -138,7 +139,7 @@ pnpm --filter settings lint:drift  # engine-boundary check
 pnpm --filter @free-field/settings build
 ```
 
-Tests for `@ff/firestore` need the Firebase emulator (and Java). See [CONTRIBUTING.md](CONTRIBUTING.md).
+`pnpm test` needs no emulator. The rules, functions and sync emulator suites run with `pnpm test:emulator` (JDK 21). See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Contributing
 

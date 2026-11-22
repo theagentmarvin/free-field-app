@@ -33,6 +33,7 @@ export {
   installDatabaseLifecycle,
   requestPersistentStorage,
   type DatabaseLifecycleEvent,
+  type SyncStateRecord,
 } from "./db/database";
 export {
   StorageQuotaExceededError,
@@ -59,6 +60,7 @@ export * from "./db/tables/propertyCatalog";
 export * from "./db/tables/pdfFiles";
 export * from "./db/tables/pdfVersions";
 export * from "./db/tables/pdfBlobs";
+export * from "./db/tables/blobMiss";
 export * from "./db/tables/pdfFolders";
 export * from "./db/tables/pdfFolderAssignments";
 export * from "./db/tables/viewerViewpoints";
@@ -87,3 +89,4 @@ export { LEGACY_DEFAULT_PROJECT_ID } from "@ff/types";
 
 // ── Calibration math ─────────────────────────────────────────────
 export * from "./calibration/similarity";
+export * from "./pdfKind";

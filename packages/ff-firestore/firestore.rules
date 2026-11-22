@@ -14,7 +14,10 @@ service cloud.firestore {
     // below (isProfileReadable), dropped in Phase 1e.
     //
     //   admin  → write (create/update/delete) the project content collections
-    //             (projects, buildings, folders). Membership, invitation and
+    //             (projects, and the synced content collections of Phase 1c: buildings,
+    //             ifcFiles, ifcVersions, storeys, extractedStoreys, pdfFiles,
+    //             pdfVersions, calibrations, folders, folderAssignments,
+    //             viewpoints; hard delete denied, tombstone via update). Membership, invitation and
     //             audit-log mutations are functions-only (see below) — an
     //             admin's client write surface does NOT cover them.
     //   member → read-only consumption; no writes anywhere.
@@ -134,14 +137,309 @@ service cloud.firestore {
       allow read: if isMember(pid);
       allow write: if isAdmin(pid);
 
-      match /buildings/{buildingId} {
-        allow read: if isMember(pid);
-        allow write: if isAdmin(pid);
+      // ── Synced content collections (Phase 1c, SPEC-PHASE-1 §4/§8) ──
+      // One match per Dexie table, flat under the project. Read = any
+      // active member (tombstones included, so offline peers learn about
+      // deletes). Write = admin only, and every write must:
+      //   - carry EXACTLY the zod schema's keys (packages/ff-firestore/
+      //     src/schema/{building,folder,sync}.ts): hasOnly + hasAll;
+      //   - stamp updatedAt == request.time (serverTimestamp()),
+      //     updatedBy == the caller, schema == 1;
+      //   - set deletedAt to null (live) or request.time (tombstone);
+      //   - carry `id` == the doc id (and projectId == pid where present).
+      // Deletes are TOMBSTONES via update. Hard delete is denied for
+      // everyone (members never write; admins neither): a hard delete is
+      // invisible to a peer that was offline, so it would resurrect the row
+      // from that peer's cache. The 30-day tombstone GC (Phase 1e) runs with
+      // the Admin SDK, which bypasses rules.
+      // Version docs are append-only: identity, blob location and checksum
+      // are immutable once set; only isLatest, the tombstone, and (ifcVersions)
+      // filling in a still-null blob reference may change.
+      function syncKeys() {
+        return ['updatedAt', 'updatedBy', 'deletedAt', 'schema'];
+      }
+      function hasExactly(keys) {
+        return request.resource.data.keys().hasOnly(keys)
+          && request.resource.data.keys().hasAll(keys);
+      }
+      function syncStamp(docId) {
+        let d = request.resource.data;
+        return d.updatedAt == request.time
+          && d.updatedBy == request.auth.uid
+          && d.schema == 1
+          && (d.deletedAt == null || d.deletedAt == request.time)
+          && d.id == docId;
+      }
+      function keepsFields(fields) {
+        return request.resource.data.diff(resource.data).affectedKeys().hasAny(fields) == false;
+      }
+      // Immutable-once-set blob reference (null -> value is allowed once).
+      function blobFieldKept(field) {
+        return resource.data[field] == null
+          || request.resource.data[field] == resource.data[field];
+      }
+      function blobGroupConsistent(a, b, c, d) {
+        let r = request.resource.data;
+        return (r[a] == null) == (r[b] == null)
+          && (r[a] == null) == (r[c] == null)
+          && (r[a] == null) == (r[d] == null);
       }
 
-      match /folders/{folderId} {
+      match /buildings/{docId} {
+        function keys() {
+          return ['id', 'projectId', 'name', 'metadata', 'createdAt'].concat(syncKeys());
+        }
+        function valid() {
+          let d = request.resource.data;
+          return hasExactly(keys()) && syncStamp(docId)
+            && d.projectId == pid
+            && d.name is string && d.name.size() > 0 && d.name.size() <= 200
+            && d.metadata is map && d.createdAt is number;
+        }
         allow read: if isMember(pid);
-        allow write: if isAdmin(pid);
+        allow create: if isAdmin(pid) && valid() && request.resource.data.deletedAt == null;
+        allow update: if isAdmin(pid) && valid()
+          && keepsFields(['id', 'projectId', 'createdAt']);
+        allow delete: if false;
+      }
+
+      match /ifcFiles/{docId} {
+        function keys() {
+          return ['id', 'buildingId', 'name', 'currentVersionId', 'createdAt'].concat(syncKeys());
+        }
+        function valid() {
+          let d = request.resource.data;
+          return hasExactly(keys()) && syncStamp(docId)
+            && d.buildingId is string && d.buildingId.size() > 0
+            && d.name is string && d.name.size() > 0
+            && d.currentVersionId is string && d.createdAt is number;
+        }
+        allow read: if isMember(pid);
+        allow create: if isAdmin(pid) && valid() && request.resource.data.deletedAt == null;
+        allow update: if isAdmin(pid) && valid()
+          && keepsFields(['id', 'buildingId', 'name', 'createdAt']);
+        allow delete: if false;
+      }
+
+      match /ifcVersions/{docId} {
+        function keys() {
+          return ['id', 'ifcFileId', 'versionNumber', 'ifcFileSize', 'contentHash',
+            'fragBlobKey', 'storeyCount', 'createdAt', 'isLatest',
+            'storagePath', 'sha256', 'sizeBytes', 'contentType',
+            'fragStoragePath', 'fragSha256', 'fragSizeBytes'].concat(syncKeys());
+        }
+        function ifcPath() {
+          return 'projects/' + pid + '/ifc/' + docId + '.ifc';
+        }
+        function fragPath() {
+          return 'projects/' + pid + '/frag/' + docId + '.frag';
+        }
+        function valid() {
+          let d = request.resource.data;
+          return hasExactly(keys()) && syncStamp(docId)
+            && d.ifcFileId is string && d.ifcFileId.size() > 0
+            && d.versionNumber is int && d.versionNumber > 0
+            && d.ifcFileSize is number && d.contentHash is string
+            && d.fragBlobKey is string && d.storeyCount is number
+            && d.createdAt is number && d.isLatest is bool
+            // IFC blob reference: all four fields null together, or all set.
+            && blobGroupConsistent('storagePath', 'sha256', 'sizeBytes', 'contentType')
+            && (d.storagePath == null
+              || (d.storagePath == ifcPath()
+                && d.sha256 is string && d.sha256.matches('[0-9a-f]{64}')
+                && d.sizeBytes is int && d.sizeBytes >= 0 && d.sizeBytes <= 1073741824
+                && d.contentType == 'application/octet-stream'))
+            // .frag reference: path + sha256 + size, all null together, or all set.
+            && (d.fragStoragePath == null) == (d.fragSha256 == null)
+            && (d.fragStoragePath == null) == (d.fragSizeBytes == null)
+            && (d.fragStoragePath == null
+              || (d.fragStoragePath == fragPath()
+                && d.fragSha256 is string && d.fragSha256.matches('[0-9a-f]{64}')
+                && d.fragSizeBytes is int && d.fragSizeBytes >= 0
+                && d.fragSizeBytes <= 524288000));
+        }
+        allow read: if isMember(pid);
+        allow create: if isAdmin(pid) && valid() && request.resource.data.deletedAt == null;
+        allow update: if isAdmin(pid) && valid()
+          && keepsFields(['id', 'ifcFileId', 'versionNumber', 'ifcFileSize',
+            'contentHash', 'fragBlobKey', 'createdAt'])
+          && blobFieldKept('storagePath') && blobFieldKept('sha256')
+          && blobFieldKept('sizeBytes') && blobFieldKept('contentType')
+          && blobFieldKept('fragStoragePath') && blobFieldKept('fragSha256')
+          && blobFieldKept('fragSizeBytes');
+        allow delete: if false;
+      }
+
+      match /storeys/{docId} {
+        function keys() {
+          return ['id', 'buildingId', 'ifcVersionId', 'sourceIfcFileId', 'name',
+            'elevation', 'expressId', 'height', 'containedElementIds'].concat(syncKeys());
+        }
+        function valid() {
+          let d = request.resource.data;
+          return hasExactly(keys()) && syncStamp(docId)
+            && d.buildingId is string && d.buildingId.size() > 0
+            && d.ifcVersionId is string && d.ifcVersionId.size() > 0
+            && d.sourceIfcFileId is string && d.sourceIfcFileId.size() > 0
+            && d.name is string && d.elevation is number && d.expressId is int
+            && (d.height == null || d.height is number)
+            && d.containedElementIds is list && d.containedElementIds.size() <= 100000;
+        }
+        allow read: if isMember(pid);
+        allow create: if isAdmin(pid) && valid() && request.resource.data.deletedAt == null;
+        allow update: if isAdmin(pid) && valid()
+          && keepsFields(['id', 'buildingId', 'ifcVersionId', 'sourceIfcFileId']);
+        allow delete: if false;
+      }
+
+      match /extractedStoreys/{docId} {
+        function keys() {
+          return ['id', 'buildingId', 'storeyId'].concat(syncKeys());
+        }
+        function valid() {
+          let d = request.resource.data;
+          return hasExactly(keys()) && syncStamp(docId)
+            && d.buildingId is string && d.buildingId.size() > 0
+            && d.storeyId is string && d.storeyId.size() > 0;
+        }
+        allow read: if isMember(pid);
+        allow create: if isAdmin(pid) && valid() && request.resource.data.deletedAt == null;
+        allow update: if isAdmin(pid) && valid()
+          && keepsFields(['id', 'buildingId', 'storeyId']);
+        allow delete: if false;
+      }
+
+      match /pdfFiles/{docId} {
+        function keys() {
+          return ['id', 'buildingId', 'name', 'createdAt'].concat(syncKeys());
+        }
+        function valid() {
+          let d = request.resource.data;
+          return hasExactly(keys()) && syncStamp(docId)
+            && d.buildingId is string && d.buildingId.size() > 0
+            && d.name is string && d.name.size() > 0 && d.createdAt is number;
+        }
+        allow read: if isMember(pid);
+        allow create: if isAdmin(pid) && valid() && request.resource.data.deletedAt == null;
+        allow update: if isAdmin(pid) && valid()
+          && keepsFields(['id', 'buildingId', 'name', 'createdAt']);
+        allow delete: if false;
+      }
+
+      match /pdfVersions/{docId} {
+        function keys() {
+          return ['id', 'pdfFileId', 'versionNumber', 'name', 'size', 'contentHash',
+            'pageCount', 'width', 'height', 'storedAt', 'blobKey', 'isLatest',
+            'storagePath', 'sha256', 'sizeBytes', 'contentType'].concat(syncKeys());
+        }
+        function valid() {
+          let d = request.resource.data;
+          return hasExactly(keys()) && syncStamp(docId)
+            && d.pdfFileId is string && d.pdfFileId.size() > 0
+            && d.versionNumber is int && d.versionNumber > 0
+            && d.name is string && d.size is number && d.contentHash is string
+            && d.pageCount is int && d.pageCount > 0
+            && d.width is number && d.height is number && d.storedAt is number
+            && d.blobKey is string && d.isLatest is bool
+            && d.storagePath == 'projects/' + pid + '/pdf/' + docId + '.pdf'
+            && d.sha256 is string && d.sha256.matches('[0-9a-f]{64}')
+            && d.sizeBytes is int && d.sizeBytes >= 0 && d.sizeBytes <= 209715200
+            && d.contentType == 'application/pdf';
+        }
+        allow read: if isMember(pid);
+        allow create: if isAdmin(pid) && valid() && request.resource.data.deletedAt == null;
+        // Append-only: only isLatest and the tombstone move.
+        allow update: if isAdmin(pid) && valid()
+          && keepsFields(['id', 'pdfFileId', 'versionNumber', 'name', 'size',
+            'contentHash', 'pageCount', 'width', 'height', 'storedAt', 'blobKey',
+            'storagePath', 'sha256', 'sizeBytes', 'contentType']);
+        allow delete: if false;
+      }
+
+      // Deterministic doc id: `{pdfFileId}__{encodeURIComponent(storeyName)}`
+      // (calibrationDocId in @ff/firestore), so two devices calibrating the
+      // same pair converge on one doc.
+      match /calibrations/{docId} {
+        function keys() {
+          return ['id', 'projectId', 'pdfFileId', 'storeyName', 'pointPairs',
+            'transformParams', 'confidence', 'createdAt'].concat(syncKeys());
+        }
+        function valid() {
+          let d = request.resource.data;
+          return hasExactly(keys()) && syncStamp(docId)
+            && d.projectId == pid
+            && d.pdfFileId is string && d.pdfFileId.matches('[A-Za-z0-9_-]+')
+            && d.storeyName is string && d.storeyName.size() > 0
+            && docId.matches(d.pdfFileId + '__.+')
+            && d.pointPairs is list && d.pointPairs.size() == 2
+            && d.transformParams is map
+            && d.transformParams.keys().hasOnly(['scale', 'rotation', 'translateX', 'translateZ'])
+            && d.transformParams.keys().hasAll(['scale', 'rotation', 'translateX', 'translateZ'])
+            && d.confidence is number && d.createdAt is number;
+        }
+        allow read: if isMember(pid);
+        allow create: if isAdmin(pid) && valid() && request.resource.data.deletedAt == null;
+        allow update: if isAdmin(pid) && valid()
+          && keepsFields(['id', 'projectId', 'pdfFileId', 'storeyName', 'createdAt']);
+        allow delete: if false;
+      }
+
+      match /folders/{docId} {
+        function keys() {
+          return ['id', 'projectId', 'parentId', 'name', 'color', 'createdAt'].concat(syncKeys());
+        }
+        function valid() {
+          let d = request.resource.data;
+          return hasExactly(keys()) && syncStamp(docId)
+            && d.projectId == pid
+            && (d.parentId == null || (d.parentId is string && d.parentId != docId))
+            && d.name is string && d.name.size() > 0 && d.name.size() <= 200
+            && d.color is string && d.createdAt is number;
+        }
+        allow read: if isMember(pid);
+        allow create: if isAdmin(pid) && valid() && request.resource.data.deletedAt == null;
+        allow update: if isAdmin(pid) && valid()
+          && keepsFields(['id', 'projectId', 'createdAt']);
+        allow delete: if false;
+      }
+
+      // Doc id == pdfFileId (one folder per PDF).
+      match /folderAssignments/{docId} {
+        function keys() {
+          return ['id', 'pdfFileId', 'folderId', 'createdAt'].concat(syncKeys());
+        }
+        function valid() {
+          let d = request.resource.data;
+          return hasExactly(keys()) && syncStamp(docId)
+            && d.pdfFileId == docId
+            && d.folderId is string && d.folderId.size() > 0
+            && d.createdAt is number;
+        }
+        allow read: if isMember(pid);
+        allow create: if isAdmin(pid) && valid() && request.resource.data.deletedAt == null;
+        allow update: if isAdmin(pid) && valid()
+          && keepsFields(['id', 'pdfFileId', 'createdAt']);
+        allow delete: if false;
+      }
+
+      // Shared per project (SPEC-PHASE-1 Q4). `blob` is the JSON snapshot.
+      match /viewpoints/{docId} {
+        function keys() {
+          return ['id', 'projectId', 'name', 'createdAt', 'blob'].concat(syncKeys());
+        }
+        function valid() {
+          let d = request.resource.data;
+          return hasExactly(keys()) && syncStamp(docId)
+            && d.projectId == pid
+            && d.name is string && d.name.size() > 0 && d.name.size() <= 200
+            && d.createdAt is number
+            && d.blob is string && d.blob.size() <= 256000;
+        }
+        allow read: if isMember(pid);
+        allow create: if isAdmin(pid) && valid() && request.resource.data.deletedAt == null;
+        allow update: if isAdmin(pid) && valid()
+          && keepsFields(['id', 'projectId', 'createdAt']);
+        allow delete: if false;
       }
 
       // Members: read = any project member (roster); write = functions-only.
@@ -215,7 +513,34 @@ service cloud.firestore {
           'id', 'num', 'title', 'description', 'type', 'status',
           'createdBy', 'createdByUid', 'createdAt', 'updatedBy', 'updatedAt',
           'assigneeUid', 'assigneeName', 'deadline', 'buildingId',
-          'location', 'photos', 'lastAction', 'entryCount']);
+          'location', 'photos', 'lastAction', 'entryCount',
+          // Additive, optional fields (absent reads as the default):
+          // priority / checklist / watchers (w69) and sheetRefs (sheets
+          // attached from the project, by reference only).
+          'priority', 'checklist', 'watchers', 'sheetRefs']);
+      }
+      // Cheap shape checks for the additive fields. Rules cannot iterate
+      // lists; element shapes are validated client-side (taskFields.ts).
+      function validTaskExtras() {
+        let d = request.resource.data;
+        return (!('priority' in d) || d.priority in ['low', 'normal', 'high', 'critical'])
+          && (!('checklist' in d) || (d.checklist is list && d.checklist.size() <= 50))
+          && (!('watchers' in d) || (d.watchers is list && d.watchers.size() <= 100))
+          && (!('sheetRefs' in d) || (d.sheetRefs is list && d.sheetRefs.size() <= 20));
+      }
+      // w72: location.pdf may carry an OPTIONAL pdfVersionId (the plan
+      // revision the pin was placed on). Absent stays valid (pre-w72
+      // pins); when present it must be a non-empty string. All other
+      // location shapes are unchanged (not shape-checked here).
+      function validTaskLocation() {
+        let loc = request.resource.data.location;
+        return loc == null
+          || !(loc is map)
+          || !('pdf' in loc)
+          || loc.pdf == null
+          || !(loc.pdf is map)
+          || !('pdfVersionId' in loc.pdf)
+          || (loc.pdf.pdfVersionId is string && loc.pdf.pdfVersionId.size() > 0);
       }
       // The counter must go from num-1 (or absent, for num == 1) to num
       // in this same write — so two tasks can never share a number and a
@@ -231,6 +556,8 @@ service cloud.firestore {
         allow read: if isMember(pid);
         allow create: if isMember(pid)
           && hasOnlyTaskKeys()
+          && validTaskLocation()
+          && validTaskExtras()
           && request.resource.data.id == taskId
           && request.resource.data.createdByUid == request.auth.uid
           && request.resource.data.num is int
@@ -243,6 +570,8 @@ service cloud.firestore {
           && counterBumpedTo(pid, request.resource.data.num);
         allow update: if isMember(pid)
           && hasOnlyTaskKeys()
+          && validTaskLocation()
+          && validTaskExtras()
           && request.resource.data.id == resource.data.id
           && request.resource.data.num == resource.data.num
           && request.resource.data.createdBy == resource.data.createdBy

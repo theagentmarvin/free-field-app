@@ -51,6 +51,7 @@ import { useViewerToolsDataSource } from "../dataSource";
 
 import { usePropertyCatalog } from "../hooks/usePropertyCatalog";
 import { useModelsToolStore, type SelectedElement } from "../modelsToolStore";
+import { useViewerHandle } from "../hooks/useViewerHandle";
 
 /**
  * Re-export of the store's SelectedElement so existing imports
@@ -160,62 +161,36 @@ export default function PropertiesDrawer({
     [elementData, dataFresh],
   );
 
-  // Subscribe to picks on mount; unsubscribe on unmount. The
-  // pick callback writes to the store (the source of truth) and
-  // the viewer Highlighter follows via the sync hook. There is
-  // no local copy of `selected` in this component — every render
-  // reads from the store.
+  // Subscribe to picks for the LIVE viewer handle. The handle is event-driven
+  // state (see useViewerHandle): the effect re-runs exactly when the handle
+  // appears or is replaced (an error-boundary retry, a viewer rebuild) and
+  // never otherwise. The pick callback writes to the store (the source of
+  // truth) and the viewer Highlighter follows via the sync hook; the pick
+  // callback may receive `null` (empty-space click) which clears the store.
+  const viewerHandle = useViewerHandle(viewerRef);
   useEffect(() => {
-    // Polling subscription: the IfcViewer handle may not be
-    // available yet when this effect first runs (StrictMode
-    // mount/unmount/remount, or normal render-order races
-    // where PropertiesDrawer mounts before IfcViewer's
-    // useImperativeHandle fires). We poll via
-    // requestAnimationFrame until the handle appears, then
-    // install the pick subscription. Cleared on unmount.
-    //
-    // Task 21 update: the pick callback may receive `null`
-    // (when the Highlighter clears on empty-space click). We
-    // forward that to the store's clearSelection action so
-    // the drawer state stays in sync with the visual highlight.
-    let cancelled = false;
-    let installedHandle: IfcViewerHandle | null = null;
-    let rafHandle: number | null = null;
-    function trySubscribe(): void {
-      if (cancelled) return;
-      const handle = viewerRef.current;
-      if (!handle) {
-        rafHandle = requestAnimationFrame(trySubscribe);
-        return;
+    if (!viewerHandle) return;
+    const store = useModelsToolStore.getState();
+    viewerHandle.setOnElementPick((e) => {
+      // Empty-space click -> clear selection. The drawer now shows "No element
+      // selected" instead of disappearing, so there is no visual flinch.
+      if (e === null) {
+        store.clearSelection();
+        // Wave 35: an empty-canvas click ALSO closes the floating nav panel
+        // (the panel and the selection share one slot).
+        store.setActiveNavPanel(null);
+      } else {
+        store.selectElement({ modelId: e.modelId, expressId: e.expressId });
       }
-      installedHandle = handle;
-      const store = useModelsToolStore.getState();
-      handle.setOnElementPick((e) => {
-        // Empty-space click → clear selection. The drawer now
-        // shows "No element selected" instead of disappearing,
-        // so there's no visual flinch between picks.
-        if (e === null) {
-          store.clearSelection();
-          // Wave 35: an empty-canvas click ALSO closes the floating
-          // nav panel (the panel and the selection share one slot).
-          store.setActiveNavPanel(null);
-        } else {
-          store.selectElement({
-            modelId: e.modelId,
-            expressId: e.expressId,
-          });
-        }
-      });
-    }
-    trySubscribe();
+    });
     return () => {
-      cancelled = true;
-      if (rafHandle !== null) cancelAnimationFrame(rafHandle);
-      if (installedHandle) {
-        installedHandle.setOnElementPick(null);
+      try {
+        viewerHandle.setOnElementPick(null);
+      } catch {
+        /* the viewer is already disposed */
       }
     };
-  }, [viewerRef]);
+  }, [viewerHandle]);
 
   // × button: clears the store. `useViewerSelectionSync`
   // observes the store change and calls `viewer.clearSelection()`,

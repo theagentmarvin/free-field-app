@@ -1,16 +1,20 @@
 import { z } from 'zod';
+import { SyncBaseSchema } from './syncBase';
 
 /**
- * /projects/{projectId}/buildings/{buildingId}
+ * /projects/{projectId}/buildings/{buildingId}  (BuildingRecord + sync base)
  *
- * v4 two-role model (plan v4 §2): no per-building readRoles ACL. Any
- * signed-in member of the project can read; writes are admin-only
- * (enforced in firestore.rules, not in this schema).
+ * Any active member reads; admins write (firestore.rules). Delete is a
+ * tombstone (`deletedAt`), never a hard delete.
  */
-export const BuildingSchema = z.object({
-  name: z.string().min(1),
-  createdBy: z.string(),
-  createdAt: z.number().int(),
-});
+export const BuildingSchema = z
+  .object({
+    id: z.string().min(1),
+    projectId: z.string().min(1),
+    name: z.string().min(1),
+    metadata: z.record(z.unknown()),
+    createdAt: z.number().int(),
+  })
+  .merge(SyncBaseSchema);
 
 export type Building = z.infer<typeof BuildingSchema>;

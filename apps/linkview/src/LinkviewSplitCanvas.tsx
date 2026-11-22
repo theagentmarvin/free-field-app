@@ -98,6 +98,9 @@ export interface LinkviewSplitCanvasProps {
    *  the parent can reach getAnnotationLayer()/getTotalScale()/
    *  onReady() for the navigation marker. Null while no PDF is open. */
   pdfOverlayRef: RefObject<PdfOverlayHandle>;
+  /** LinkView dual location — extra content layered on the open PDF
+   *  (the 2D task pins). Rendered inside the PDF overlay's own wrapper. */
+  planOverlay?: ReactNode;
   /** Wave 58 — click-to-place: fired with PDF page coords when the
    *  user clicks (not drags) on the PDF while nav is active. The
    *  parent moves the nav marker there and re-centers the camera.
@@ -125,6 +128,7 @@ function LinkviewSplitCanvas({
   surfaceLoaded,
   chrome,
   pdfOverlayRef,
+  planOverlay = null,
   onPdfClick,
   measureCalibration = null,
 }: LinkviewSplitCanvasProps): ReactNode {
@@ -239,6 +243,7 @@ function LinkviewSplitCanvas({
           captureClicks={onPdfClick !== undefined}
           onPdfClick={onPdfClick}
         />
+        {planOverlay}
         <PdfMeasureLayer
           key={`measure-${activePdfVersionId}`}
           overlayRef={pdfOverlayRef}

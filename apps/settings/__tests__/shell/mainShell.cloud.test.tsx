@@ -84,6 +84,7 @@ vi.mock("@ff/auth", () => {
     }),
     useCurrentProjectState: () => ({ project: h.project, error: h.projectError, retry: () => undefined }),
     ProjectLoadError: ({ error }: { error: Error }) => <div data-testid="project-load-error">{error.message}</div>,
+    BootLoading: ({ label }: { label?: string }) => <div data-testid="boot-loading">{label}</div>,
     isDemoAuth: () => h.demo,
     AuthProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
     useAuth,
@@ -120,6 +121,10 @@ vi.mock("@ff/tasks-react", async () => {
     tokens,
     runDemoTasksSeedIfEmpty: async () => undefined,
     useTaskPhotoResolver: () => undefined,
+    ProjectSyncMount: () => null,
+    // TaskOpenBridge (shell) reads the open-intent store and renders the notice.
+    useTaskOpenState: () => ({ intent: null, notice: null, highlightTaskId: null }),
+    TaskOpenNotice: () => null,
     TasksApp: () => <div data-testid="tasks-app" />,
   };
 });
@@ -254,12 +259,13 @@ describe("<MainShell> cloud mode", () => {
     expect(h.rekeyCalls).toContainEqual(["u1", "p2"]);
   });
 
-  it("renders nothing while memberships load, and Retry on a project listener error", () => {
+  it("shows the boot loading state while memberships load, and Retry on a project listener error", () => {
     h.user = member;
     h.membershipsSet = true;
     h.memberships = undefined;
     at("/documents");
     const { rerender } = render(<MainShell />);
+    expect(screen.getByTestId("boot-loading")).toBeInTheDocument();
     expect(screen.queryByTestId("project-entry-screen")).toBeNull();
     expect(screen.queryByTestId("documents-app")).toBeNull();
 

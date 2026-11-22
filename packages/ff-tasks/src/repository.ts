@@ -20,7 +20,7 @@ import type { OutboxRecord } from '@ff/types';
 
 import type { OutboxExecutor } from './outbox';
 import type { TaskActionPayload } from './action';
-import { locationThumbPath } from './photos';
+import { locationThumb2dPath, locationThumbPath } from './photos';
 
 /**
  * Cloud-first commit path (plan §3, §4; task-39 deliverables 4).
@@ -202,10 +202,21 @@ export function createTaskExecutor(
       const thumb = payload.locationThumb;
       if (thumb) {
         const path = locationThumbPath(payload.projectId, payload.taskId);
-        if (await storage.exists(path)) return;
-        const blob = await blobs.get(thumb.blobKey);
-        if (!blob) throw new Error(`blob-lost:${thumb.blobKey}`);
-        await storage.upload(path, blob);
+        if (!(await storage.exists(path))) {
+          const blob = await blobs.get(thumb.blobKey);
+          if (!blob) throw new Error(`blob-lost:${thumb.blobKey}`);
+          await storage.upload(path, blob);
+        }
+      }
+      // LinkView dual location: the plan snapshot, its own fixed path.
+      const thumb2d = payload.locationThumb2d;
+      if (thumb2d) {
+        const path = locationThumb2dPath(payload.projectId, payload.taskId);
+        if (!(await storage.exists(path))) {
+          const blob = await blobs.get(thumb2d.blobKey);
+          if (!blob) throw new Error(`blob-lost:${thumb2d.blobKey}`);
+          await storage.upload(path, blob);
+        }
       }
     },
     async commit(row: OutboxRecord) {

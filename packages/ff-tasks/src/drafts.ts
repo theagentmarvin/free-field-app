@@ -17,9 +17,26 @@ export const TaskDraftFieldsSchema = z.object({
   /** Tasks UI-refresh v1: chosen building (null/absent = cross-building).
    *  Optional so pre-refresh drafts parse unchanged. */
   buildingId: z.string().nullable().optional(),
+  /** project sheets attached by reference; optional so older drafts parse unchanged */
+  sheetRefs: z
+    .array(
+      z.object({
+        pdfFileId: z.string().min(1),
+        pdfVersionId: z.string().min(1),
+        versionNumber: z.number().int().positive().optional(),
+        name: z.string(),
+        page: z.number().int().positive().optional(),
+      })
+    )
+    .optional(),
   location: z
     .object({
       storeyName: z.string().nullable().default(null),
+      /** snapshot storage paths + LinkView origin ride the draft so a
+       *  restored LinkView draft still sends both sides (all optional) */
+      thumb: z.object({ storagePath: z.string().min(1) }).optional(),
+      thumb2d: z.object({ storagePath: z.string().min(1) }).optional(),
+      origin: z.string().min(1).optional(),
       bim: z
         .object({
           elements: z.array(
@@ -47,6 +64,7 @@ export const TaskDraftFieldsSchema = z.object({
           page: z.number().int().positive(),
           uv: z.tuple([z.number(), z.number()]),
           calibId: z.string(),
+          pdfVersionId: z.string().min(1).optional(),
         })
         .nullable()
         .default(null),
@@ -63,6 +81,15 @@ export const TaskDraftFieldsSchema = z.object({
     })
     .nullable()
     .default(null),
+  /** LinkView dual location: the plan snapshot blob ref (optional; absent on older drafts). */
+  locationThumb2d: z
+    .object({
+      blobKey: z.string(),
+      size: z.number().int(),
+      mime: z.string(),
+    })
+    .nullable()
+    .optional(),
   /** composed photo metadata (sha256/path decided at attach time) */
   photoPaths: z
     .array(

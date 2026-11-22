@@ -39,6 +39,22 @@ import type { ViewerViewpointRecord } from "@ff/types";
 
 export const DATABASE_NAME = "free-field";
 
+/**
+ * Phase 1c sync bookkeeping row (Dexie v11 `syncState`). One row per
+ * `cursor:{projectId}:{collection}` (newest server `updatedAt` applied, epoch
+ * ms) and one per `publish:{projectId}` (first-upload decision).
+ */
+export interface SyncStateRecord {
+  key: string;
+  projectId: string;
+  /** `cursor:*` rows: newest applied server updatedAt (epoch ms). */
+  cursorMs?: number;
+  /** `publish:*` rows. */
+  publishState?: "pending" | "published" | "declined";
+  /** `publish:*` rows: epoch ms when sync first armed for this project. */
+  armedAt?: number;
+}
+
 export class ProjectDatabase extends Dexie {
   projects!: Table<ProjectRecord, string>;
   buildings!: Table<BuildingRecord, string>;
@@ -110,9 +126,14 @@ export class ProjectDatabase extends Dexie {
   // list + cascade delete; `[projectId+createdAt]` powers the capped
   // list shape (oldest-first eviction at 12/project).
   viewerViewpoints!: Table<ViewerViewpointRecord, string>;
+  // v11 — Phase 1c sync bookkeeping (down-sync cursors, first-upload
+  // decision). Local only; never synced.
+  syncState!: Table<SyncStateRecord, string>;
 
-  constructor() {
-    super(DATABASE_NAME);
+  /** `name` is overridable so tests (and the sync integration suite) can
+   *  open several independent "devices" in one process. */
+  constructor(name: string = DATABASE_NAME) {
+    super(name);
     this.version(1).stores({
       projects: "&id, name, createdAt",
       buildings: "&id, projectId, name, &[projectId+name]",
@@ -211,6 +232,11 @@ export class ProjectDatabase extends Dexie {
     // (not unique) — eviction deletes by `id`, not by the compound.
     this.version(10).stores({
       viewerViewpoints: "&id, projectId, createdAt, [projectId+createdAt]",
+    });
+    // v11 — Phase 1c sync bookkeeping. One new table, no changes to
+    // v1..v10.
+    this.version(11).stores({
+      syncState: "&key, projectId",
     });
   }
 }

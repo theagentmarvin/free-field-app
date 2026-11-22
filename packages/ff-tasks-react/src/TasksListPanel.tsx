@@ -1,3 +1,5 @@
+import { isLinkviewLocation, normalizeLocationThumb2dPath } from "@ff/tasks";
+import type { OpenableTask } from "./taskTarget";
 import type { CSSProperties } from "react";
 
 import {
@@ -10,7 +12,7 @@ import {
 import { avatarAccent, avatarMiniStyle, softStatusStyle, statusAccent, tokens } from "./formStyles";
 import { fmtDdMmm, type TaskTableRow } from "./tableColumns";
 import { usePhotoUrl, type PhotoUrlResolver } from "./usePhotoUrl";
-import { LocationThumb } from "./LocationThumb";
+import { OpenableLocationThumb } from "./LocationThumb";
 
 /**
  * Presentational task list (plan §7 screen 1's row anatomy: status dot +
@@ -153,10 +155,13 @@ export function TasksListPanel({
             resolve={resolvePhotoUrl}
             label={`Photo for ${formatTaskNum(t.num)}`}
           />
-          <LocationThumb
+          <OpenableLocationThumb
+            task={t as unknown as OpenableTask}
             path={t.locationThumbPath}
+            path2d={normalizeLocationThumb2dPath(t.location)}
             resolve={resolvePhotoUrl}
             label={`Location snapshot for ${formatTaskNum(t.num)}`}
+            style={isLinkviewLocation(t.location) ? { width: 30, height: 24 } : undefined}
           />
           <span style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {t.title}

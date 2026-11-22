@@ -100,8 +100,16 @@ function setup(opts: { items?: boolean } = {}) {
   const fragments = { core: { models: { list: new Map([["m", model]]) } } };
   vi.spyOn(console, "log").mockImplementation(() => undefined);
   vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  // Like the engine's World: the `camera` getter THROWS once disposed.
+  const dead = { value: false };
+  const world = {
+    get camera() {
+      if (dead.value) throw new Error("No camera initialized!");
+      return camera;
+    },
+  };
   const ctrl = createLevelPlanController(
-    { camera } as never,
+    world as never,
     fragments as never,
     components as never,
   );
@@ -110,7 +118,7 @@ function setup(opts: { items?: boolean } = {}) {
     { name: "L2", elevation: 3, height: 3 },
   ];
   (ctrl as unknown as { _setStoreys: (s: StoreyMeta[]) => void })._setStoreys(storeys);
-  return { ctrl, lookAts, camera, projection };
+  return { ctrl, lookAts, camera, projection, dead };
 }
 
 describe("LevelPlanController camera pose (wave 63)", () => {
@@ -153,5 +161,45 @@ describe("LevelPlanController camera pose (wave 63)", () => {
     const { ctrl, lookAts } = setup();
     ctrl.close();
     expect(lookAts.at(-1)).toEqual([10, 10, 10, 0, 0, 0]);
+  });
+
+  it("wave 73: dispose() leaves the camera alone and nothing runs after the world is gone", async () => {
+    const unhandled: unknown[] = [];
+    const onUnhandled = (e: unknown) => unhandled.push(e);
+    process.on("unhandledRejection", onUnhandled);
+    const { ctrl, lookAts, camera, projection, dead } = setup();
+    expect(await ctrl.open("L1")).toBe(true);
+    const callsBefore = lookAts.length;
+    const setCallsBefore = projection.set.mock.calls.length;
+    // The viewer's unmount: dispose the controller, then the engine drops the camera.
+    ctrl.dispose();
+    dead.value = true;
+    await Promise.resolve();
+    await Promise.resolve();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(lookAts.length).toBe(callsBefore); // no pose restore on teardown
+    expect(projection.set.mock.calls.length).toBe(setCallsBefore);
+    expect(camera.set).not.toHaveBeenCalledWith("Orbit");
+    expect(unhandled).toEqual([]);
+    expect(() => ctrl.dispose()).not.toThrow(); // idempotent
+    process.off("unhandledRejection", onUnhandled);
+  });
+
+  it("wave 73: a deferred pose re-apply that outlives the world is swallowed, not thrown", async () => {
+    const unhandled: unknown[] = [];
+    const onUnhandled = (e: unknown) => unhandled.push(e);
+    process.on("unhandledRejection", onUnhandled);
+    const { ctrl, projection, dead } = setup();
+    await ctrl.open("L1");
+    let release: () => void = () => undefined;
+    projection.set.mockImplementationOnce(
+      () => new Promise<void>((r) => (release = r)),
+    );
+    ctrl.close(); // schedules apply() behind the projection switch
+    dead.value = true; // the world is disposed before the switch resolves
+    release();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(unhandled).toEqual([]);
+    process.off("unhandledRejection", onUnhandled);
   });
 });

@@ -34,11 +34,14 @@ export interface DocumentsPanelBodyProps {
   activePdfVersionId: string | null;
   /** Fired when the user clicks a PDF row. */
   onActivate: (versionId: string) => void;
+  /** Compare previous vs latest of a multi-version file (row action). */
+  onCompare?: (fileId: string) => void;
 }
 
 export default function DocumentsPanelBody({
   activePdfVersionId,
   onActivate,
+  onCompare,
 }: DocumentsPanelBodyProps): ReactNode {
   const activeBuildingId = useModelsToolStore((s) => s.activeBuildingId);
   const groups = useDocumentsGroups(activeBuildingId);
@@ -57,6 +60,7 @@ export default function DocumentsPanelBody({
             node={node}
             activePdfVersionId={activePdfVersionId}
             onActivate={onActivate}
+            onCompare={onCompare}
             isRoot
           />
         ))
@@ -75,6 +79,7 @@ interface FolderSectionProps {
   node: FolderTreeNode;
   activePdfVersionId: string | null;
   onActivate: (versionId: string) => void;
+  onCompare?: (fileId: string) => void;
   /** True for the outermost section (renders the folder chevron
    *  + count). Nested sub-folders render the same shape but
    *  with `depth`-based indentation. */
@@ -85,6 +90,7 @@ function FolderSection({
   node,
   activePdfVersionId,
   onActivate,
+  onCompare,
   isRoot,
 }: FolderSectionProps): ReactNode {
   const key = folderNodeKey(node);
@@ -182,6 +188,7 @@ function FolderSection({
                   row={row}
                   isActive={activePdfVersionId === row.latestVersionId}
                   onActivate={onActivate}
+                  onCompare={onCompare}
                 />
               ))}
             </ul>
@@ -192,6 +199,7 @@ function FolderSection({
               node={child}
               activePdfVersionId={activePdfVersionId}
               onActivate={onActivate}
+              onCompare={onCompare}
               isRoot={false}
             />
           ))}
@@ -205,9 +213,10 @@ interface PdfRowProps {
   row: PdfEntryWithFolder;
   isActive: boolean;
   onActivate: (versionId: string) => void;
+  onCompare?: (fileId: string) => void;
 }
 
-function PdfRow({ row, isActive, onActivate }: PdfRowProps): ReactNode {
+function PdfRow({ row, isActive, onActivate, onCompare }: PdfRowProps): ReactNode {
   const handleClick = () => {
     if (row.latestVersionId) onActivate(row.latestVersionId);
   };
@@ -240,6 +249,24 @@ function PdfRow({ row, isActive, onActivate }: PdfRowProps): ReactNode {
         <span style={versionPillStyle} aria-label={`${row.versionCount} versions`}>
           v{row.latestVersion?.versionNumber ?? "?"}/{row.versionCount}
         </span>
+      ) : null}
+      {row.versionCount > 1 && onCompare ? (
+        <button
+          type="button"
+          style={compareButtonStyle}
+          title="Compare previous and latest"
+          aria-label="Compare previous and latest"
+          data-testid={`documents-compare-row-${row.file.id}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onCompare(row.file.id);
+          }}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M4 3h9v13H4V3zM11 8h9v13h-9V8z" />
+          </svg>
+        </button>
       ) : null}
     </li>
   );
@@ -390,6 +417,20 @@ const versionPillStyle: CSSProperties = {
   color: "var(--ff-text-primary)",
   fontSize: "var(--ff-badge-font-size)",
   fontWeight: 500,
+};
+
+const compareButtonStyle: CSSProperties = {
+  flexShrink: 0,
+  width: 26,
+  height: 26,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: "transparent",
+  color: "var(--ff-text-muted)",
+  border: "1px solid var(--ff-border)",
+  borderRadius: 6,
+  cursor: "pointer",
 };
 
 const emptyStyle: CSSProperties = {

@@ -128,9 +128,6 @@ function ViewerPanelInner({
   // reads `activeViewId`.
   const calibrationFlow = useViewerStore((s) => s.calibrationFlow);
   const activePdfVersionId = useViewerStore((s) => s.activePdfVersionId);
-  const setActivePdfVersionId = useViewerStore(
-    (s) => s.setActivePdfVersionId,
-  );
 
   // Wave 56-fix — apply the shared models-tool filter / manual
   // visibility / selection state to THIS viewer instance (the same
@@ -328,7 +325,6 @@ function ViewerPanelInner({
             pdfVersionId={activePdfVersionId}
             getPdfVersion={getPdfVersion}
             getPdfBlob={getPdfBlob}
-            onClose={() => setActivePdfVersionId(null)}
           />
         </div>
       ) : !buildingId ? (

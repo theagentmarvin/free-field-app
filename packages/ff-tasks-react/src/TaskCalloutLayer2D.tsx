@@ -1,3 +1,5 @@
+import { useTaskOpenState } from "./taskOpenStore";
+import { useTaskBuildingIndex } from "./taskBuilding";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -70,20 +72,23 @@ export function TaskCalloutLayer2D({
   }, [source, projectId]);
 
   const rows = useOutboxRows(projectId);
+  const buildingIndex = useTaskBuildingIndex();
 
   const pins = useMemo(
     () =>
       pinsForBuilding(
         pinsForFile(mergePdfPins(extractPdfPins(cloud), pendingPdfPins(rows, source.overlaySending)), pdfFileId),
         buildingId,
+        buildingIndex,
       ),
-    [cloud, rows, pdfFileId, source.overlaySending, buildingId]
+    [cloud, rows, pdfFileId, source.overlaySending, buildingId, buildingIndex]
   );
 
   // Shared annotation-layer resolver (also used by the LinkView nav
   // marker): attach after the viewer is built, gate on onReady,
   // re-read layer/page/scale every tick.
   const view = useAnnotationLayer(getSurface, pageSize.width);
+  const { highlightTaskId } = useTaskOpenState();
 
   if (!view.layer) return null;
   const shown = pinsForPage(pins, view.page);
@@ -97,11 +102,13 @@ export function TaskCalloutLayer2D({
     >
       {shown.map((pin) => {
         const { x, y } = pinCanvasPx(pin, pageSize, view.scale);
+        const highlighted = highlightTaskId === pin.taskId;
         return (
           <button
             key={pin.taskId}
             type="button"
-            className={`ff-callout${pin.pending ? " ff-callout--pending" : ""}`}
+            className={`ff-callout${pin.pending ? " ff-callout--pending" : ""}${highlighted ? " ff-callout--highlight" : ""}`}
+            data-highlighted={highlighted ? "true" : undefined}
             aria-label={`Task ${pin.taskId} — ${pin.title}`}
             onClick={() => onOpenTask?.(pin)}
             style={{
@@ -115,9 +122,10 @@ export function TaskCalloutLayer2D({
               gap: 6,
               padding: "2px 8px",
               borderRadius: 12,
-              border: "1px solid #d0d3d6",
-              background: "rgba(255,255,255,0.94)",
-              boxShadow: "0 1px 4px rgba(0,0,0,0.18)",
+              border: highlighted ? "2px solid #2f6fe4" : "1px solid #d0d3d6",
+              background: highlighted ? "#e8f0fe" : "rgba(255,255,255,0.94)",
+              boxShadow: highlighted ? "0 0 0 4px rgba(47,111,228,0.28), 0 2px 8px rgba(0,0,0,0.25)" : "0 1px 4px rgba(0,0,0,0.18)",
+              zIndex: highlighted ? 5 : undefined,
               cursor: "pointer",
               fontSize: 12,
               opacity: pin.pending ? 0.55 : 1,

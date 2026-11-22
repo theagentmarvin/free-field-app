@@ -9,7 +9,8 @@
  *   - unauthenticated read/write → DENY
  *   - member read → PASS (roster for members, admin-only for invitations)
  *   - member write → DENY
- *   - admin write → PASS on content collections (projects/buildings/folders);
+ *   - admin write → PASS on the project doc (synced content collections have
+ *     their own matrix in rules-sync.test.ts);
  *     DENY on members/invitations/auditLog (mutations are functions-only)
  *   - invitations → admin-only client READ; functions-only WRITE
  *   - meta/bootstrap → deny-all client access
@@ -278,16 +279,6 @@ type ContentCase = { describeName: string; path: string; data: Record<string, un
 
 const CONTENT_COLLECTIONS: ContentCase[] = [
   { describeName: "/projects/{pid}", path: "projects/p1", data: { name: "Acme HQ" } },
-  {
-    describeName: "/projects/{pid}/buildings/{bid}",
-    path: "projects/p1/buildings/b1",
-    data: { name: "Tower A" },
-  },
-  {
-    describeName: "/projects/{pid}/folders/{fid}",
-    path: "projects/p1/folders/f1",
-    data: { name: "MEP", parentId: null },
-  },
 ];
 
 for (const c of CONTENT_COLLECTIONS) {

@@ -108,7 +108,7 @@ describe("membership-doc authorization (no claims)", () => {
     await addMember("p1", "alice", "admin");
     await assertFails(getDoc(doc(asUser("alice"), "projects/p2")));
     await assertFails(getDoc(doc(asUser("alice"), "projects/p2/buildings/b2")));
-    await assertFails(updateDoc(doc(asUser("alice"), "projects/p2/buildings/b2"), { name: "x" }));
+    await assertFails(updateDoc(doc(asUser("alice"), "projects/p2"), { name: "x" }));
     await assertFails(getDoc(doc(asUser("alice"), "projects/p2/members/alice")));
   });
 
@@ -118,15 +118,15 @@ describe("membership-doc authorization (no claims)", () => {
     await assertSucceeds(getDoc(doc(asUser("alice"), "projects/p1/buildings/b1")));
     await assertSucceeds(getDoc(doc(asUser("alice"), "projects/p2/buildings/b2")));
     // role is per project: admin in p2 only
-    await assertFails(updateDoc(doc(asUser("alice"), "projects/p1/buildings/b1"), { name: "x" }));
-    await assertSucceeds(updateDoc(doc(asUser("alice"), "projects/p2/buildings/b2"), { name: "x" }));
+    await assertFails(updateDoc(doc(asUser("alice"), "projects/p1"), { name: "x" }));
+    await assertSucceeds(updateDoc(doc(asUser("alice"), "projects/p2"), { name: "x" }));
   });
 
   it("admin writes content; member cannot; members/invitations/auditLog stay functions-only", async () => {
     await addMember("p1", "boss", "admin");
     await addMember("p1", "alice", "member");
-    await assertSucceeds(updateDoc(doc(asUser("boss"), "projects/p1/buildings/b1"), { name: "x" }));
-    await assertFails(updateDoc(doc(asUser("alice"), "projects/p1/buildings/b1"), { name: "y" }));
+    await assertSucceeds(updateDoc(doc(asUser("boss"), "projects/p1"), { name: "x" }));
+    await assertFails(updateDoc(doc(asUser("alice"), "projects/p1"), { name: "y" }));
     await assertFails(setDoc(doc(asUser("boss"), "projects/p1/members/mallory"), { uid: "mallory", role: "admin", status: "active" }));
     await assertFails(deleteDoc(doc(asUser("boss"), "projects/p1/members/alice")));
     await assertFails(setDoc(doc(asUser("boss"), "projects/p1/invitations/i1"), { email: "a@b.c" }));
@@ -136,17 +136,17 @@ describe("membership-doc authorization (no claims)", () => {
   it("claims alone grant nothing: a forged admin claim without a member doc is denied", async () => {
     const forged = { currentProject: { id: "p1", role: "admin" } };
     await assertFails(getDoc(doc(asUser("mallory", forged), "projects/p1")));
-    await assertFails(updateDoc(doc(asUser("mallory", forged), "projects/p1/buildings/b1"), { name: "x" }));
+    await assertFails(updateDoc(doc(asUser("mallory", forged), "projects/p1"), { name: "x" }));
   });
 
   it("a stale admin claim does not outlive the member doc (immediate demotion / removal)", async () => {
     const stale = { currentProject: { id: "p1", role: "admin" } };
     await addMember("p1", "boss", "admin");
-    await assertSucceeds(updateDoc(doc(asUser("boss", stale), "projects/p1/buildings/b1"), { name: "a" }));
+    await assertSucceeds(updateDoc(doc(asUser("boss", stale), "projects/p1"), { name: "a" }));
 
     // Demoted server-side; the token still says admin.
     await addMember("p1", "boss", "member");
-    await assertFails(updateDoc(doc(asUser("boss", stale), "projects/p1/buildings/b1"), { name: "b" }));
+    await assertFails(updateDoc(doc(asUser("boss", stale), "projects/p1"), { name: "b" }));
     await assertSucceeds(getDoc(doc(asUser("boss", stale), "projects/p1/buildings/b1")));
 
     // Removed (doc deleted by the removeMember function): even reads stop.

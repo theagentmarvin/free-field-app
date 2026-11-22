@@ -73,6 +73,27 @@ describe("buildComposeEnqueues", () => {
   });
 });
 
+describe("sheet references (attach from project)", () => {
+  const ref = { pdfFileId: "f1", pdfVersionId: "f1v2", versionNumber: 2, name: "A101.pdf" };
+
+  it("rides the create doc as references, not copies", () => {
+    const [create] = buildComposeEnqueues(fields({ sheetRefs: [ref] }), meta);
+    expect((create.createDoc as { sheetRefs?: unknown }).sheetRefs).toEqual([ref]);
+    expect(create.photoRefs).toEqual([]); // nothing to upload for a reference
+  });
+
+  it("omits the field when nothing is attached (old shape stays valid)", () => {
+    const [create] = buildComposeEnqueues(fields(), meta);
+    expect("sheetRefs" in (create.createDoc as object)).toBe(false);
+  });
+
+  it("survives the draft round-trip", () => {
+    const draft = toDraftFields(fields({ sheetRefs: [ref] }), "p1", "t1");
+    expect(draft.sheetRefs).toEqual([ref]);
+    expect(draftToCompose(draft).sheetRefs).toEqual([ref]);
+  });
+});
+
 describe("draft round-trip", () => {
   it("compose → draft → compose preserves the recoverable fields", () => {
     const src = fields({
@@ -130,5 +151,41 @@ describe("quickDeadline", () => {
     expect(d.getFullYear()).toBe(2027);
     expect(d.getMonth()).toBe(0);
     expect(d.getDate()).toBe(1);
+  });
+});
+
+import { restoreDraftCompose } from "../src/draftRestore";
+
+describe("restoreDraftCompose", () => {
+  const draft = () =>
+    toDraftFields(
+      fields({
+        photos: [
+          { blobKey: "b1", sha256: "a", size: 3, mime: "image/jpeg" },
+          { blobKey: "b2", sha256: "b", size: 3, mime: "image/jpeg" },
+        ],
+      }),
+      "p1",
+      "t1",
+    );
+
+  it("resolves photos from the blob store and drops lost ones", async () => {
+    const store = new Map([["b1", new Blob(["abc"], { type: "image/jpeg" })]]);
+    const back = await restoreDraftCompose(draft(), { get: async (k) => store.get(k) });
+    expect(back.photos.map((p) => p.blobKey)).toEqual(["b1"]);
+    expect(back.title).toBe("Crack in slab");
+  });
+
+  it("gives restored photos an object-URL preview when available", async () => {
+    const orig = URL.createObjectURL;
+    URL.createObjectURL = () => "blob:preview";
+    try {
+      const blob = new Blob(["abc"], { type: "image/jpeg" });
+      const back = await restoreDraftCompose(draft(), { get: async () => blob });
+      expect(back.photos).toHaveLength(2);
+      expect(back.photos[0].previewUrl).toBe("blob:preview");
+    } finally {
+      URL.createObjectURL = orig;
+    }
   });
 });

@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 import { useEscapeClose } from "./useEscapeClose";
+import { useExtendedFieldsEnabled } from "./capabilities";
+import { SheetChips, SheetPicker } from "./SheetAttachments";
+import { useSheetCatalog } from "./sheetCatalog";
 import {
+  isLinkviewLocation,
   sha256Hex,
   clearDraft,
   saveDraft,
@@ -21,6 +25,7 @@ import {
 } from "./composeModel";
 import { registerBlob, releaseBlob } from "./useTaskEngine";
 import { useOnlineStatus } from "./useOnlineStatus";
+import { resolveCreateBuildingId, useTaskBuildingIndex, type TaskBuildingIndex } from "./taskBuilding";
 import { useIsWide } from "./useIsWide";
 import { TYPE_OPTIONS, isCustomType } from "./logic";
 import {
@@ -76,6 +81,8 @@ export interface TaskComposeSheetProps {
   location?: TaskLocation | null;
   /** Day-3: the snapshot thumb captured at the tap (preview + outbox ref). */
   locationThumb?: ComposeLocationThumb | null;
+  /** LinkView dual location: the plan snapshot captured with the 3D one. */
+  locationThumb2d?: ComposeLocationThumb | null;
   initial?: Partial<ComposeFields>;
   /** resolved project display name; task-data card omits the row when absent */
   projectName?: string | null;
@@ -85,6 +92,11 @@ export interface TaskComposeSheetProps {
   /** the project's buildings for the override control; ≤4 renders the
    *  same tinted-chip row as Type, otherwise a native picker (spec §5). */
   buildings?: readonly { id: string; name: string }[];
+  /** model/PDF → building index used to stamp a building from the pinned
+   *  location when no context building exists (defaults to the live index). */
+  buildingIndex?: TaskBuildingIndex;
+  /** show "Attach from project" (rules-gated field; defaults to the session capability) */
+  extendedFields?: boolean;
   onDone: () => void;
   onClose: () => void;
 }
@@ -129,20 +141,31 @@ export function TaskComposeSheet({
   draftTable,
   location = null,
   locationThumb: locationThumbProp = null,
+  locationThumb2d: locationThumb2dProp = null,
   initial,
   projectName = null,
   buildingId = null,
   buildings,
+  buildingIndex: buildingIndexProp,
+  extendedFields: extendedFieldsProp,
   onDone,
   onClose,
 }: TaskComposeSheetProps): JSX.Element {
+  const capsExtended = useExtendedFieldsEnabled();
+  const extendedFields = extendedFieldsProp ?? capsExtended;
+  const sheetCatalog = useSheetCatalog(projectId);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const liveBuildingIndex = useTaskBuildingIndex();
+  const buildingIndex = buildingIndexProp ?? liveBuildingIndex;
   const [fields, setFields] = useState<ComposeFields>({
     ...emptyCompose(),
     location,
     locationThumb: locationThumbProp,
-    // inherit the rail's building unless the draft/initial already chose
-    buildingId,
+    locationThumb2d: locationThumb2dProp,
     ...initial,
+    // inherit the creation context's building unless the draft/initial
+    // chose one (a restored draft with no building must NOT wipe it)
+    buildingId: initial?.buildingId ?? buildingId,
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -167,12 +190,15 @@ export function TaskComposeSheet({
       mountedRef.current = false;
       // Deferred so React StrictMode's simulated unmount/remount (dev) does
       // not revoke the snapshot's object URL while the sheet is still alive.
-      const thumb = latest.current.locationThumb;
+      const thumbs = [latest.current.locationThumb, latest.current.locationThumb2d];
       setTimeout(() => {
-        if (mountedRef.current || submittedRef.current || !thumb?.blobKey) return;
-        releaseBlob(thumb.blobKey);
-        if (thumb.previewUrl && typeof URL.revokeObjectURL === "function") {
-          URL.revokeObjectURL(thumb.previewUrl);
+        if (mountedRef.current || submittedRef.current) return;
+        for (const thumb of thumbs) {
+          if (!thumb?.blobKey) continue;
+          releaseBlob(thumb.blobKey);
+          if (thumb.previewUrl && typeof URL.revokeObjectURL === "function") {
+            URL.revokeObjectURL(thumb.previewUrl);
+          }
         }
       }, 0);
     };
@@ -221,7 +247,15 @@ export function TaskComposeSheet({
     setError(null);
     submittedRef.current = true;
     try {
-      for (const payload of buildComposeEnqueues(fields, { projectId, taskId, actor, at: Date.now() })) {
+      for (const payload of buildComposeEnqueues(
+        {
+          ...fields,
+          buildingId: resolveCreateBuildingId(
+            { explicit: fields.buildingId, context: buildingId, location: fields.location },
+            buildingIndex,
+          ),
+        },
+        { projectId, taskId, actor, at: Date.now() })) {
         await engine.enqueue(payload);
       }
       await clearDraft(draftTable, taskId);
@@ -239,20 +273,20 @@ export function TaskComposeSheet({
   };
 
   const clearLocation = (): void => {
-    const thumb = fields.locationThumb;
-    if (thumb?.blobKey) {
+    for (const thumb of [fields.locationThumb, fields.locationThumb2d]) {
+      if (!thumb?.blobKey) continue;
       releaseBlob(thumb.blobKey);
       if (thumb.previewUrl && typeof URL.revokeObjectURL === "function") {
         URL.revokeObjectURL(thumb.previewUrl);
       }
     }
-    patch({ location: null, locationThumb: null });
+    patch({ location: null, locationThumb: null, locationThumb2d: null });
   };
 
   const loc = fields.location;
   const has3d = !!loc?.bim?.worldPoint;
   const hasPlan = !!loc?.pdf;
-  const locBadge = has3d ? "3D" : hasPlan ? "2D · plan" : null;
+  const locBadge = isLinkviewLocation(loc) ? "2D + 3D" : has3d ? "3D" : hasPlan ? "2D · plan" : null;
   const locContext = loc
     ? `${loc.storeyName ?? "Site"}${has3d ? ` · 3D · ${loc.bim?.elements.length ?? 0} elements` : ""}${
         hasPlan ? ` · plan p.${loc.pdf?.page}` : ""
@@ -387,7 +421,25 @@ export function TaskComposeSheet({
                   fontSize: 30,
                 }}
               >
-                {fields.locationThumb?.previewUrl ? (
+                {fields.locationThumb2d?.previewUrl && fields.locationThumb?.previewUrl ? (
+                  <div
+                    data-testid="compose-location-thumb-dual"
+                    style={{ position: "absolute", inset: 0, display: "flex", gap: 2 }}
+                  >
+                    <img
+                      data-testid="compose-location-thumb-2d"
+                      src={fields.locationThumb2d.previewUrl}
+                      alt="Plan snapshot"
+                      style={{ width: "50%", height: "100%", objectFit: "cover" }}
+                    />
+                    <img
+                      data-testid="compose-location-thumb-3d"
+                      src={fields.locationThumb.previewUrl}
+                      alt="3D snapshot"
+                      style={{ width: "50%", height: "100%", objectFit: "cover" }}
+                    />
+                  </div>
+                ) : fields.locationThumb?.previewUrl ? (
                   <img
                     data-testid="compose-location-thumb"
                     src={fields.locationThumb.previewUrl}
@@ -675,6 +727,39 @@ export function TaskComposeSheet({
               />
             </label>
           </div>
+          {extendedFields && (
+            <div data-testid="compose-sheets" style={{ marginTop: s.s3, display: "flex", flexDirection: "column", gap: s.s2 }}>
+              <SheetChips
+                refs={fields.sheetRefs ?? []}
+                catalog={sheetCatalog}
+                projectId={projectId}
+                onRemove={(ref) =>
+                  patch({
+                    sheetRefs: (fields.sheetRefs ?? []).filter(
+                      (x) => !(x.pdfFileId === ref.pdfFileId && x.pdfVersionId === ref.pdfVersionId && x.page === ref.page),
+                    ),
+                  })
+                }
+              />
+              <button
+                type="button"
+                data-testid="compose-attach-from-project"
+                onClick={() => setPickerOpen(true)}
+                style={{ alignSelf: "flex-start", height: 36, padding: "0 14px", borderRadius: r.md, border: `1px solid ${c.borderStrong}`, background: c.surface, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: f.md, color: c.text }}
+              >
+                📄 Attach from project
+              </button>
+            </div>
+          )}
+          {pickerOpen && (
+            <SheetPicker
+              projectId={projectId}
+              buildingId={fields.buildingId ?? buildingId ?? null}
+              selected={fields.sheetRefs ?? []}
+              onChange={(next) => patch({ sheetRefs: next })}
+              onClose={() => setPickerOpen(false)}
+            />
+          )}
         </section>
       </div>
 

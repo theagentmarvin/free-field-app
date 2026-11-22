@@ -24,6 +24,8 @@ export interface BuildingRecord {
   createdAt: number;
   updatedAt: number;
   metadata: Record<string, unknown>;
+  /** Phase 1c: server `updatedAt` (epoch ms) of the last synced doc. Absent = local-only. */
+  remoteUpdatedAt?: number;
 }
 
 /**
@@ -38,6 +40,8 @@ export interface IfcFileRecord {
   currentVersionId: string;         // FK → IfcVersionRecord (the latest)
   createdAt: number;
   updatedAt: number;
+  /** Phase 1c: server `updatedAt` (epoch ms) of the last synced doc. Absent = local-only. */
+  remoteUpdatedAt?: number;
 }
 
 /** A concrete version of an IFC. v1, v2, ... */
@@ -51,6 +55,16 @@ export interface IfcVersionRecord {
   storeyCount: number;
   createdAt: number;
   isLatest: boolean;
+  /** Phase 1c: server `updatedAt` (epoch ms) of the last synced doc. Absent = local-only. */
+  remoteUpdatedAt?: number;
+  /** Phase 1d: blob references, set once the blob is in Storage (or by down-sync). */
+  storagePath?: string | null;
+  sha256?: string | null;
+  sizeBytes?: number | null;
+  contentType?: string | null;
+  fragStoragePath?: string | null;
+  fragSha256?: string | null;
+  fragSizeBytes?: number | null;
 }
 
 /** A parsed storey from one IFC version. */
@@ -73,6 +87,8 @@ export interface StoreyRecord {
    * instead — accepted limitation, see Task 22-amendment).
    */
   containedElementIds: number[];
+  /** Phase 1c: server `updatedAt` (epoch ms) of the last synced doc. Absent = local-only. */
+  remoteUpdatedAt?: number;
 }
 
 /** Marks a storey as "extracted" (visible in the user's mapped set) per building. */
@@ -81,6 +97,8 @@ export interface ExtractedStoreyRecord {
   buildingId: string;               // FK
   storeyId: string;                 // FK → StoreyRecord (unique per building)
   updatedAt: number;
+  /** Phase 1c: server `updatedAt` (epoch ms) of the last synced doc. Absent = local-only. */
+  remoteUpdatedAt?: number;
 }
 
 /**
@@ -111,6 +129,8 @@ export interface PdfFileRecord {
   name: string;                     // original filename — version key
   createdAt: number;
   updatedAt: number;
+  /** Phase 1c: server `updatedAt` (epoch ms) of the last synced doc. Absent = local-only. */
+  remoteUpdatedAt?: number;
 }
 
 /** A concrete version of a PDF. v1, v2, ... */
@@ -127,6 +147,13 @@ export interface PdfVersionRecord {
   storedAt: number;                 // Date.now()
   blobKey: string;                  // FK → pdfBlobs.key
   isLatest: boolean;                // exactly one true per pdfFileId
+  /** Phase 1c: server `updatedAt` (epoch ms) of the last synced doc. Absent = local-only. */
+  remoteUpdatedAt?: number;
+  /** Phase 1d: blob references, set once the blob is in Storage (or by down-sync). */
+  storagePath?: string;
+  sha256?: string;
+  sizeBytes?: number;
+  contentType?: string;
 }
 
 /**
@@ -216,6 +243,8 @@ export interface PdfFolderRecord {
   color: string;
   createdAt: number;
   updatedAt: number;
+  /** Phase 1c: server `updatedAt` (epoch ms) of the last synced doc. Absent = local-only. */
+  remoteUpdatedAt?: number;
 }
 
 /**
@@ -235,6 +264,8 @@ export interface PdfFolderAssignmentRecord {
   pdfFileId: string;                // FK (unique)
   folderId: string;                 // FK → PdfFolderRecord.id
   createdAt: number;
+  /** Phase 1c: server `updatedAt` (epoch ms) of the last synced doc. Absent = local-only. */
+  remoteUpdatedAt?: number;
 }
 
 /**
@@ -257,4 +288,6 @@ export interface CalibrationRecord {
   confidence: number;
   createdAt: number;
   updatedAt: number;
+  /** Phase 1c: server `updatedAt` (epoch ms) of the last synced doc. Absent = local-only. */
+  remoteUpdatedAt?: number;
 }

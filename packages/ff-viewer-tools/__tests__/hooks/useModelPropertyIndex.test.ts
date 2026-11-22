@@ -63,6 +63,7 @@ function makeMockHandle(opts: {
     _loadedModelIds: loadedIds,
     _listeners: listeners,
     update: vi.fn(async () => undefined),
+    setMemoryPressure: vi.fn(),
     openLevel: vi.fn(async () => false),
     closeLevel: vi.fn(),
     pickWorldPoint: vi.fn(async () => null),

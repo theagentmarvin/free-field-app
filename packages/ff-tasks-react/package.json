@@ -13,13 +13,15 @@
   },
   "scripts": {
     "test": "vitest run --no-file-parallelism",
-    "build": "tsc --noEmit"
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@ff/auth": "workspace:*",
     "iconoir-react": "^7.11.1",
     "@ff/data": "workspace:*",
     "@ff/firestore": "workspace:*",
+    "@ff/sync": "workspace:*",
     "@ff/tasks": "workspace:*",
     "@ff/types": "workspace:*",
     "@ff/telemetry": "workspace:*"

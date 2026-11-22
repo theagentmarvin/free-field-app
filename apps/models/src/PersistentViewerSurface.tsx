@@ -8,8 +8,12 @@
 // SAME <IfcViewer> instance can be portaled into whichever route is
 // active: the Models viewport on /models, or the Linkview right pane
 // on /linkview. The React subtree (and its WebGL canvas) never
-// remounts — only the portal target changes, so camera / selection /
-// visibility state survives the route switch.
+// remounts. NOTE: a React portal re-keyed by its CONTAINER remounts its
+// children, so the portal target here is ONE stable element created once;
+// the active route's host merely adopts that element (a DOM move). The
+// previous design portaled straight into `hostNode`, which reloaded and
+// re-tessellated the whole model on every Models <-> Documents / LinkView
+// round trip (a new IfcViewer + worker + WebGL contexts each time).
 //
 // The settings shell's <ViewerKeepAlive> owns the `viewerRef` + the
 // `hostNode` (registered by the active route's <ViewerSurfaceHostSlot>)
@@ -18,8 +22,10 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
+  useState,
   type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
@@ -163,7 +169,41 @@ function PersistentViewerSurfaceInner({
     [activeStoreyName, setActiveStoreyName],
   );
 
-  if (!hostNode || !projectId) return null;
+  // The stable portal container (see the file header) and its parking spot.
+  const [container] = useState(() => {
+    const el = document.createElement("div");
+    el.setAttribute("data-testid", "viewer-surface-container");
+    el.style.cssText = "position:relative;width:100%;height:100%;overflow:hidden";
+    return el;
+  });
+  const parkingRef = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    if (hostNode) {
+      if (container.parentNode !== hostNode) hostNode.appendChild(container);
+      return;
+    }
+    // No host right now (a route is loading): park the surface off-screen at a
+    // real size so the canvas keeps a valid drawing buffer instead of 0x0.
+    if (!parkingRef.current) {
+      const p = document.createElement("div");
+      p.setAttribute("data-testid", "viewer-surface-parking");
+      p.style.cssText =
+        "position:fixed;left:-10000px;top:0;width:1280px;height:800px;visibility:hidden;pointer-events:none;overflow:hidden";
+      document.body.appendChild(p);
+      parkingRef.current = p;
+    }
+    parkingRef.current.appendChild(container);
+  }, [hostNode, container]);
+  useEffect(
+    () => () => {
+      container.remove();
+      parkingRef.current?.remove();
+      parkingRef.current = null;
+    },
+    [container],
+  );
+
+  if (!projectId) return null;
 
   return createPortal(
     <ViewerSurface
@@ -179,6 +219,6 @@ function PersistentViewerSurfaceInner({
       showViewerToolbar={showViewerToolbar}
       renderPaused={renderPaused}
     />,
-    hostNode,
+    container,
   );
 }

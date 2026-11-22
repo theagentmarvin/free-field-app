@@ -42,6 +42,8 @@ export interface PrintTaskView {
   photoUrls?: Record<string, string>;
   /** Day-3 location snapshot thumb (resolved download URL when present). */
   locationThumbUrl?: string | null;
+  /** LinkView dual location: the plan snapshot (printed before the 3D one). */
+  locationThumb2dUrl?: string | null;
   /** footer attribution */
   printedBy?: string;
   /** ISO-ish timestamp override for deterministic tests */
@@ -112,6 +114,7 @@ export function buildTaskPrintHtml(v: PrintTaskView): string {
   const locationBits: string[] = [];
   if (pins.length) locationBits.push(esc(pins.join(" · ")));
   // Day-3: the location snapshot thumb rides the location block.
+  if (v.locationThumb2dUrl) locationBits.push(`<img class="ph" src="${esc(v.locationThumb2dUrl)}" alt="plan snapshot">`);
   if (v.locationThumbUrl) locationBits.push(`<img class="ph" src="${esc(v.locationThumbUrl)}" alt="location snapshot">`);
   if (locationBits.length) metaCells.push(metaCell("Location", locationBits.join(" ")));
   metaCells.push(metaCell("Created by", `${v.createdBy ? esc(v.createdBy) : "—"} · ${fmtDate(v.createdAt)}`));

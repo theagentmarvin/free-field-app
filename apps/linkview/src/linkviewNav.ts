@@ -132,6 +132,34 @@ export function firstPersonPose(
   };
 }
 
+/**
+ * Overlap-mode pose: straight down on the centre of the calibrated page, above
+ * the storey floor, high enough that the whole page is in view. Entering
+ * overlap from the split view used to keep the first-person eye pose
+ * (horizontal, 1.8 m up), which shows the plan plane at a grazing angle.
+ * Perspective, with the fov inherited from a perspective `currentPose`; the
+ * camera sits a hair off the vertical so the controls' up vector stays defined.
+ */
+export function overlapTopDownPose(
+  params: CalibrationTransformParams,
+  pageWidth: number,
+  pageHeight: number,
+  floorZ: number,
+  currentPose: ViewerPose | null,
+): ViewerPose {
+  const centre = applyCalibration(params, { x: pageWidth / 2, y: pageHeight / 2 });
+  const fov = currentPose && !currentPose.isOrtho ? currentPose.fov : DEFAULT_CAMERA_FOV;
+  const extent = Math.max(pageWidth, pageHeight) * params.scale; // metres
+  const half = Math.tan((fov * Math.PI) / 360); // tan(fov / 2)
+  const height = Math.max(extent / (2 * half) * 1.05, 10);
+  return {
+    pos: [centre.x, floorZ + height, centre.z + height * 1e-3],
+    target: [centre.x, floorZ, centre.z],
+    fov,
+    isOrtho: false,
+  };
+}
+
 /** Clamp a pitch to ±MAX_PITCH. */
 export function clampPitch(pitch: number): number {
   return Math.min(Math.max(pitch, -MAX_PITCH), MAX_PITCH);
@@ -414,15 +442,18 @@ export function planDistance(a: WorldPoint, b: WorldPoint): number {
 /** Median storey spacing at or above which elevations are read as mm.
  *  No real building has storeys ≥ 1 km apart; mm storeys are ~3000. */
 export const MM_STOREY_GAP_THRESHOLD = 1000;
+/** Length-unit factor for feet. */
+export const FOOT_IN_METRES = 0.3048;
 /** Single-storey fallback: |elevation| at or above which a value with
  *  no centroid to compare against is read as mm. */
 export const MM_SINGLE_ELEVATION_THRESHOLD = 10000;
 
 /**
  * Length-unit → metre factor for one model's storey elevations:
- * `0.001` for millimetres, else `1`. With ≥ 2 distinct storeys the
- * median spacing decides. With one storey it picks the reading closer
- * to the model centroid height (`centroidY`, world metres) when known.
+ * `0.001` for millimetres, `0.3048` for feet (centroid needed), else `1`.
+ * With ≥ 2 distinct storeys the median spacing decides millimetres; feet vs
+ * metres (and the single-storey case) pick the reading closer to the model
+ * centroid height (`centroidY`, world metres) when known.
  */
 export function inferElevationUnitScale(
   elevations: readonly number[],
@@ -441,7 +472,17 @@ export function inferElevationUnitScale(
     const mid = Math.floor(gaps.length / 2);
     const median =
       gaps.length % 2 === 1 ? gaps[mid] : (gaps[mid - 1] + gaps[mid]) / 2;
-    return median >= MM_STOREY_GAP_THRESHOLD ? 0.001 : 1;
+    if (median >= MM_STOREY_GAP_THRESHOLD) return 0.001;
+    // Feet vs metres: pick the reading whose mid-height lands nearer the model
+    // centroid (storeys 3 m apart read as 3 ft apart would put the plan far
+    // below / above the building). Without a centroid keep the metre reading.
+    if (centroidY !== undefined && centroidY !== null && Number.isFinite(centroidY)) {
+      const mid = (values[0] + values[values.length - 1]) / 2;
+      return Math.abs(mid * FOOT_IN_METRES - centroidY) < Math.abs(mid - centroidY)
+        ? FOOT_IN_METRES
+        : 1;
+    }
+    return 1;
   }
   const e = values[0];
   if (centroidY !== undefined && centroidY !== null && Number.isFinite(centroidY)) {
@@ -458,6 +499,33 @@ export interface StoreyElevationRow {
   sourceIfcFileId: string;
 }
 
+/** How long LinkView waits (retries x interval) for the base model's coordinates. */
+export const BASE_COORD_MAX_RETRIES = 40;
+export const BASE_COORD_RETRY_MS = 500;
+
+/**
+ * True while the vertical model shift is not known yet and the floor height
+ * must be deferred instead of silently using 0: the viewer exists and can
+ * report its base coordinates, the building has a model, and none has loaded
+ * (`null`) within the retry budget. A handle without `getBaseCoordinates`
+ * (older mocks) never defers.
+ */
+export function shouldDeferForBaseShift(
+  viewer:
+    | { getBaseCoordinates?: () => unknown; getModelCentroid?: () => unknown }
+    | null
+    | undefined,
+  buildingHasModels: boolean,
+  attempts: number,
+): boolean {
+  if (!buildingHasModels || attempts >= BASE_COORD_MAX_RETRIES) return false;
+  if (!viewer) return true;
+  if (typeof viewer.getBaseCoordinates !== "function") return false;
+  if (viewer.getBaseCoordinates() === null) return true;
+  // Feet vs metres is decided against the model centroid: wait for it too.
+  return typeof viewer.getModelCentroid === "function" && viewer.getModelCentroid() === null;
+}
+
 export interface ResolveFloorZOptions {
   /** Current (latest) IFC version ids of the building. Rows of older
    *  versions are ignored when at least one current row exists. */
@@ -466,6 +534,12 @@ export interface ResolveFloorZOptions {
   preferredIfcFileId?: string | null;
   /** Model centroid height (world metres) for the unit tie-break. */
   centroidY?: number | null;
+  /**
+   * Vertical shift (world metres) the viewer applies to every model: the
+   * y of the base model's coordination origin (`getCoordinates()[1]`).
+   * Geometry sits at `elevation + shift`, so the floor is moved by it.
+   */
+  modelShiftY?: number | null;
 }
 
 /**
@@ -504,6 +578,10 @@ export function resolveStoreyFloorZ(
       .map((r) => r.elevation);
     const z = m.elevation * inferElevationUnitScale(siblings, options.centroidY);
     if (best === null || z < best) best = z;
+  }
+  const shift = options.modelShiftY;
+  if (best !== null && shift !== undefined && shift !== null && Number.isFinite(shift)) {
+    return best + shift;
   }
   return best;
 }

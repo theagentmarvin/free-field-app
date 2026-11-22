@@ -37,6 +37,13 @@ import { useProjectSelectionState, type ProjectMembership } from './projectSelec
 import { runTenantCheck } from './tenant-check';
 import type { AuthClaims, AuthUser, CurrentProject } from './types';
 
+/** Cloud Functions region (VITE_FIREBASE_FUNCTIONS_REGION); unset = SDK default (us-central1). */
+const FUNCTIONS_REGION: string | undefined =
+  import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION || undefined;
+
+/** Emulator host (VITE_FIREBASE_EMULATOR_HOST), e.g. 10.0.2.2 for an Android emulator; default localhost. */
+const EMULATOR_HOST: string = import.meta.env.VITE_FIREBASE_EMULATOR_HOST || 'localhost';
+
 /**
  * Firebase Auth context. Provided by <AuthProvider>; consumed by hooks
  * and guards in this package, and by route components in apps that need
@@ -115,6 +122,33 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 interface AuthProviderProps {
   children: ReactNode;
+  /**
+   * How long the membership listener may stay silent (no cache hit, no
+   * server answer) before the provider surfaces a `MembershipTimeoutError`
+   * through `projectError`. Default `MEMBERSHIP_TIMEOUT_MS`; tests inject a
+   * small value.
+   */
+  membershipTimeoutMs?: number;
+}
+
+/** Default silence budget of the first membership snapshot (~12 s). */
+export const MEMBERSHIP_TIMEOUT_MS = 12_000;
+
+/**
+ * The membership listener produced nothing within the timeout: typically a
+ * first sign-in on this device with no network (nothing cached to answer
+ * from). The listener stays attached, so a late answer clears the error.
+ */
+export class MembershipTimeoutError extends Error {
+  readonly code = 'membership-timeout';
+  constructor() {
+    super(
+      "We couldn't reach the server to load your projects. If you're offline, " +
+        'reconnect and try again. Once your projects have loaded on this device ' +
+        'FreeField opens without waiting for the network.'
+    );
+    this.name = 'MembershipTimeoutError';
+  }
 }
 
 /**
@@ -190,14 +224,15 @@ function initFirebase(): FirebaseHandles {
   const db = initFirestore(app);
 
   // Dev-mode emulator support (VITE_FIREBASE_USE_EMULATOR=true).
-  // Auth emulator at localhost:9099, Firestore at localhost:8080,
-  // Functions at localhost:5001. Only on the first init (StrictMode
+  // Auth emulator at <host>:9099, Firestore at <host>:8080,
+  // Functions at <host>:5001, Storage at <host>:9199 (host =
+  // VITE_FIREBASE_EMULATOR_HOST, default localhost). Only on the first init (StrictMode
   // runs the initializer twice; connecting twice throws).
   if (!existing && import.meta.env.VITE_FIREBASE_USE_EMULATOR === 'true') {
-    connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
-    connectFirestoreEmulator(db, 'localhost', 8080);
-    connectFunctionsEmulator(getFunctions(app), 'localhost', 5001);
-    connectStorageEmulator(getStorage(app), 'localhost', 9199);
+    connectAuthEmulator(auth, `http://${EMULATOR_HOST}:9099`, { disableWarnings: true });
+    connectFirestoreEmulator(db, EMULATOR_HOST, 8080);
+    connectFunctionsEmulator(getFunctions(app, FUNCTIONS_REGION), EMULATOR_HOST, 5001);
+    connectStorageEmulator(getStorage(app), EMULATOR_HOST, 9199);
   }
 
   // Tenant isolation guard (P0.3). Runs here, AFTER Firebase init,
@@ -220,11 +255,11 @@ function initFirebase(): FirebaseHandles {
  * entirely — the demo must boot with zero Firebase backend. The context
  * exposes a stub {app, auth} and a synthetic identity for the demo role.
  */
-export function AuthProvider({ children }: AuthProviderProps) {
+export function AuthProvider({ children, membershipTimeoutMs }: AuthProviderProps) {
   return isDemoAuth() ? (
     <DemoAuthProvider>{children}</DemoAuthProvider>
   ) : (
-    <FirebaseAuthProvider>{children}</FirebaseAuthProvider>
+    <FirebaseAuthProvider membershipTimeoutMs={membershipTimeoutMs}>{children}</FirebaseAuthProvider>
   );
 }
 
@@ -290,7 +325,7 @@ function DemoAuthProvider({ children }: AuthProviderProps) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-function FirebaseAuthProvider({ children }: AuthProviderProps) {
+function FirebaseAuthProvider({ children, membershipTimeoutMs = MEMBERSHIP_TIMEOUT_MS }: AuthProviderProps) {
   // Init on first render (idempotent: getApps() reuses the app) so a
   // config error is caught here and rendered as a screen.
   const [init] = useState<{ handles: FirebaseHandles | null; error: Error | null }>(() => {
@@ -304,15 +339,21 @@ function FirebaseAuthProvider({ children }: AuthProviderProps) {
   if (!init.handles) {
     return <AuthConfigErrorScreen error={init.error ?? new Error('Firebase failed to start')} />;
   }
-  return <FirebaseSession handles={init.handles}>{children}</FirebaseSession>;
+  return (
+    <FirebaseSession handles={init.handles} membershipTimeoutMs={membershipTimeoutMs}>
+      {children}
+    </FirebaseSession>
+  );
 }
 
 function FirebaseSession({
   handles,
   children,
+  membershipTimeoutMs,
 }: {
   handles: FirebaseHandles;
   children: ReactNode;
+  membershipTimeoutMs: number;
 }) {
   const { app, auth } = handles;
 
@@ -421,10 +462,30 @@ function FirebaseSession({
       where('uid', '==', uid),
       where('status', '==', 'active')
     );
+    // Silence watchdog: a cached returning user gets a snapshot from the
+    // persistent cache in milliseconds and never trips this; a first boot
+    // with no network/cache would otherwise wait forever.
+    const timer = setTimeout(() => {
+      if (cancelled) return;
+      console.warn('[AuthProvider] membership listener silent; surfacing a timeout error');
+      setErrorEntry({ uid, error: new MembershipTimeoutError() });
+    }, membershipTimeoutMs);
     const unsub = onSnapshot(
       q,
+      // Metadata changes are needed so a server answer that matches an empty
+      // cache result still fires (fromCache true → false).
+      { includeMetadataChanges: true },
       (snap) => {
         if (cancelled) return;
+        // A first boot on this device with an unreachable backend gets an
+        // EMPTY snapshot from the (empty) persistent cache. That is "unknown",
+        // not "no memberships": keep waiting for the server or the timeout
+        // instead of routing the user to the needs-invitation screen. A
+        // non-empty cached snapshot is trusted (returning users open offline).
+        if (snap.metadata?.fromCache === true && snap.docs.length === 0) return;
+        clearTimeout(timer);
+        // A late answer heals a timeout error (a real listener error stays).
+        setErrorEntry((e) => (e && e.error instanceof MembershipTimeoutError ? null : e));
         const rows: Array<{ id: string; role: string }> = [];
         for (const d of snap.docs) {
           const id = d.ref.parent.parent?.id;
@@ -435,15 +496,17 @@ function FirebaseSession({
       },
       (err) => {
         if (cancelled) return;
+        clearTimeout(timer);
         console.error('[AuthProvider] membership listener error', err);
         setErrorEntry({ uid, error: err });
       }
     );
     return () => {
       cancelled = true;
+      clearTimeout(timer);
       unsub();
     };
-  }, [app, uid, retryCount]);
+  }, [app, uid, retryCount, membershipTimeoutMs]);
 
   const rows = uid !== null && rowsEntry !== null && rowsEntry.uid === uid ? rowsEntry.rows : null;
   const projectIdsKey = rows ? rows.map((r) => r.id).join('\n') : '';
@@ -492,7 +555,7 @@ function FirebaseSession({
     membershipList === undefined
       ? null
       : membershipList.map((m) => `${m.id}|${m.role}|${m.name ?? ''}`).join('\n');
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the content string
+  // Keyed on the content string (react-hooks/exhaustive-deps is not enabled in this package).
   const memberships = useMemo(() => membershipList, [membershipsKey]);
 
   // ── THE current project (wave 65) ──
@@ -513,7 +576,7 @@ function FirebaseSession({
     if (claimSyncRef.current === key) return;
     claimSyncRef.current = key;
     httpsCallable<{ projectId: string }, unknown>(
-      getFunctions(app),
+      getFunctions(app, FUNCTIONS_REGION),
       'setActiveProject'
     )({ projectId: currentProjectId })
       .then(() => refreshClaims())

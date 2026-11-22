@@ -8,6 +8,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { CalibrationRecord } from "@ff/types";
+import { applyCalibration } from "@ff/data/calibration/similarity";
 
 import {
   bearingFromPose,
@@ -41,6 +42,10 @@ import {
 import {
   inferElevationUnitScale,
   resolveStoreyFloorZ,
+  shouldDeferForBaseShift,
+  overlapTopDownPose,
+  DEFAULT_CAMERA_FOV,
+  BASE_COORD_MAX_RETRIES,
 } from "../src/linkviewNav";
 
 function makeCalibration(overrides?: Partial<CalibrationRecord>): CalibrationRecord {
@@ -440,5 +445,83 @@ describe("storey floor Z (wave 63)", () => {
       }),
     ).toBeCloseTo(3.5, 6);
     expect(resolveStoreyFloorZ("Roof", rows)).toBeNull();
+  });
+
+  it("adds the base model's vertical shift so the plane sits on the storey", () => {
+    const rows = [row("L1", 3.2, "str-v1", "str")];
+    expect(resolveStoreyFloorZ("L1", rows, { modelShiftY: -6 })).toBeCloseTo(-2.8, 9);
+    expect(resolveStoreyFloorZ("L1", rows, { modelShiftY: null })).toBeCloseTo(3.2, 9);
+    expect(resolveStoreyFloorZ("Roof", rows, { modelShiftY: -6 })).toBeNull();
+  });
+});
+
+describe("shouldDeferForBaseShift", () => {
+  it("defers only while a model exists but its base coordinates are unknown", () => {
+    const none = { getBaseCoordinates: () => null };
+    const ready = { getBaseCoordinates: () => [0, 0.15, 0] };
+    expect(shouldDeferForBaseShift(none, true, 0)).toBe(true);
+    expect(shouldDeferForBaseShift(null, true, 0)).toBe(true); // viewer not mounted yet
+    expect(shouldDeferForBaseShift(ready, true, 0)).toBe(false);
+    expect(shouldDeferForBaseShift(none, false, 0)).toBe(false); // no model: nothing to wait for
+    expect(shouldDeferForBaseShift(none, true, BASE_COORD_MAX_RETRIES)).toBe(false); // gives up
+    expect(shouldDeferForBaseShift({}, true, 0)).toBe(false); // handle without the method
+  });
+});
+
+describe("feet models (storey elevations stored in feet)", () => {
+  // Elevations of a 5-storey + roofs building in FEET (about -17 ft .. 71 ft).
+  const FEET = [-16.92, -5.92, -3.46, 0, 5.5, 8.08, 18.83, 32.17, 45.5, 52.67, 58.83, 68.83, 70.83];
+  it("reads feet when the centroid height matches the foot reading, metres otherwise", () => {
+    expect(inferElevationUnitScale(FEET, 8.2)).toBeCloseTo(0.3048, 9);
+    // the same numbers in a metre model with a centroid ~27 m up stay metres
+    expect(inferElevationUnitScale(FEET, 27)).toBe(1);
+    // millimetres still win on spacing
+    expect(inferElevationUnitScale([0, 3000, 6000], 3)).toBe(0.001);
+    // no centroid yet: keep the metre reading (callers defer until it is known)
+    expect(inferElevationUnitScale(FEET, null)).toBe(1);
+  });
+
+  it("places the floor of a feet model in metres plus the vertical shift", () => {
+    const rows = FEET.map((e, i) => ({ name: `S${i}`, elevation: e, ifcVersionId: "v", sourceIfcFileId: "f" }));
+    const z = resolveStoreyFloorZ("S7", rows, { centroidY: 8.2, modelShiftY: 0.1524 })!;
+    expect(z).toBeCloseTo(32.17 * 0.3048 + 0.1524, 6);
+  });
+
+  it("also defers while the model centroid is unknown (feet vs metres needs it)", () => {
+    const base = { getBaseCoordinates: () => [0, 0, 0] };
+    expect(shouldDeferForBaseShift({ ...base, getModelCentroid: () => null }, true, 0)).toBe(true);
+    expect(shouldDeferForBaseShift({ ...base, getModelCentroid: () => ({ x: 0, y: 8, z: 0 }) }, true, 0)).toBe(false);
+    expect(shouldDeferForBaseShift(base, true, 0)).toBe(false); // handle without a centroid accessor
+  });
+});
+
+describe("overlapTopDownPose (entering overlap from a first-person split view)", () => {
+  const params = { scale: 0.0339, rotation: 0.3, translateX: -24, translateZ: -1.6 };
+  const eye = firstPersonPose({ x: 3, z: 4 }, 0, 0, 0, null); // what the split nav view leaves behind
+
+  it("looks straight down at the page centre, above the storey floor, perspective", () => {
+    const pose = overlapTopDownPose(params, 1000, 800, 2.5, eye);
+    const centre = applyCalibration(params, { x: 500, y: 400 });
+    expect(pose.target[0]).toBeCloseTo(centre.x, 9);
+    expect(pose.target[2]).toBeCloseTo(centre.z, 9);
+    expect(pose.target[1]).toBeCloseTo(2.5, 9);
+    expect(pose.pos[1]).toBeGreaterThan(2.5 + 5); // well above the plan, not at eye height
+    expect(Math.hypot(pose.pos[0] - centre.x, pose.pos[2] - centre.z)).toBeLessThan(0.01 * (pose.pos[1] - 2.5));
+    expect(pose.isOrtho).toBe(false);
+    // the grazing split pose is nowhere near this: its pitch is horizontal
+    expect(pitchFromPose(eye)).toBeCloseTo(0, 9);
+    expect(pitchFromPose(pose)).toBeLessThan(-1.5); // ~ -90 degrees
+  });
+
+  it("frames the whole page: the camera is higher for a bigger page", () => {
+    const small = overlapTopDownPose(params, 500, 400, 0, eye);
+    const big = overlapTopDownPose(params, 2000, 1600, 0, eye);
+    expect(big.pos[1]).toBeGreaterThan(small.pos[1] * 3);
+  });
+
+  it("inherits the perspective fov and survives an orthographic current pose", () => {
+    expect(overlapTopDownPose(params, 1000, 800, 0, { ...eye, fov: 60 }).fov).toBe(60);
+    expect(overlapTopDownPose(params, 1000, 800, 0, { ...eye, isOrtho: true, fov: 5 }).fov).toBe(DEFAULT_CAMERA_FOV);
+    expect(overlapTopDownPose(params, 1000, 800, 0, null).fov).toBe(DEFAULT_CAMERA_FOV);
   });
 });

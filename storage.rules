@@ -2,11 +2,13 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
-    // The only thing FreeField stores in Cloud Storage today is task media:
-    // task photos and the location-snapshot thumbnail, both written by the
-    // task outbox (packages/ff-tasks/src/repository.ts `photoPath`,
-    // packages/ff-tasks/src/photos.ts `locationThumbPath`). IFC models and
-    // PDFs stay in the browser (IndexedDB); they never touch Storage.
+    // Cloud Storage holds (a) task media: task photos and the
+    // location-snapshot thumbnail, written by the task outbox
+    // (packages/ff-tasks/src/repository.ts `photoPath`,
+    // packages/ff-tasks/src/photos.ts `locationThumbPath`), and (b) since
+    // Phase 1d the synced model/plan blobs: projects/{pid}/{ifc,frag,pdf}/
+    // {versionId}.{ext} (docs/SPEC-PHASE-1.md §4). Devices download `.frag`
+    // and PDF; the `.ifc` upload is optional.
     //
     // Everything else is denied (wave 63: there used to be an open
     // `allow read, write: if true` catch-all here, and it was deployed).
@@ -46,6 +48,45 @@ service firebase.storage {
         && request.resource.contentType.matches('image/(jpeg|png|webp)');
       allow update: if false;
       allow delete: if isAdmin(pid);
+    }
+
+    // ── Synced blobs (Phase 1d, SPEC-PHASE-1 §4/§8) ──────────────
+    // Path shapes (named by the version doc id; helpers in
+    // packages/ff-firestore/src/storage/paths.ts):
+    //   projects/{pid}/pdf/{versionId}.pdf    <= 200 MB, application/pdf
+    //   projects/{pid}/frag/{versionId}.frag  <= 500 MB, application/octet-stream
+    //   projects/{pid}/ifc/{versionId}.ifc    <= 1 GB,   application/octet-stream
+    // Members read; admins create. Objects are immutable: no update, and
+    // `resource == null` pins create to brand-new objects (overwrites can be
+    // evaluated as `create`). Client DELETE is denied for everyone (a
+    // delete + re-create would be an overwrite under a recorded sha256);
+    // the 30-day tombstone GC deletes with the Admin SDK (Phase 1e).
+    match /projects/{pid}/pdf/{file} {
+      allow read: if isMember(pid);
+      allow create: if isAdmin(pid)
+        && resource == null
+        && file.matches('[A-Za-z0-9_-]+[.]pdf')
+        && request.resource.size <= 200 * 1024 * 1024
+        && request.resource.contentType == 'application/pdf';
+      allow update, delete: if false;
+    }
+    match /projects/{pid}/frag/{file} {
+      allow read: if isMember(pid);
+      allow create: if isAdmin(pid)
+        && resource == null
+        && file.matches('[A-Za-z0-9_-]+[.]frag')
+        && request.resource.size <= 500 * 1024 * 1024
+        && request.resource.contentType == 'application/octet-stream';
+      allow update, delete: if false;
+    }
+    match /projects/{pid}/ifc/{file} {
+      allow read: if isMember(pid);
+      allow create: if isAdmin(pid)
+        && resource == null
+        && file.matches('[A-Za-z0-9_-]+[.]ifc')
+        && request.resource.size <= 1024 * 1024 * 1024
+        && request.resource.contentType == 'application/octet-stream';
+      allow update, delete: if false;
     }
 
     // Default deny. Rules are allow-only, so this is the same as having no

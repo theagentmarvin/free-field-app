@@ -5,6 +5,7 @@ import { useAuth, useProjectId } from "@ff/auth";
 import { useTasksSource } from "./tasksSource";
 import { mergePanelTasks, type PanelTask } from "./panelLogic";
 import { useOutboxRows } from "./useOutboxRows";
+import { tasksForBuilding, useTaskBuildingIndex } from "./taskBuilding";
 
 /**
  * The panel's live-query feed (Wave 9, spec §A "NO new data path").
@@ -16,8 +17,18 @@ import { useOutboxRows } from "./useOutboxRows";
  *
  * The panel component itself stays presentational: it receives the
  * merged rows as props; this hook is the host's one-line data source.
+ *
+ * `buildingId` (2026-11-14): viewers inside a building (Models, LinkView,
+ * Documents) pass the active building and get ONLY its tasks — by the
+ * task's own building, else by the model/PDF it is pinned to
+ * (`taskBuilding.ts`). `null` = no building selected → no tasks. Omit it
+ * (the Tasks module) to list every task in the project.
  */
-export function usePanelTasks(): PanelTask[] {
+export function usePanelTasks(
+  opts: { buildingId?: string | null } = {},
+): PanelTask[] {
+  const { buildingId } = opts;
+  const buildingIndex = useTaskBuildingIndex();
   const source = useTasksSource();
   const projectId = useProjectId();
 
@@ -38,10 +49,12 @@ export function usePanelTasks(): PanelTask[] {
 
   const rows = useOutboxRows(projectId);
 
-  return useMemo(
-    () => mergePanelTasks(cloud, rows, source.overlaySending),
-    [cloud, rows, source.overlaySending],
-  );
+  return useMemo(() => {
+    const merged = mergePanelTasks(cloud, rows, source.overlaySending);
+    return buildingId === undefined
+      ? merged
+      : tasksForBuilding(merged, buildingId, buildingIndex);
+  }, [cloud, rows, source.overlaySending, buildingId, buildingIndex]);
 }
 
 /** The current actor uid driving the panel's `Mine` filter. Demo → the

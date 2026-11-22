@@ -95,7 +95,15 @@ export async function appendIfcVersion(
   try {
     return await db.transaction(
       "rw",
-      [db.ifcFiles, db.ifcVersions, db.storeys, db.propertyCatalog, db.fragBlobs],
+      [
+        db.ifcFiles,
+        db.ifcVersions,
+        db.storeys,
+        db.propertyCatalog,
+        db.fragBlobs,
+        db.extractedStoreys,
+        db.buildingLevelSelection,
+      ],
       async () => {
         // 1. File row.
         let file: IfcFileRecord | undefined;
@@ -152,23 +160,61 @@ export async function appendIfcVersion(
         // 5. Storeys: the previous versions' rows go (history is never
         // re-loaded; keeping them would duplicate levels in the
         // building-level aggregation), the new version's rows come in.
+        //
+        // 2026-11-14: the user's level work survives a new version. The
+        // extracted levels (extractedStoreys) and the Get Levels
+        // selection (buildingLevelSelection) point at storey ids, which
+        // are per version. Each old storey is matched to the new
+        // version's storey with the SAME NAME (same-named levels paired
+        // in elevation order) and its rows move to the new id. A level
+        // that no longer exists in the new version loses its rows.
         const previousIds = previous.map((v) => v.id);
+        const oldStoreys =
+          previousIds.length > 0
+            ? await db.storeys.where("ifcVersionId").anyOf(previousIds).toArray()
+            : [];
+        const rows: StoreyRecord[] = storeyInputs.map((s) => ({
+          id: uuid(),
+          buildingId: file!.buildingId,
+          ifcVersionId: versionId,
+          sourceIfcFileId: fileId,
+          name: s.name,
+          elevation: s.elevation,
+          expressId: s.expressId,
+          height: s.height,
+          containedElementIds: s.containedElementIds ?? [],
+        }));
         if (previousIds.length > 0) {
           await db.storeys.where("ifcVersionId").anyOf(previousIds).delete();
         }
-        if (storeyInputs.length > 0) {
-          const rows: StoreyRecord[] = storeyInputs.map((s) => ({
-            id: uuid(),
-            buildingId: file!.buildingId,
-            ifcVersionId: versionId,
-            sourceIfcFileId: fileId,
-            name: s.name,
-            elevation: s.elevation,
-            expressId: s.expressId,
-            height: s.height,
-            containedElementIds: s.containedElementIds ?? [],
-          }));
+        if (rows.length > 0) {
           await db.storeys.bulkAdd(rows);
+        }
+        if (oldStoreys.length > 0) {
+          const remap = matchStoreysByName(oldStoreys, rows);
+          const oldIds = oldStoreys.map((st) => st.id);
+          const extracted = await db.extractedStoreys
+            .where("storeyId")
+            .anyOf(oldIds)
+            .toArray();
+          for (const row of extracted) {
+            await db.extractedStoreys.delete(row.id);
+            const to = remap.get(row.storeyId);
+            if (to) {
+              await db.extractedStoreys.put({ ...row, storeyId: to, updatedAt: now });
+            }
+          }
+          const selections = await db.buildingLevelSelection
+            .where("levelId")
+            .anyOf(oldIds)
+            .toArray();
+          for (const sel of selections) {
+            await db.buildingLevelSelection.delete([sel.buildingId, sel.levelId]);
+            const to = remap.get(sel.levelId);
+            if (to) {
+              await db.buildingLevelSelection.put({ ...sel, levelId: to, updatedAt: now });
+            }
+          }
         }
 
         // 6. Property catalog: keyed by fileId, always the latest
@@ -204,4 +250,37 @@ export async function appendIfcVersion(
   } catch (e) {
     throw toStorageError(e);
   }
+}
+
+/**
+ * Old storey id → new storey id, matched by name. Several storeys with
+ * the same name are paired in elevation order; extras on either side
+ * stay unmatched.
+ */
+export function matchStoreysByName(
+  oldStoreys: readonly Pick<StoreyRecord, "id" | "name" | "elevation">[],
+  newStoreys: readonly Pick<StoreyRecord, "id" | "name" | "elevation">[],
+): Map<string, string> {
+  const byName = (list: readonly Pick<StoreyRecord, "id" | "name" | "elevation">[]) => {
+    const m = new Map<string, Pick<StoreyRecord, "id" | "name" | "elevation">[]>();
+    for (const st of list) {
+      const k = st.name;
+      const arr = m.get(k) ?? [];
+      arr.push(st);
+      m.set(k, arr);
+    }
+    for (const arr of m.values()) arr.sort((a, b) => a.elevation - b.elevation);
+    return m;
+  };
+  const oldByName = byName(oldStoreys);
+  const newByName = byName(newStoreys);
+  const out = new Map<string, string>();
+  for (const [name, olds] of oldByName) {
+    const news = newByName.get(name) ?? [];
+    olds.forEach((o, i) => {
+      const n = news[i];
+      if (n) out.set(o.id, n.id);
+    });
+  }
+  return out;
 }

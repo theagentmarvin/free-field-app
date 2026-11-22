@@ -1,3 +1,5 @@
+import { OpenableLocationThumb } from "./LocationThumb";
+import type { PhotoUrlResolver } from "./usePhotoUrl";
 import { useRef, useEffect, useState, type CSSProperties, type DragEvent, type KeyboardEvent } from "react";
 
 import type { TaskView } from "@ff/tasks";
@@ -20,7 +22,7 @@ import {
 import type { TaskTableRow } from "./tableColumns";
 import { adjacentColumn, planBoardMove } from "./boardMove";
 import { ChecklistProgress, DeadlineChip, PriorityChip } from "./TaskChips";
-import { normalizeChecklist, priorityOf } from "@ff/tasks";
+import { isLinkviewLocation, normalizeChecklist, normalizeLocationThumb2dPath, priorityOf } from "@ff/tasks";
 
 /**
  * Tasks UI refresh v1 (§4 · NEW) — the Board view.
@@ -129,6 +131,8 @@ export interface TaskBoardPanelProps {
   onMove?: (task: TaskView, columnKey: string) => void;
   hasMoreRemote?: boolean;
   onLoadMore?: () => void;
+  /** resolves location snapshot paths → URLs; absent → no thumbs */
+  resolvePhotoUrl?: PhotoUrlResolver;
 }
 
 export function TaskBoardPanel({
@@ -141,6 +145,7 @@ export function TaskBoardPanel({
   onMove,
   hasMoreRemote = false,
   onLoadMore,
+  resolvePhotoUrl,
 }: TaskBoardPanelProps): JSX.Element {
   const [pressed, setPressed] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -279,6 +284,17 @@ export function TaskBoardPanel({
                     >
                       {formatTaskNum(t.num)}
                     </span>
+                    {t.locationThumbPath ? (
+                      <OpenableLocationThumb
+                        task={t}
+                        path={t.locationThumbPath}
+                        path2d={normalizeLocationThumb2dPath(t.location)}
+                        resolve={resolvePhotoUrl}
+                        label={`Location snapshot for ${formatTaskNum(t.num)}`}
+                        testId="ff-board-location-thumb"
+                        style={isLinkviewLocation(t.location) ? { width: 28, height: 22 } : { width: 22, height: 22 }}
+                      />
+                    ) : null}
                     <span
                       title={STATUS_LABELS[t.status] ?? String(t.status)}
                       style={{ ...softStatusDotStyle, marginLeft: "auto", background: dotColor(t.status) }}

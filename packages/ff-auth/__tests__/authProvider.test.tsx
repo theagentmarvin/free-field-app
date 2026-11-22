@@ -153,9 +153,14 @@ const projectCalls = (id?: string): Call[] =>
   h.state.calls.filter((c) => c.kind === 'project' && (id === undefined || c.id === id));
 
 /** Deliver a membership snapshot: the user's ACTIVE member docs. */
-function emitMembers(rows: Array<{ pid: string; role: string }>, call = memberCalls().at(-1)!): void {
+function emitMembers(
+  rows: Array<{ pid: string; role: string }>,
+  call = memberCalls().at(-1)!,
+  metadata: { fromCache: boolean } = { fromCache: false },
+): void {
   act(() =>
     call.next({
+      metadata,
       docs: rows.map((r) => ({
         ref: { parent: { parent: { id: r.pid } } },
         data: () => ({ role: r.role }),
@@ -197,7 +202,14 @@ beforeEach(() => {
     emitAuth(null);
   });
   h.onSnapshot.mockReset().mockImplementation(
-    (ref: { kind: 'members' | 'project'; id?: string }, next: Call['next'], error: Call['error']) => {
+    (
+      ref: { kind: 'members' | 'project'; id?: string },
+      a: unknown,
+      b: unknown,
+      c: unknown,
+    ) => {
+      // onSnapshot(ref, next, error) or onSnapshot(ref, options, next, error)
+      const [next, error] = (typeof a === 'function' ? [a, b] : [b, c]) as [Call['next'], Call['error']];
       const entry: Call = { kind: ref.kind, id: ref.id ?? '', next, error, unsubscribed: false };
       h.state.calls.push(entry);
       return () => {
@@ -472,6 +484,31 @@ describe('memberships and current project (real mode, Phase 1b)', () => {
     expect(screen.getByTestId('pid').textContent).toBe('null');
   });
 
+  it('an EMPTY cache snapshot is not "no memberships": stays pending until the server answers', async () => {
+    render(<AuthProvider><SelectionProbe /></AuthProvider>);
+    await signIn();
+    // First boot, empty persistent cache, backend unreachable.
+    emitMembers([], memberCalls().at(-1)!, { fromCache: true });
+    expect(screen.getByTestId('memberships').textContent).toBe('pending');
+    // The server confirms: genuinely no memberships.
+    emitMembers([], memberCalls().at(-1)!, { fromCache: false });
+    expect(screen.getByTestId('memberships').textContent).toBe('');
+  });
+
+  it('a NON-empty cache snapshot is trusted immediately (returning user offline)', async () => {
+    render(<AuthProvider><SelectionProbe /></AuthProvider>);
+    await signIn();
+    emitMembers([{ pid: 'p1', role: 'member' }], memberCalls().at(-1)!, { fromCache: true });
+    expect(screen.getByTestId('memberships').textContent).toBe('p1=member');
+  });
+
+  it('subscribes the membership listener with metadata changes', async () => {
+    render(<AuthProvider><SelectionProbe /></AuthProvider>);
+    await signIn();
+    const call = h.onSnapshot.mock.calls.find((args) => (args[0] as { kind: string }).kind === 'members')!;
+    expect(call[1]).toEqual({ includeMetadataChanges: true });
+  });
+
   it('a stale previous-user snapshot never leaks into the next user (uid-keyed)', async () => {
     render(<AuthProvider><SelectionProbe /></AuthProvider>);
     await signIn('u1');
@@ -613,5 +650,68 @@ describe('guards (real mode, mocked Firebase)', () => {
     expect(screen.queryByTestId('project-load-error')).toBeNull();
     emitMembers([{ pid: 'p1', role: 'member' }], memberCalls()[1]);
     expect(screen.getByTestId('inside')).toBeTruthy();
+  });
+
+  describe('first-boot silence (no cache, no network)', () => {
+    afterEach(() => vi.useRealTimers());
+
+    it('shows a visible loading state, then a friendly timeout error with Retry after ~12 s', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      renderAt('/guarded', <RequireProjectMember><div data-testid="inside" /></RequireProjectMember>);
+      emitAuth({ uid: 'u1', email: 'a@x.test' });
+      await flush();
+      // Firestore never answers: not blank, a loading status is on screen.
+      expect(screen.getByTestId('boot-loading')).toBeTruthy();
+      expect(screen.queryByTestId('project-load-error')).toBeNull();
+
+      await act(async () => {
+        vi.advanceTimersByTime(5_100);
+      });
+      expect(screen.getByTestId('boot-loading-slow')).toBeTruthy();
+
+      await act(async () => {
+        vi.advanceTimersByTime(7_000); // > 12 s since the listener attached
+      });
+      const err = screen.getByTestId('project-load-error');
+      expect(err.textContent).toMatch(/offline/i);
+      expect(screen.queryByTestId('boot-loading')).toBeNull();
+
+      // Retry re-subscribes and a real answer then renders the app.
+      fireEvent.click(screen.getByTestId('project-load-retry'));
+      expect(memberCalls()).toHaveLength(2);
+      expect(memberCalls()[0].unsubscribed).toBe(true);
+      emitMembers([{ pid: 'p1', role: 'member' }], memberCalls()[1]);
+      expect(screen.getByTestId('inside')).toBeTruthy();
+    });
+
+    it('a late snapshot heals the timeout error', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      renderAt('/guarded', <RequireProjectMember><div data-testid="inside" /></RequireProjectMember>);
+      emitAuth({ uid: 'u1', email: 'a@x.test' });
+      await flush();
+      await act(async () => {
+        vi.advanceTimersByTime(13_000);
+      });
+      expect(screen.getByTestId('project-load-error')).toBeTruthy();
+      emitMembers([{ pid: 'p1', role: 'admin' }]);
+      expect(screen.queryByTestId('project-load-error')).toBeNull();
+      expect(screen.getByTestId('inside')).toBeTruthy();
+    });
+
+    it('a cached returning user (snapshot arrives at once) never sees loading-error and the timer is disarmed', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      renderAt('/guarded', <RequireProjectMember><div data-testid="inside" /></RequireProjectMember>);
+      emitAuth({ uid: 'u1', email: 'a@x.test' });
+      await flush();
+      emitMembers([{ pid: 'p1', role: 'member' }]); // from the persistent cache
+      expect(screen.getByTestId('inside')).toBeTruthy();
+      await act(async () => {
+        vi.advanceTimersByTime(60_000);
+      });
+      expect(screen.getByTestId('inside')).toBeTruthy();
+      expect(screen.queryByTestId('project-load-error')).toBeNull();
+    });
   });
 });

@@ -3,8 +3,6 @@
 //
 //   import { ffViewerOptimizeDeps, ffToolingAlias } from "@ff/tooling";
 //
-// without reaching for the subpath export. The Vite snippet file
-// is `.ts` (not `.js`) on purpose: Vite itself consumes it via
-// tsx-friendly ts-loaders, and the package.json `exports` map
-// makes the resolution explicit.
-export { ffViewerOptimizeDeps, ffToolingAlias } from "../vite.config.base";
+// vite.config.base is plain ESM `.js` (+ `.d.ts`) so Node can load it
+// natively when Vite reads an app's vite.config.ts.
+export { ffViewerOptimizeDeps, ffToolingAlias } from "../vite.config.base.js";

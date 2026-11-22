@@ -2,11 +2,22 @@ import {
   useEffect,
   useRef,
   useState,
-  type CSSProperties,
+
 } from "react";
 
 import { tokens } from "@ff/tasks-react";
-import { useIsMobile, useManualVisibilityStore } from "@ff/viewer-tools";
+import {
+  FloatingBar,
+  barRowStyle,
+  clearButtonStyle,
+  menuRowStyle,
+  menuStyle,
+  readoutChipStyle,
+  segButtonStyle,
+  segGroupStyle,
+  useIsMobile,
+  useManualVisibilityStore,
+} from "@ff/viewer-tools";
 import type {
   IfcViewerHandle,
   MeasureReadout,
@@ -48,7 +59,7 @@ import {
 import "./frosted.css";
 import { useViewerToolModeStore } from "./viewerToolModeStore";
 
-const { color: c, radius: r, space: s, fontSize: f, font } = tokens;
+const { color: c, fontSize: f } = tokens;
 
 /**
  * <ViewerToolbar> (Wave 13, trimmed in Wave 50) — floating bottom band
@@ -334,36 +345,11 @@ export default function ViewerToolbar({
     }
   };
 
-  const anchorStyle: CSSProperties = isMobile
-    ? {
-        left: "auto",
-        right: 12,
-        transform: "none",
-        alignItems: "flex-end",
-      }
-    : {
-        left: "50%",
-        right: "auto",
-        transform: "translateX(-50%)",
-        alignItems: "center",
-      };
-
   return (
-    <div
+    <FloatingBar
       data-testid="viewer-toolbar"
-      role="toolbar"
       aria-label="Viewer tools"
-      className="ff-frosted ff-viewer-toolbar"
-      style={{
-        position: "absolute",
-        bottom: 14,
-        zIndex: 20,
-        display: "flex",
-        flexDirection: "column",
-        gap: 8,
-        borderRadius: 14,
-        ...anchorStyle,
-      }}
+      isMobile={isMobile}
     >
       {/* ── Measure variant menu ───────────────────────────────── */}
       {state.menu === "measure" && (
@@ -659,28 +645,12 @@ export default function ViewerToolbar({
         </div>
       )}
 
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: s.s2,
-          padding: 4,
-          borderRadius: 14,
-          fontFamily: font,
-        }}
-      >
+      <div style={barRowStyle()}>
         {/* split / segmented control */}
         <div
           role="group"
           aria-label="Measure or save view"
-          style={{
-            display: "flex",
-            gap: 2,
-            background: "transparent",
-            border: "none",
-            borderRadius: 14,
-            padding: 0,
-          }}
+          style={segGroupStyle()}
         >
           <button
             type="button"
@@ -767,94 +737,6 @@ export default function ViewerToolbar({
           </>
         )}
       </div>
-    </div>
+    </FloatingBar>
   );
-}
-
-function segButtonStyle(on: boolean): CSSProperties {
-  return {
-    height: 40,
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 6,
-    padding: "0 12px",
-    border: "none",
-    borderRadius: 999,
-    background: on ? "#ffffff" : "transparent",
-    color: on ? c.focusRing : c.text2,
-    fontSize: f.md,
-    fontWeight: on ? 700 : 600,
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-    fontFamily: "inherit",
-    boxShadow: on ? "0 2px 8px rgba(16,24,40,0.12)" : "none",
-    transition: "background 120ms ease, color 120ms ease, box-shadow 120ms ease",
-  };
-}
-
-function menuStyle(): CSSProperties {
-  return {
-    display: "flex",
-    flexDirection: "column",
-    gap: 2,
-    minWidth: 200,
-    borderRadius: 12,
-    padding: 6,
-    fontFamily: font,
-  };
-}
-
-function menuRowStyle(active: boolean): CSSProperties {
-  return {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
-    padding: "9px 12px",
-    borderRadius: 8,
-    border: "none",
-    background: active ? c.primary : "transparent",
-    color: active ? c.onPrimary : c.text,
-    fontSize: f.md,
-    fontWeight: active ? 700 : 600,
-    cursor: "pointer",
-    textAlign: "left",
-    fontFamily: "inherit",
-  };
-}
-
-function readoutChipStyle(): CSSProperties {
-  return {
-    height: 40,
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "0 12px",
-    background: c.focusRingTint,
-    border: `1px solid ${c.focusRingLine}`,
-    borderRadius: r.pill,
-    color: c.focusRingInk,
-    fontSize: f.sm,
-    fontWeight: 700,
-    fontVariantNumeric: "tabular-nums",
-    whiteSpace: "nowrap",
-  };
-}
-
-function clearButtonStyle(kind: "clear" | "done" = "clear"): CSSProperties {
-  return {
-    height: 40,
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 5,
-    padding: "0 12px",
-    border: `1px solid ${c.borderStrong}`,
-    borderRadius: r.md,
-    background: c.surface,
-    color: kind === "done" ? c.focusRingInk : c.danger,
-    fontSize: f.sm,
-    fontWeight: 700,
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-    fontFamily: "inherit",
-  };
 }

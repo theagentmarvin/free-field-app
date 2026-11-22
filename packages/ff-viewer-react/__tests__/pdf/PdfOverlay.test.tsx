@@ -231,19 +231,14 @@ describe("<PdfOverlay>", () => {
     });
   });
 
-  it("renders the close button when onClose is provided and fires it on click", async () => {
+  it("renders no close button (the viewer has no × control)", async () => {
     const { version: v, getPdfVersion, getPdfBlob } = makePdfVersionWithBlob("a.pdf");
-    const onClose = vi.fn();
-    render(<PdfOverlay pdfVersionId={v.id} onClose={onClose} getPdfVersion={getPdfVersion} getPdfBlob={getPdfBlob} />);
-    const btn = await waitFor(() => {
-      const el = document.querySelector(
-        '[data-testid="pdf-overlay-close"]',
-      ) as HTMLElement | null;
-      expect(el).toBeTruthy();
-      return el!;
+    render(<PdfOverlay pdfVersionId={v.id} getPdfVersion={getPdfVersion} getPdfBlob={getPdfBlob} />);
+    await waitFor(() => {
+      expect(document.querySelector('[data-debug="pdf-overlay-info"]')).toBeTruthy();
     });
-    btn.click();
-    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('[data-testid="pdf-overlay-close"]')).toBeNull();
+    expect(document.querySelector('[aria-label*="Close PDF"]')).toBeNull();
   });
 });
 
@@ -410,5 +405,27 @@ describe("<PdfOverlay> — onTap (Wave 5B tap-to-create)", () => {
     firePointer(overlay, "pointerup", 10, 20);
 
     expect(onTap).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("<PdfOverlay> — StrictMode double mount", () => {
+  beforeEach(() => {
+    mockViewerConstructor.mockClear();
+    mockViewerDestroy.mockClear();
+    mockLoadPDF.mockClear();
+    resetFakeDb();
+  });
+
+  it("builds exactly ONE viewer (no ghost viewer from the first mount)", async () => {
+    const { version: v, getPdfVersion, getPdfBlob } = makePdfVersionWithBlob("strict.pdf");
+    const { StrictMode } = await import("react");
+    render(
+      <StrictMode>
+        <PdfOverlay pdfVersionId={v.id} getPdfVersion={getPdfVersion} getPdfBlob={getPdfBlob} />
+      </StrictMode>,
+    );
+    await waitFor(() => expect(mockViewerConstructor).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 50));
+    expect(mockViewerConstructor).toHaveBeenCalledTimes(1);
   });
 });

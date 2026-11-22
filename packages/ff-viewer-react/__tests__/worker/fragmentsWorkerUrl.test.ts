@@ -13,7 +13,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   FRAGMENTS_WORKER_BUNDLE_URL,
-  FRAGMENTS_WORKER_CDN,
   FRAGMENTS_WORKER_SOURCES,
   getFragmentsWorkerBlobUrl,
   resetFragmentsWorkerCache,
@@ -45,13 +44,14 @@ describe("fragmentsWorkerUrl", () => {
     resetFragmentsWorkerCache();
   });
 
-  it("resolves the bundled worker first, CDN only as fallback", async () => {
+  it("resolves the bundled worker only (no third-party fallback)", async () => {
     // The asset import must be the LOCAL file, not a CDN string: that
     // is what makes the worker version-locked to the installed package.
     expect(FRAGMENTS_WORKER_BUNDLE_URL).toBeTruthy();
     expect(FRAGMENTS_WORKER_BUNDLE_URL).not.toMatch(/^https?:/);
     expect(FRAGMENTS_WORKER_SOURCES[0]).toBe(FRAGMENTS_WORKER_BUNDLE_URL);
-    expect(FRAGMENTS_WORKER_SOURCES[1]).toBe(FRAGMENTS_WORKER_CDN);
+    expect(FRAGMENTS_WORKER_SOURCES).toHaveLength(1);
+    for (const u of FRAGMENTS_WORKER_SOURCES) expect(u).not.toMatch(/^(https?:)?[/][/]/);
 
     stubFetch(okBody("/* worker */"));
     await getFragmentsWorkerBlobUrl();
@@ -59,16 +59,11 @@ describe("fragmentsWorkerUrl", () => {
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
   });
 
-  it("falls back to the CDN when the bundled asset cannot be fetched", async () => {
-    stubFetch(async (input) =>
-      input === FRAGMENTS_WORKER_BUNDLE_URL
-        ? { ok: false, status: 404, text: async () => "" }
-        : { ok: true, status: 200, text: async () => "/* worker */" },
-    );
-    await expect(getFragmentsWorkerBlobUrl()).resolves.toBe("blob:mock-worker");
+  it("never falls back to a third-party origin when the bundled asset 404s", async () => {
+    stubFetch(async () => ({ ok: false, status: 404, text: async () => "" }));
+    await expect(getFragmentsWorkerBlobUrl()).rejects.toThrow("404");
     expect(vi.mocked(fetch).mock.calls.map((c) => c[0])).toEqual([
       FRAGMENTS_WORKER_BUNDLE_URL,
-      FRAGMENTS_WORKER_CDN,
     ]);
   });
 

@@ -42,8 +42,10 @@ export type {
   RenderOnDemandConfig,
   SplitTileBuildConfig,
   TileCacheConfig,
+  IfcViewerReadyContext,
 } from "./IfcViewer";
 export type { RenderSchedulerStats } from "./perf/renderScheduler";
+export type { MemoryTuning, MemoryPressure, MemoryLodMode } from "./perf/memoryTuning";
 export { MAX_SECTION_PLANES } from "./IfcViewer";
 export { ModelUnloadedError, isModelUnloadedError } from "./modelUnloadedError";
 
@@ -59,7 +61,7 @@ export {
 // can import it WITHOUT triggering IfcViewer.tsx's heavy
 // module load (OBC + Three.js + Stats.js). IfcViewer.tsx also
 // imports it internally.
-export { flattenItemData, getPropertyGroups } from "./flattenItemData";
+export { flattenItemData, getPropertyGroups, mergeGuidIntoAttributes } from "./flattenItemData";
 export type { IfcItemData, PropertyGroup } from "./flattenItemData";
 
 // Task 23: in-memory inverted index for fast custom-filter
@@ -84,3 +86,17 @@ export {
 
 export { default as PdfOverlay } from "./pdf/PdfOverlay";
 export type { PdfOverlayProps, PdfOverlayHandle } from "./pdf/PdfOverlay";
+
+// Wave 73: pointer / pick-coordinate helpers and the post-dispose manager guard.
+export {
+  clientToNdc,
+  ndcToBufferPixel,
+  createTapTracker,
+  tapSlopPx,
+} from "./picking/pointerPick";
+export {
+  guardFragmentsManager,
+  disposeFragmentsManager,
+  isFragmentsManagerDisposed,
+  DISPOSED_FRAGMENTS_CORE,
+} from "./fragmentsDisposeGuard";

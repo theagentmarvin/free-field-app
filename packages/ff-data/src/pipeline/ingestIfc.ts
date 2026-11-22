@@ -33,6 +33,23 @@ import {
   type IfcImportProgress,
 } from "../ifc/ifcImportOptions";
 
+/**
+ * Largest local IFC upload accepted before any bytes are read (1 GiB,
+ * matching the sync Storage rule). Real project IFCs run to hundreds of
+ * MB; this only stops accidents and hostile files from exhausting memory.
+ */
+export const MAX_IFC_FILE_BYTES = 1024 * 1024 * 1024;
+
+/** Thrown before parsing when a local IFC exceeds MAX_IFC_FILE_BYTES. */
+export class IfcTooLargeError extends Error {
+  constructor(public readonly fileName: string, public readonly size: number) {
+    super(
+      `"${fileName}" is too large to import (${Math.round(size / 1048576)} MB; the limit is ${MAX_IFC_FILE_BYTES / 1048576} MB). Split the model or export a lighter IFC.`,
+    );
+    this.name = "IfcTooLargeError";
+  }
+}
+
 /** Result of a successful loadIfc / replaceIfcVersion call. */
 export interface LoadIfcResult {
   ifcFileId: string;
@@ -106,6 +123,7 @@ function lockKey(buildingId: string, name: string): string {
 
 export async function ingestIfc(opts: IngestIfcOptions): Promise<LoadIfcResult> {
   const { file, target } = opts;
+  if (file.size > MAX_IFC_FILE_BYTES) throw new IfcTooLargeError(file.name, file.size);
 
   let buildingId: string;
   let fileName: string;

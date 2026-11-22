@@ -53,6 +53,8 @@ export interface TaskView {
   priority?: string | null;
   checklist?: { id: string; text: string; done: boolean }[];
   watchers?: string[];
+  /** project sheets attached by reference (see taskFields.ts SheetRef) */
+  sheetRefs?: { pdfFileId: string; pdfVersionId: string; versionNumber?: number; name: string; page?: number }[];
   location?: {
     storeyName?: string | null;
     text?: string;
@@ -78,17 +80,42 @@ function normalizePhotos(value: unknown): { storagePath: string }[] | undefined 
 
 /** Location snapshot thumb path from a task doc's (or pending create's)
  *  `location.thumb.storagePath`, or null when absent. */
-function normalizeLocationThumbPath(value: unknown): string | null {
+export function normalizeLocationThumbPath(value: unknown): string | null {
   const thumb = (value as { thumb?: { storagePath?: unknown } } | null | undefined)?.thumb;
   const path = thumb?.storagePath;
   return typeof path === "string" && path.length > 0 ? path : null;
+}
+
+/** `location.origin` value stamped on tasks created in LinkView. */
+export const LINKVIEW_ORIGIN = 'linkview';
+
+/** Plan snapshot path from `location.thumb2d.storagePath`, or null. */
+export function normalizeLocationThumb2dPath(value: unknown): string | null {
+  const thumb = (value as { thumb2d?: { storagePath?: unknown } } | null | undefined)?.thumb2d;
+  const path = thumb?.storagePath;
+  return typeof path === 'string' && path.length > 0 ? path : null;
+}
+
+/** A task created in LinkView: origin marker AND both a 3D and a plan side. */
+export function isLinkviewLocation(value: unknown): boolean {
+  const loc = value as { origin?: unknown; bim?: unknown; pdf?: unknown } | null | undefined;
+  return !!loc && loc.origin === LINKVIEW_ORIGIN && !!loc.bim && !!loc.pdf;
+}
+
+/** LinkView task that also has BOTH snapshots (renders side by side). */
+export function isDualThumbLocation(value: unknown): boolean {
+  return (
+    isLinkviewLocation(value) &&
+    normalizeLocationThumbPath(value) !== null &&
+    normalizeLocationThumb2dPath(value) !== null
+  );
 }
 
 /** Queued rows know their own photo paths: the payload carries the
  *  sha-named refs, and the path is deterministic (photos.ts) — the
  *  executor recomputes the same string at commit. A queued CREATE
  *  additionally carries the doc-shaped `createDoc.photos`. */
-function queuedPhotoPaths(payload: TaskActionPayload): { storagePath: string }[] | undefined {
+export function queuedPhotoPaths(payload: TaskActionPayload): { storagePath: string }[] | undefined {
   const fromDoc = normalizePhotos(payload.createDoc?.photos);
   if (fromDoc) return fromDoc;
   const refs = payload.photoRefs;
@@ -136,6 +163,7 @@ const PATCH_OVERLAY_KEYS = [
   'priority',
   'checklist',
   'watchers',
+  'sheetRefs',
   'location',
 ] as const;
 
@@ -195,6 +223,7 @@ export function mergeTaskViews(
         priority: (doc.priority as string) ?? null,
         checklist: (doc.checklist as TaskView['checklist']) ?? undefined,
         watchers: (doc.watchers as string[]) ?? undefined,
+        sheetRefs: (doc.sheetRefs as TaskView['sheetRefs']) ?? undefined,
         location: (doc.location as TaskView['location']) ?? null,
         createdAt: payload.at,
         lastAction: payload.verb,

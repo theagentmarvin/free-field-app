@@ -31,15 +31,15 @@ const { getDocumentMock } = vi.hoisted(() => ({
 // Mock only `getDocument`; everything else (notably
 // `GlobalWorkerOptions`) stays the real implementation, so the
 // assertions below see the same object the loader configures.
-vi.mock("pdfjs-dist", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("pdfjs-dist")>();
+vi.mock("pdfjs-dist/legacy/build/pdf.mjs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("pdfjs-dist/legacy/build/pdf.mjs")>();
   return {
     ...actual,
     getDocument: (...args: unknown[]) => getDocumentMock(...args),
   };
 });
 
-import * as pdfjsLib from "pdfjs-dist";
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 
 import {
   MAX_PDF_SIZE,

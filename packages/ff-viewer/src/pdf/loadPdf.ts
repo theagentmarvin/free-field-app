@@ -9,12 +9,12 @@
 // The worker comes from a Vite `?url` import of the *installed*
 // pdfjs-dist build:
 //
-//   import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+//   import pdfWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
 //
 // That gives a same-origin, content-hashed URL that is locked to
 // the installed package version BY CONSTRUCTION — the old
-// hardcoded `https://unpkg.com/pdfjs-dist@5.7.284/...` constant
-// could silently drift away from the `^5.7.284` range in
+// hardcoded `https://unpkg.com/pdfjs-dist@<version>/...` constant
+// could silently drift away from the pinned range in
 // package.json, and needed a fetch + Blob-URL dance to survive
 // the browser's cross-origin worker check.
 //
@@ -49,17 +49,34 @@
 // eslint-disable-next-line @typescript-eslint/triple-slash-reference -- ambient asset typing
 /// <reference path="../types/vite-assets.d.ts" />
 
-import * as pdfjsLib from "pdfjs-dist";
+// The LEGACY build: pdf.js 6's modern build needs the ES2025 `Iterator`
+// global (Safari < 18.4 / older field tablets would not boot); the legacy
+// build ships its own polyfills and also loads under Node 20 test runs.
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 // Type-only import for the PDFDocumentProxy / PDFPageProxy types.
 import type {
   PDFDocumentProxy,
   PDFPageProxy,
-} from "pdfjs-dist";
+} from "pdfjs-dist/legacy/build/pdf.mjs";
 // Vite `?url` import → the worker URL as a string. The worker
 // source itself is never parsed by the bundler; it is emitted as
 // an asset and fetched by the browser from the URL below.
 // (Type declaration: `src/types/vite-assets.d.ts`.)
-import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import pdfWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
+
+/**
+ * Free a loaded document. pdf.js 6 removed `PDFDocumentProxy.destroy()`;
+ * the loading task owns teardown. Falls back to the 5.x method so a
+ * mocked / older document still works.
+ */
+export async function destroyPdfDocument(doc: PDFDocumentProxy): Promise<void> {
+  const d = doc as unknown as {
+    loadingTask?: { destroy?: () => Promise<void> | void };
+    destroy?: () => Promise<void> | void;
+  };
+  if (typeof d.loadingTask?.destroy === "function") await d.loadingTask.destroy();
+  else if (typeof d.destroy === "function") await d.destroy();
+}
 
 /** 50 MB — same as pdf-plan-diff (single-page PDFs are tiny but
  *  the limit defends against the user accidentally picking a huge
@@ -250,6 +267,13 @@ export async function loadPDF(
     cMapUrl?: string;
     cMapPacked?: boolean;
     standardFontDataUrl?: string;
+    wasmUrl?: string;
+    iccUrl?: string;
+    // Hardening (GHSA-hq66-cqwq-w95j). pdf.js 6 has no font-eval path and
+    // only runs document scripts through PDFScriptingManager (never used
+    // here); these stay explicit so a future viewer/pinned 5.x is safe too.
+    isEvalSupported: boolean;
+    enableScripting: boolean;
     [key: string]: unknown;
   }
   const initParams: InitParams = {
@@ -263,6 +287,10 @@ export async function loadPDF(
     // Standard 14 fonts + the fonts PDF.js ships for
     // non-embedded text.
     standardFontDataUrl: "/pdfjs/standard_fonts/",
+    wasmUrl: "/pdfjs/wasm/",
+    iccUrl: "/pdfjs/iccs/",
+    isEvalSupported: false,
+    enableScripting: false,
   };
   const doc = await pdfjsLib.getDocument(initParams).promise;
 
@@ -279,7 +307,7 @@ export async function loadPDF(
   // calibration flow is unaffected.
   const singlePage = options.singlePage !== false;
   if (singlePage && doc.numPages !== 1) {
-    await doc.destroy();
+    await destroyPdfDocument(doc);
     throw new Error(
       `PDF must be a single page — received ${doc.numPages} pages`,
     );
@@ -337,7 +365,7 @@ export async function loadPDF(
       });
     },
     destroy: () => {
-      void doc.destroy();
+      void destroyPdfDocument(doc);
     },
   };
 }

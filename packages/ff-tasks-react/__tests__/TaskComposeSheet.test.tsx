@@ -5,6 +5,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { type DraftTable, type OutboxEngine } from "@ff/tasks";
 
 import { TaskComposeSheet, type TaskComposeSheetProps } from "../src/TaskComposeSheet";
+import { emptyCompose } from "../src/composeModel";
 
 /**
  * Compose sheet seams (v2). Presentational + prop-fed (no Firebase,
@@ -185,5 +186,76 @@ describe("TaskComposeSheet — snapshot object URL lifecycle (w68)", () => {
     } finally {
       URL.revokeObjectURL = orig;
     }
+  });
+});
+
+describe("TaskComposeSheet building stamping", () => {
+  const index = {
+    modelToBuilding: new Map([["m1", "bPinned"]]),
+    pdfToBuilding: new Map<string, string>(),
+  };
+  const bimLoc = {
+    storeyName: null,
+    bim: { elements: [{ modelId: "m1", expressId: 7 }], worldPoint: [1, 2, 3] as [number, number, number], cameraPose: null },
+    pdf: null,
+  };
+  async function sendAndGet(over: Partial<TaskComposeSheetProps>) {
+    const p = props(over);
+    render(<TaskComposeSheet {...p} />);
+    fireEvent.change(screen.getByTestId("compose-title"), { target: { value: "T" } });
+    fireEvent.click(screen.getByTestId("compose-send"));
+    await vi.waitFor(() => expect(p.engine.enqueue).toHaveBeenCalled());
+    return (p.engine.enqueue as ReturnType<typeof vi.fn>).mock.calls[0][0] as { createDoc: { buildingId: string | null } };
+  }
+  it("stamps the creation context building", async () => {
+    const payload = await sendAndGet({ buildingId: "bCtx", buildingIndex: index });
+    expect(payload.createDoc.buildingId).toBe("bCtx");
+  });
+  it("a restored draft with no building does not wipe the context building", async () => {
+    const payload = await sendAndGet({
+      buildingId: "bCtx",
+      buildingIndex: index,
+      initial: { ...emptyCompose(), title: "T", buildingId: null },
+    });
+    expect(payload.createDoc.buildingId).toBe("bCtx");
+  });
+  it("falls back to the building that owns the pinned model when there is no context", async () => {
+    const payload = await sendAndGet({ location: bimLoc, buildingIndex: index });
+    expect(payload.createDoc.buildingId).toBe("bPinned");
+  });
+});
+
+describe("TaskComposeSheet — attach from project", () => {
+  it("is offered only with extended fields", () => {
+    const { unmount } = render(<TaskComposeSheet {...props({ extendedFields: false })} />);
+    expect(screen.queryByTestId("compose-attach-from-project")).toBeNull();
+    unmount();
+    render(<TaskComposeSheet {...props({ extendedFields: true })} />);
+    expect(screen.getByTestId("compose-attach-from-project")).toBeTruthy();
+  });
+
+  it("an attached sheet shows as a chip and travels in the create doc as a reference", async () => {
+    const p = props({ extendedFields: true, initial: { ...emptyCompose(), title: "T", sheetRefs: [{ pdfFileId: "f1", pdfVersionId: "f1v1", versionNumber: 1, name: "A101.pdf" }] } });
+    render(<TaskComposeSheet {...p} />);
+    expect(screen.getByTestId("sheet-chip")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("compose-send"));
+    await vi.waitFor(() => expect(p.engine.enqueue).toHaveBeenCalled());
+    const payload = (p.engine.enqueue as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
+      createDoc: { sheetRefs: unknown[] };
+      photoRefs: unknown[];
+    };
+    expect(payload.createDoc.sheetRefs).toEqual([{ pdfFileId: "f1", pdfVersionId: "f1v1", versionNumber: 1, name: "A101.pdf" }]);
+    expect(payload.photoRefs).toEqual([]);
+  });
+
+  it("removing the chip drops the reference before send", async () => {
+    const p = props({ extendedFields: true, initial: { ...emptyCompose(), title: "T", sheetRefs: [{ pdfFileId: "f1", pdfVersionId: "f1v1", name: "A101.pdf" }] } });
+    render(<TaskComposeSheet {...p} />);
+    fireEvent.click(screen.getByTestId("sheet-chip-remove"));
+    expect(screen.queryByTestId("sheet-chip")).toBeNull();
+    fireEvent.click(screen.getByTestId("compose-send"));
+    await vi.waitFor(() => expect(p.engine.enqueue).toHaveBeenCalled());
+    const payload = (p.engine.enqueue as ReturnType<typeof vi.fn>).mock.calls[0][0] as { createDoc: object };
+    expect("sheetRefs" in payload.createDoc).toBe(false);
   });
 });

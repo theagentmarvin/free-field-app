@@ -111,7 +111,7 @@ function executor(opts?: { failCommits?: number }): OutboxExecutor {
     async commit() {
       commits++;
       if (opts?.failCommits && commits <= opts.failCommits) {
-        throw new Error("network-blip");
+        throw new Error("server-blip");
       }
       return { taskId: "t1" };
     },

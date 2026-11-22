@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 
-import { OutboxEngine, classifyOutboxError, BACKOFF_MS, MAX_ATTEMPTS, SENT_RETENTION_MS, type OutboxStore, type OutboxClock, type OutboxExecutor } from "../src/outbox";
+import { OutboxEngine, classifyOutboxError, NETWORK_BACKOFF_BASE_MS, NETWORK_BACKOFF_MAX_MS, BACKOFF_MS, MAX_ATTEMPTS, SENT_RETENTION_MS, type OutboxStore, type OutboxClock, type OutboxExecutor } from "../src/outbox";
 import { buildActionPayload, type TaskActionPayload } from "../src/action";
 import type { TaskStatus } from "../src/status";
 import type { OutboxRecord } from "@ff/types";
@@ -108,7 +108,7 @@ function executor(opts?: {
     async commit() {
       calls.push("commit");
       commits++;
-      if (opts?.failCommits && commits <= opts.failCommits) throw new Error("network-blip");
+      if (opts?.failCommits && commits <= opts.failCommits) throw new Error("server-blip");
       return { taskId: "t1" };
     },
   };
@@ -164,7 +164,7 @@ describe("OutboxEngine (plan §4, task-39 D5/backoff)", () => {
     let row = await store.get("g2");
     expect(row?.state).toBe("sending"); // re-armed by the timer, not spun
     expect(row?.attempts).toBe(1);
-    expect(row?.lastError).toBe("network-blip");
+    expect(row?.lastError).toBe("server-blip");
     expect(clock.timers[0]?.ms).toBe(BACKOFF_MS[0] + 250);
 
     await clock.fireNext();
@@ -350,7 +350,7 @@ describe("OutboxEngine (plan §4, task-39 D5/backoff)", () => {
       async uploadPhotos() {},
       async commit() {
         commits += 1;
-        if (!online || commits <= MAX_ATTEMPTS) {
+        if (!online || commits <= 1) {
           throw Object.assign(new Error("client is offline"), { code: "unavailable" });
         }
       },
@@ -364,19 +364,20 @@ describe("OutboxEngine (plan §4, task-39 D5/backoff)", () => {
     expect(commits).toBe(0);
     expect((await store.get("g-o"))?.state).toBe("added");
 
-    // The radio flaps: online but every request still fails → failed
-    // after the ladder (navigator.onLine lies on captive Wi-Fi)...
+    // The radio flaps: online but every request still fails with a
+    // network-class error (navigator.onLine lies on captive Wi-Fi) →
+    // the row stays pending with no attempts counted (BUG-13).
     online = true;
     await engine.drain();
     await settle();
-    for (let i = 0; i < MAX_ATTEMPTS - 1; i++) await clock.fireNext();
     let row = await store.get("g-o");
-    expect(row?.state).toBe("failed");
+    expect(row?.state).toBe("added");
+    expect(row?.attempts).toBe(0);
+    expect(row?.lastError).toContain("unavailable");
 
-    // ...and the next `online` event revives it as a network failure.
-    const revived = await engine.reviveNetworkFailed();
+    // Connectivity hint (`online` event) cancels the backoff and retries.
+    await engine.reviveNetworkFailed();
     await settle();
-    expect(revived).toBe(1);
     row = await store.get("g-o");
     expect(row?.state).toBe("sent");
   });
@@ -412,5 +413,108 @@ describe("OutboxEngine (plan §4, task-39 D5/backoff)", () => {
     await store.add({ ...base, id: "queued", state: "failed" });
     expect(await engine.pruneSent()).toBe(2);
     expect([...store.rows.keys()].sort()).toEqual(["fresh", "queued"]);
+  });
+});
+
+describe("OutboxEngine: backend unreachable while OS reports online (BUG-13)", () => {
+  function flaky(err: unknown, failures: number) {
+    let commits = 0;
+    const ex: OutboxExecutor = {
+      async uploadPhotos() {},
+      async commit() {
+        commits++;
+        if (commits <= failures) throw err;
+        return { taskId: "t1" };
+      },
+    };
+    return { ex, commits: () => commits };
+  }
+
+  it("network error with isOnline()=true: no attempt counted, row stays added, backoff armed, next success clears", async () => {
+    const store = new MemStore();
+    const clock = new FakeClock();
+    const f = flaky({ code: "unavailable", message: "Connection failed." }, 5);
+    const seen: string[] = [];
+    const engine = new OutboxEngine({ store, clock, executor: f.ex, isOnline: () => true });
+    engine.subscribeReachability((r) => seen.push(r.state));
+    expect(engine.getReachability()).toEqual({ state: "unknown", lastNetworkErrorAt: null, lastSuccessAt: null });
+
+    await engine.enqueue(payload("create", "t1", "g1", null));
+    await settle();
+    let row = await store.get("g1");
+    expect(row?.state).toBe("added");
+    expect(row?.attempts).toBe(0);
+    expect(row?.lastError).toBe("[unavailable] Connection failed.");
+    expect(clock.timers).toHaveLength(1);
+    expect(clock.timers[0].ms).toBe(NETWORK_BACKOFF_BASE_MS + 250);
+    expect(f.commits()).toBe(1); // no spinning
+    expect(engine.getReachability().state).toBe("unreachable");
+    expect(engine.getReachability().lastNetworkErrorAt).toBe(clock.nowMs);
+
+    // keep failing: stays pending, attempts stay 0, delay doubles and is capped
+    const delays: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      await clock.fireNext();
+      await settle();
+      row = await store.get("g1");
+      expect(row?.state).toBe("added");
+      expect(row?.attempts).toBe(0);
+      delays.push(clock.timers[0]?.ms ?? -1);
+    }
+    expect(delays[0]).toBe(NETWORK_BACKOFF_BASE_MS * 2 + 250);
+    expect(Math.max(...delays)).toBeLessThanOrEqual(NETWORK_BACKOFF_MAX_MS + 500);
+
+    // backend comes back
+    await clock.fireNext();
+    await settle();
+    row = await store.get("g1");
+    expect(row?.state).toBe("sent");
+    expect(row?.attempts).toBe(0);
+    expect(clock.timers).toHaveLength(0);
+    expect(engine.getReachability().state).toBe("ok");
+    expect(engine.getReachability().lastSuccessAt).toBe(clock.nowMs);
+    expect(seen[0]).toBe("unreachable");
+    expect(seen[seen.length - 1]).toBe("ok");
+  });
+
+  it("resumeNow cancels the backoff and drains immediately", async () => {
+    const store = new MemStore();
+    const clock = new FakeClock();
+    const f = flaky({ code: "unavailable" }, 1);
+    const engine = new OutboxEngine({ store, clock, executor: f.ex, isOnline: () => true });
+    await engine.enqueue(payload("create", "t1", "g1", null));
+    await settle();
+    expect(clock.timers).toHaveLength(1);
+    await engine.resumeNow();
+    await settle();
+    expect((await store.get("g1"))?.state).toBe("sent");
+    expect(clock.timers).toHaveLength(0);
+  });
+
+  it("fatal error (permission-denied) still counts an attempt and fails at once", async () => {
+    const store = new MemStore();
+    const clock = new FakeClock();
+    const f = flaky({ code: "permission-denied", message: "nope" }, 5);
+    const engine = new OutboxEngine({ store, clock, executor: f.ex, isOnline: () => true });
+    await engine.enqueue(payload("create", "t1", "g1", null));
+    await settle();
+    const row = await store.get("g1");
+    expect(row?.state).toBe("failed");
+    expect(row?.attempts).toBe(1);
+    expect(clock.timers).toHaveLength(0);
+    expect(engine.getReachability().state).toBe("ok"); // the server answered
+  });
+
+  it("transient error still uses the attempt ladder", async () => {
+    const store = new MemStore();
+    const clock = new FakeClock();
+    const f = flaky(new Error("weird"), 5);
+    const engine = new OutboxEngine({ store, clock, executor: f.ex, isOnline: () => true });
+    await engine.enqueue(payload("create", "t1", "g1", null));
+    await settle();
+    const row = await store.get("g1");
+    expect(row?.attempts).toBe(1);
+    expect(clock.timers[0].ms).toBe(BACKOFF_MS[0] + 250);
+    expect(engine.getReachability().state).toBe("unknown");
   });
 });

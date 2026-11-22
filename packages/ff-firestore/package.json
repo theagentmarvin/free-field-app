@@ -12,10 +12,11 @@
     "./functions": "./functions/src/index.ts"
   },
   "scripts": {
-    "test": "tsc -p functions/tsconfig.json && firebase emulators:exec --only auth,firestore,functions,storage --project demo-freefield \"vitest run --no-file-parallelism\"",
+    "test": "vitest run --no-file-parallelism --exclude \"__tests__/rules*.test.ts\" --exclude \"functions/__tests__/functions*.test.ts\"",
     "lint": "eslint . --ext .ts",
     "build:functions": "tsc -p functions/tsconfig.json",
-    "typecheck": "tsc --noEmit -p ."
+    "typecheck": "tsc --noEmit -p .",
+    "test:emulator": "tsc -p functions/tsconfig.json && firebase emulators:exec --only auth,firestore,functions,storage --project demo-freefield \"vitest run --no-file-parallelism __tests__/rules functions/__tests__/functions\""
   },
   "dependencies": {
     "zod": "^3.23.8"
@@ -26,6 +27,7 @@
     "firebase-functions": "^6.0.0"
   },
   "devDependencies": {
+    "@ff/types": "workspace:*",
     "@firebase/rules-unit-testing": "^4.0.1",
     "@testing-library/jest-dom": "^6.6.3",
     "@types/node": "^22.0.0",

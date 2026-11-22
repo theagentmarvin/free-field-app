@@ -56,6 +56,11 @@ const directories = [
     "node_modules/pdfjs-dist/standard_fonts",
     "public/pdfjs/standard_fonts",
   ],
+  // pdf.js 6: image decoders (JPX / JBIG2 / colour-management) are wasm
+  // blobs fetched by name from `wasmUrl`, ICC profiles from `iccUrl`.
+  // Served from our own origin so the CSP needs no third-party host.
+  ["node_modules/pdfjs-dist/wasm", "public/pdfjs/wasm"],
+  ["node_modules/pdfjs-dist/iccs", "public/pdfjs/iccs"],
 ];
 
 let copied = 0;

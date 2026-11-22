@@ -214,6 +214,40 @@ describe("mergePanelTasks", () => {
     expect(pending?.pending).toBe(true);
   });
 
+  it("keeps description, type, photos and thumb on a queued CREATE", () => {
+    const merged = mergePanelTasks(
+      [],
+      [
+        outboxRow({
+          projectId: "p1",
+          photoRefs: [{ blobKey: "b1", sha256: "abc", size: 3, mime: "image/jpeg" }],
+          payload: {
+            verb: "create",
+            taskId: "t9",
+            title: "Honeycomb edge",
+            statusTo: 10,
+            actor: { uid: "u1", name: "Ana" },
+            photoRefs: [{ blobKey: "b1", sha256: "abc", size: 3, mime: "image/jpeg" }],
+            createDoc: {
+              num: 9,
+              description: "Seen at grid C4",
+              type: "defect",
+              location: { storeyName: "L12", thumb: { storagePath: "projects/p1/t9/thumb.jpg" } },
+            },
+          },
+        }),
+      ],
+      false,
+    );
+    const t = merged.find((x) => x.id === "t9");
+    expect(t?.description).toBe("Seen at grid C4");
+    expect(t?.type).toBe("defect");
+    expect(t?.createdBy).toBe("Ana");
+    expect(t?.photos?.length).toBe(1);
+    expect(t?.photos?.[0].storagePath).toContain("t9");
+    expect(t?.locationThumbPath).toBe("projects/p1/t9/thumb.jpg");
+  });
+
   it("does not overlay a `sending` row with overlaySending=false (cloud optimistic)", () => {
     const merged = mergePanelTasks(
       [task({ id: "c1" })],

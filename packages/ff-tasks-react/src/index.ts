@@ -22,6 +22,7 @@ export { TapCreateMarker3D, type TapCreateMarker3DProps } from "./TapCreateMarke
 export { TapCreateTask3D, type TapCreateTask3DProps } from "./TapCreateTask3D";
 export * from "./createMarker";
 export * from "./pdfPins";
+export * from "./calibResolve";
 export {
   TaskCalloutLayer2D,
   type TaskCalloutLayer2DProps,
@@ -45,6 +46,7 @@ export { TaskColumnFilterPopover, type TaskColumnFilterPopoverProps } from "./Ta
 export { TaskColumnPicker, type TaskColumnPickerProps } from "./TaskColumnPicker";
 export { useIsWide } from "./useIsWide";
 export * from "./panelLogic";
+export { useOutboxRows, queryActiveOutboxRows } from "./useOutboxRows";
 export { usePanelTasks, usePanelActorUid } from "./usePanelTasks";
 export { TaskMiniPanel, type TaskMiniPanelProps, type TaskMiniPanelVariant } from "./TaskMiniPanel";
 export {
@@ -72,3 +74,59 @@ export { TaskShortcutsSheet } from "./TaskShortcutsSheet";
 export { TaskChecklist } from "./TaskChecklist";
 export { DeadlineChip, PriorityChip, ChecklistProgress } from "./TaskChips";
 export { useTaskShortcuts, resolveShortcut, SHORTCUT_HELP, type ShortcutAction } from "./useTaskShortcuts";
+
+// 2026-11-14 — building scope for viewer task pins/lists.
+export {
+  effectiveTaskBuildingId,
+  tasksForBuilding,
+  useTaskBuildingIndex,
+  EMPTY_TASK_BUILDING_INDEX,
+} from "./taskBuilding";
+export type { TaskBuildingIndex, BuildingScopedTask } from "./taskBuilding";
+export { ProjectSyncMount, getWebSyncEngine, type ProjectSyncMountProps } from "./ProjectSyncMount";
+export { restoreDraftCompose, type DraftBlobReader } from "./draftRestore";
+
+// Quick access from a task's location (open the view it was created in).
+export {
+  requestTaskOpen,
+  consumeTaskOpen,
+  setTaskOpenNotice,
+  setTaskHighlight,
+  getTaskOpenState,
+  subscribeTaskOpen,
+  resetTaskOpenStore,
+  useTaskOpenState,
+} from "./taskOpenStore";
+export type {
+  TaskOpenIntent,
+  TaskOpenModelsIntent,
+  TaskOpenDocumentsIntent,
+  TaskOpenState,
+} from "./taskOpenStore";
+export {
+  resolveTaskTarget,
+  openTaskLocation,
+  useOpenTaskLocation,
+  taskOpenKind,
+  OPEN_LABEL,
+} from "./taskTarget";
+export type { TargetLookup, OpenableTask, TaskTargetResult } from "./taskTarget";
+export { TaskOpenNotice } from "./TaskOpenNotice";
+export { LocationThumb, OpenableLocationThumb } from "./LocationThumb";
+
+// Project sheets attached to tasks by reference.
+export { SheetChips, SheetPicker } from "./SheetAttachments";
+export { useSheetCatalog, openSheetRef, loadSheetCatalog, EMPTY_SHEET_CATALOG } from "./sheetCatalog";
+export {
+  describeSheetRef,
+  makeSheetRef,
+  resolveSheetRefOpen,
+  toggleSheetRef,
+  buildPickerSections,
+} from "./sheetRefs";
+export type { SheetCatalog, SheetRefView, PickerSection, PickerEntry } from "./sheetRefs";
+
+// BCF export (integration half; the writer lives in @ff/tasks).
+export * from "./bcfExport";
+export { fetchBinaryFromUrl, convertToPng } from "./bcfBrowser";
+export { loadMemberEmails } from "./memberEmails";

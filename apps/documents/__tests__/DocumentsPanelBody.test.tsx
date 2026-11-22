@@ -350,3 +350,43 @@ describe("DocumentsPanelBody — folder grouping (Task 20F)", () => {
     expect(labels).toEqual(["Architecture", "Finishes", "Furniture"]);
   });
 });
+
+describe("DocumentsPanelBody compare row action", () => {
+  beforeEach(async () => {
+    if (!db.isOpen()) await db.open();
+    await clearAllTables();
+    setActiveBuilding(null);
+  });
+
+  it("shows only on rows with more than one version and fires onCompare", async () => {
+    const b = await seedBuilding("Torre C");
+    const { file: multi } = await seedPdf(b, "multi.pdf", 1);
+    await db.pdfVersions.update(`pdfv-${multi.id}-v1`, { isLatest: false });
+    await db.pdfVersions.add({
+      id: `pdfv-${multi.id}-v2`,
+      pdfFileId: multi.id,
+      versionNumber: 2,
+      name: "multi.pdf",
+      size: 1,
+      contentHash: "h2",
+      pageCount: 1,
+      width: 595,
+      height: 842,
+      storedAt: Date.now(),
+      blobKey: "k2",
+      isLatest: true,
+    });
+    const { file: single } = await seedPdf(b, "single.pdf", 1);
+    const onCompare = vi.fn();
+    const onActivate = vi.fn();
+    render(
+      <DocumentsPanelBody activePdfVersionId={null} onActivate={onActivate} onCompare={onCompare} />,
+    );
+    const btn = await screen.findByTestId(`documents-compare-row-${multi.id}`);
+    expect(screen.queryByTestId(`documents-compare-row-${single.id}`)).toBeNull();
+    fireEvent.click(btn);
+    expect(onCompare).toHaveBeenCalledWith(multi.id);
+    // does not activate the row
+    expect(onActivate).not.toHaveBeenCalled();
+  });
+});

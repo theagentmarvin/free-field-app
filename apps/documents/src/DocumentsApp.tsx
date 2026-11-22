@@ -23,9 +23,11 @@
 // <TaskPinDock> + <PdfOverlay> stay untouched inside
 // <DocumentsViewerPanel>.
 
+import { useDocumentsTaskOpen } from "./useDocumentsTaskOpen";
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -59,12 +61,44 @@ import DocumentsViewerPanel from "./DocumentsViewerPanel";
 import PdfNavPanel from "./PdfNavPanel";
 import { usePdfToolbarHeight } from "./hooks/usePdfToolbarHeight";
 import { useDocumentsViewState } from "./documentsViewState";
+import TasksPanelBody from "./TasksPanelBody";
+import { useSheetTasks, type SheetTasks } from "./hooks/useSheetTasks";
+import ComparePanel from "./compare/ui/ComparePanel";
+import { buildPrefill, useCompareStore } from "./compare/compareStore";
+import ElementsPanelBody from "./sheetData/ElementsPanelBody";
+import PropertiesPanelBody from "./sheetData/PropertiesPanelBody";
+import SchedulesPanelBody from "./sheetData/SchedulesPanelBody";
+import { useSheetDataStore } from "./sheetData/sheetDataStore";
 
 /**
  * The merged tenants of the ONE Documents floating panel slot.
  * Model tools first, then the documents chrome (spec §3 requirement 6).
  */
-type DocumentTenant = "docs" | "outline";
+type DocumentTenant = "docs" | "outline" | "tasks" | "compare" | "properties" | "elements" | "schedules";
+
+/** Tenants that only exist while the open PDF carries drawing data. */
+const SHEET_TENANTS: ReadonlySet<DocumentTenant> = new Set(["tasks", "properties", "elements", "schedules"]);
+
+const SHEET_NAV_BUTTONS: Record<"properties" | "elements" | "schedules", FrostedNavButton> = {
+  properties: {
+    id: "properties",
+    label: "Properties",
+    // Info (circle with an i).
+    path: "M12 21a9 9 0 100-18 9 9 0 000 18zM12 11v5M12 8v.01",
+  },
+  elements: {
+    id: "elements",
+    label: "Elements",
+    // Four tiles.
+    path: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z",
+  },
+  schedules: {
+    id: "schedules",
+    label: "Schedules",
+    // Table.
+    path: "M4 5h16v14H4zM4 10h16M4 15h16M10 5v14",
+  },
+};
 
 const NAV_BUTTONS: FrostedNavButton[] = [
   {
@@ -81,9 +115,30 @@ const NAV_BUTTONS: FrostedNavButton[] = [
   },
 ];
 
+/** Right after Outline; present only while a sheet is open (its tasks). */
+const TASKS_NAV_BUTTON: FrostedNavButton = {
+  id: "tasks",
+  label: "Tasks",
+  // Checkbox ticks + lines (the Tasks module's icon).
+  path: "M3 5l2 2 4-4M3 13l2 2 4-4M13 6h8M13 14h8",
+};
+
+/** Always last, after the drawing-data buttons. */
+const COMPARE_NAV_BUTTON: FrostedNavButton = {
+  id: "compare",
+  label: "Compare revisions",
+  // Two overlapping sheets.
+  path: "M4 3h9v13H4V3zM11 8h9v13h-9V8z",
+};
+
 const PANEL_TITLES: Record<DocumentTenant, string> = {
   docs: "Documents",
   outline: "Outline",
+  tasks: "Tasks",
+  compare: "Compare revisions",
+  properties: "Properties",
+  elements: "Elements",
+  schedules: "Schedules",
 };
 
 export interface DocumentsAppProps {
@@ -105,6 +160,28 @@ export default function DocumentsApp({
   // The ONE slot's active tenant, defaulting to `docs` (the pre-wave-56
   // behaviour: the documents panel is open on mount).
   const [activeTenant, setActiveTenant] = useState<DocumentTenant | null>("docs");
+  // Drawing data of the open sheet: its buttons exist only when the PDF carries it.
+  const sheetPayload = useSheetDataStore((s) => s.payload);
+  // The Tasks button needs an open sheet (its tasks) — not the compare surface.
+  const compareActive = useCompareStore((s) => s.active);
+  const hasSheetOpen = activePdfVersionId !== null && !compareActive;
+  const navButtons = useMemo<FrostedNavButton[]>(() => {
+    const base = hasSheetOpen ? [...NAV_BUTTONS, TASKS_NAV_BUTTON] : NAV_BUTTONS;
+    if (!sheetPayload) return [...base, COMPARE_NAV_BUTTON];
+    return [
+      ...base,
+      SHEET_NAV_BUTTONS.properties,
+      SHEET_NAV_BUTTONS.elements,
+      ...(sheetPayload.schedules.length > 0 ? [SHEET_NAV_BUTTONS.schedules] : []),
+      COMPARE_NAV_BUTTON,
+    ];
+  }, [sheetPayload, hasSheetOpen]);
+  // A sheet panel cannot stay open on a PDF without drawing data.
+  const shownTenant =
+    activeTenant && SHEET_TENANTS.has(activeTenant) && !navButtons.some((b) => b.id === activeTenant)
+      ? null
+      : activeTenant;
+  const openProperties = useCallback(() => setActiveTenant("properties"), []);
 
   // Task 38 — imperative handle of the mounted <PdfOverlay>. Owned
   // here because BOTH the viewer panel (which mounts the overlay) and
@@ -112,6 +189,8 @@ export default function DocumentsApp({
   const pdfOverlayRef = useRef<PdfOverlayHandle | null>(null);
 
   const activeBuildingId = useModelsToolStore((s) => s.activeBuildingId);
+  // Tasks placed on the open sheet: feeds the toolbar badge + the Tasks panel.
+  const sheetTasks = useSheetTasks(pdfOverlayRef, activeBuildingId, hasSheetOpen);
   const setActiveBuildingId = useModelsToolStore(
     (s) => s.setActiveBuildingId,
   );
@@ -171,28 +250,83 @@ export default function DocumentsApp({
     prevBuildingRef.current = activeBuildingId;
     if (prev !== null && prev !== activeBuildingId) {
       setActivePdfVersionId(null);
+      if (useCompareStore.getState().active) {
+        useCompareStore.getState().close();
+        setActiveTenant((cur) => (cur === "compare" ? "docs" : cur));
+      }
     }
   }, [activeBuildingId]);
 
   // Wave 63 — tell the settings shell when a PDF covers the shared 3D
   // surface, so it stops rendering frames nobody can see.
   const setPdfOpen = useDocumentsViewState((s) => s.setPdfOpen);
-  useEffect(() => {
-    setPdfOpen(activePdfVersionId !== null);
-  }, [activePdfVersionId, setPdfOpen]);
   useEffect(() => () => setPdfOpen(false), [setPdfOpen]);
 
   const handleActivate = useCallback((versionId: string) => {
     setActivePdfVersionId(versionId);
   }, []);
 
-  const handleClose = useCallback(() => {
-    setActivePdfVersionId(null);
-  }, []);
+  // Task quick access: open the sheet at the task's page and pin.
+  useDocumentsTaskOpen(pdfOverlayRef, activeBuildingId, activePdfVersionId, handleActivate);
 
-  const handleToggleTenant = useCallback((id: DocumentTenant) => {
-    // Inactive → open; active → close; other → swap in place.
-    setActiveTenant((cur) => (cur === id ? null : id));
+  const compareBuildingId = useCompareStore((s) => s.buildingId);
+
+  // A compare left running while the building was switched elsewhere (this
+  // module was unmounted at the time) is stale: end it.
+  useEffect(() => {
+    if (compareActive && compareBuildingId !== null && compareBuildingId !== activeBuildingId) {
+      useCompareStore.getState().close();
+      setActiveTenant((cur) => (cur === "compare" ? "docs" : cur));
+    }
+  }, [compareActive, compareBuildingId, activeBuildingId]);
+
+  // Compare — an open PDF or active compare covers the 3D surface, so the
+  // shell can pause it.
+  useEffect(() => {
+    setPdfOpen(activePdfVersionId !== null || compareActive);
+  }, [activePdfVersionId, compareActive, setPdfOpen]);
+
+  const rowsRef = useRef(groups?.rows);
+  rowsRef.current = groups?.rows;
+
+  /** Enter compare, pre-filled from `fileId` (row action) or the open PDF. */
+  const openCompare = useCallback(
+    (fileId: string | null) => {
+      const rows = rowsRef.current ?? [];
+      const row =
+        fileId !== null
+          ? rows.find((r) => r.file?.id === fileId)
+          : rows.find((r) => (r.versions ?? []).some((v) => v.id === activePdfVersionId));
+      const prefill = row
+        ? buildPrefill(row.versions ?? [], fileId !== null ? null : activePdfVersionId)
+        : null;
+      const store = useCompareStore.getState();
+      // Re-opening an active compare keeps its state unless a row asked.
+      store.open(fileId !== null || !store.active ? prefill : undefined, activeBuildingId);
+    },
+    [activePdfVersionId, activeBuildingId],
+  );
+
+  const handleCompareFile = useCallback(
+    (fileId: string) => {
+      openCompare(fileId);
+      setActiveTenant("compare");
+    },
+    [openCompare],
+  );
+
+  const handleToggleTenant = useCallback(
+    (id: DocumentTenant) => {
+      // Inactive → open; active → close; other → swap in place.
+      if (id === "compare" && activeTenant !== "compare") openCompare(null);
+      setActiveTenant((cur) => (cur === id ? null : id));
+    },
+    [activeTenant, openCompare],
+  );
+
+  const handleExitCompare = useCallback(() => {
+    // The previously open PDF was never closed; the viewer swaps back.
+    setActiveTenant((cur) => (cur === "compare" ? "docs" : cur));
   }, []);
 
   const handleClosePanel = useCallback(() => {
@@ -225,27 +359,33 @@ export default function DocumentsApp({
         </div>
         <DocumentsViewerPanel
           activePdfVersionId={activePdfVersionId}
-          onClose={handleClose}
           pdfOverlayRef={pdfOverlayRef}
           buildingId={activeBuildingId}
+          onNavigate={handleActivate}
+          onElementTapped={openProperties}
         />
         <FrostedNavToolbar
-          buttons={NAV_BUTTONS}
-          activeId={activeTenant}
+          buttons={navButtons}
+          activeId={shownTenant}
           onToggle={(id) => handleToggleTenant(id as DocumentTenant)}
+          badges={{ tasks: sheetTasks.onPage.length }}
           mobile={isMobile}
           ariaLabel="Documents navigation"
           testId="documents-nav-toolbar"
           top={navTop}
         />
         <DocumentsNavPanel
-          activeTenant={activeTenant}
+          activeTenant={shownTenant}
           activePdfVersionId={activePdfVersionId}
           onActivate={handleActivate}
+          onCompareFile={handleCompareFile}
+          onExitCompare={handleExitCompare}
           onClose={handleClosePanel}
           pdfOverlayRef={pdfOverlayRef}
+          sheetTasks={sheetTasks}
           mobile={isMobile}
           top={navTop + 52}
+          onOpenProperties={openProperties}
         />
       </div>
     </ViewerToolsProvider>
@@ -256,16 +396,24 @@ function DocumentsNavPanel({
   activeTenant,
   activePdfVersionId,
   onActivate,
+  onCompareFile,
+  onExitCompare,
   onClose,
   pdfOverlayRef,
+  sheetTasks,
   mobile,
   top,
+  onOpenProperties,
 }: {
+  onOpenProperties: () => void;
   activeTenant: DocumentTenant | null;
   activePdfVersionId: string | null;
   onActivate: (versionId: string) => void;
+  onCompareFile: (fileId: string) => void;
+  onExitCompare: () => void;
   onClose: () => void;
   pdfOverlayRef: RefObject<PdfOverlayHandle> | null;
+  sheetTasks: SheetTasks;
   mobile: boolean;
   top: number;
 }): JSX.Element {
@@ -286,8 +434,20 @@ function DocumentsNavPanel({
         <DocumentsPanelBody
           activePdfVersionId={activePdfVersionId}
           onActivate={onActivate}
+          onCompare={onCompareFile}
         />
       )}
+      {activeTenant === "compare" && <ComparePanel onExit={onExitCompare} mobile={mobile} onCollapse={onClose} />}
+      {activeTenant === "tasks" && (
+        <TasksPanelBody
+          tasks={sheetTasks.tasks}
+          currentPage={sheetTasks.currentPage}
+          overlayRef={pdfOverlayRef}
+        />
+      )}
+      {activeTenant === "properties" && <PropertiesPanelBody />}
+      {activeTenant === "elements" && <ElementsPanelBody onElementPicked={onOpenProperties} />}
+      {activeTenant === "schedules" && <SchedulesPanelBody />}
       {activeTenant === "outline" &&
         (activePdfVersionId ? (
           <PdfNavPanel

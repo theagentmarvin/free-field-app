@@ -191,3 +191,17 @@ ${cards || '<p class="note">No tasks in this view.</p>'}
 <footer><span>FreeField task report · generated ${esc(printedAt)}</span><span>${items.length} tasks</span></footer>
 </body></html>`;
 }
+
+/** Browser download of a binary blob (BCF). No-op without a DOM. */
+export function downloadBlob(name: string, blob: Blob): void {
+  if (typeof document === "undefined" || typeof URL === "undefined" || !URL.createObjectURL) return;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}

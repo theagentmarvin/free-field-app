@@ -4,16 +4,11 @@ import { render, screen } from "@testing-library/react";
 import { createRef } from "react";
 
 /**
- * Wave 9 seam test — the Documents host mounts <TaskMiniPanel> alongside
- * the existing 2D marker (TaskCalloutLayer2D) and threads the CURRENT
- * PDF page into the panel's scope anchor. @ff/tasks-react is stubbed so
- * the seam is what's under test, not the panel's internals (which the
- * package's own TaskMiniPanel.test.tsx covers).
+ * Seam test — the Documents host mounts the 2D marker layer
+ * (TaskCalloutLayer2D) and NO right-edge task rail: the task list lives in
+ * the floating toolbar's Tasks panel now (see TasksPanel.test.tsx).
+ * @ff/tasks-react is stubbed so the seam is what's under test.
  */
-
-const panelProps = vi.hoisted(() => ({
-  pdfPage: undefined as number | null | undefined,
-}));
 
 vi.mock("@ff/tasks-react", async () => {
   const React = await import("react");
@@ -24,13 +19,7 @@ vi.mock("@ff/tasks-react", async () => {
     TaskCalloutLayer2D: Marker2D,
     TaskComposeSheet: Nullish,
     TaskDetailHost: Nullish,
-    TaskMiniPanel: (props: { pdfPage?: number | null; variant?: string }) => {
-      panelProps.pdfPage = props.pdfPage;
-      return React.createElement("div", {
-        "data-testid": "seam-panel",
-        "data-page": props.pdfPage ?? "",
-      });
-    },
+    TaskMiniPanel: () => React.createElement("div", { "data-testid": "seam-panel" }),
     usePanelTasks: () => [],
     usePanelActorUid: () => "admin",
     useTaskEngine: () => null,
@@ -66,20 +55,16 @@ function fakeSurface(page = 4) {
   };
 }
 
-describe("TaskPinDock — panel seam (2D)", () => {
+describe("TaskPinDock — marker seam (2D)", () => {
   const version: PinVersionMeta = { pdfFileId: "f1", width: 612, height: 792 };
   const ref = createRef<TaskPinDockHandle>();
 
-  it("mounts the panel alongside the marker and forwards the current page", async () => {
+  it("mounts the marker layer and no right-edge task rail", async () => {
     render(<TaskPinDock ref={ref} version={version} getSurface={fakeSurface} />);
 
     expect(screen.getByTestId("seam-marker-2d")).toBeInTheDocument();
-    expect(screen.getByTestId("seam-panel")).toBeInTheDocument();
-
-    // The panel's page anchor resolves from getSurface().getCurrentPage()
-    // via the 250 ms tick; wait for the tick to settle.
-    await vi.waitFor(() => expect(panelProps.pdfPage).toBe(4));
-    expect(screen.getByTestId("seam-panel").getAttribute("data-page")).toBe("4");
+    expect(screen.queryByTestId("seam-panel")).toBeNull();
+    expect(screen.queryByTestId("task-mini-panel-rail-tab")).toBeNull();
   });
 });
 

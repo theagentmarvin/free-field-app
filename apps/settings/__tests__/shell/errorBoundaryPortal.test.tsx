@@ -39,3 +39,24 @@ describe("ErrorBoundary fallbackContainer", () => {
     spy.mockRestore();
   });
 });
+
+describe("ErrorBoundary telemetry", () => {
+  it("reports the caught error with the module label and component stack", async () => {
+    const telemetry = await import("@ff/telemetry");
+    const capture = vi.fn();
+    telemetry.setErrorReporter({ captureException: capture });
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    render(
+      <ErrorBoundary label="Documents">
+        <Boom />
+      </ErrorBoundary>,
+    );
+    telemetry.setErrorReporter(null);
+    spy.mockRestore();
+    expect(capture).toHaveBeenCalledTimes(1);
+    const [err, extra] = capture.mock.calls[0];
+    expect((err as Error).message).toBe("boom");
+    expect(extra).toMatchObject({ module: "Documents", category: "error:react-boundary" });
+    expect(String((extra as { componentStack: string }).componentStack)).toContain("Boom");
+  });
+});

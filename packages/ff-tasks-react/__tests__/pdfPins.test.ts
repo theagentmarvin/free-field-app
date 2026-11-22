@@ -5,6 +5,7 @@ import {
   isStaleCalib,
   latestCalibration,
   locationFromPdfClick,
+  pdfPinLocation,
   mergePdfPins,
   pagePointToUv,
   pendingPdfPins,
@@ -190,8 +191,30 @@ describe("locationFromPdfClick (pin capture entry point)", () => {
     expect(loc).toEqual({
       storeyName: "L2",
       bim: null,
-      pdf: { pdfFileId: "f1", page: 3, uv: [0.125, 200 / 600], calibId: "c2" },
+      pdf: { pdfFileId: "f1", page: 3, uv: [0.125, 200 / 600], calibId: "f1__L2" },
     });
+  });
+});
+
+describe("canonical calibId on written pins (w75)", () => {
+  it("encodes the storey like the synced doc id, not the local uuid", () => {
+    const loc = locationFromPdfClick({ x: 0, y: 0 }, SIZE, "f1", 1, calib({ id: "local-uuid", storeyName: "Level 1/A%" }));
+    expect(loc?.pdf?.calibId).toBe("f1__Level%201%2FA%25");
+    expect(loc?.pdf?.calibId).not.toBe("local-uuid");
+  });
+
+  it("a pin written on one device resolves against another device's row", () => {
+    const loc = locationFromPdfClick({ x: 0, y: 0 }, SIZE, "f1", 1, calib({ id: "uuid-A", storeyName: "L 1" }));
+    const pin = { ...extractPdfPins([{ id: "t", num: 1, title: "t", status: 1, updatedAt: 1, location: loc }])[0] };
+    const other = calib({ id: "uuid-B", storeyName: "L 1", pdfFileId: "f1" });
+    expect(pinCalibration(pin, [other])?.id).toBe("uuid-B");
+    expect(isStaleCalib(pin, other)).toBe(false);
+  });
+
+  it("keeps the uncalibrated sentinel instead of building '<pdfFileId>__' (w77)", () => {
+    const loc = pdfPinLocation("f1", 1, [0.4, 0.6], calib({ id: "uncalibrated", storeyName: "" }));
+    expect(loc.pdf?.calibId).toBe("uncalibrated");
+    expect(loc.pdf?.calibId).not.toBe("f1__");
   });
 });
 
@@ -209,5 +232,31 @@ describe("calibration bridge (2D and 3D are one matrix apart)", () => {
     const back = worldToUv(uvToWorld(uv, SIZE, c), SIZE, c);
     expect(back[0]).toBeCloseTo(uv[0], 9);
     expect(back[1]).toBeCloseTo(uv[1], 9);
+  });
+});
+
+describe("pdfVersionId on pins (w72)", () => {
+  const calib = {
+    id: "c1",
+    storeyName: "L1",
+    updatedAt: 1,
+    transformParams: { scale: 1, rotation: 0, translateX: 0, translateZ: 0 },
+  } as never;
+
+  it("stamps the plan version on a captured pin location", () => {
+    const loc = locationFromPdfClick({ x: 10, y: 10 }, { width: 100, height: 100 }, "f1", 1, calib, "v2");
+    expect(loc?.pdf?.pdfVersionId).toBe("v2");
+  });
+  it("omits the key when no version is given", () => {
+    const loc = locationFromPdfClick({ x: 10, y: 10 }, { width: 100, height: 100 }, "f1", 1, calib);
+    expect(loc?.pdf && "pdfVersionId" in loc.pdf).toBe(false);
+  });
+  it("extractPdfPins passes pdfVersionId through when present", () => {
+    const pins = extractPdfPins([
+      { id: "a", num: 1, title: "a", status: 10, updatedAt: 1, location: { pdf: { pdfFileId: "f", page: 1, uv: [0, 0], calibId: "c", pdfVersionId: "v1" } } },
+      { id: "b", num: 2, title: "b", status: 10, updatedAt: 1, location: { pdf: { pdfFileId: "f", page: 1, uv: [0, 0], calibId: "c" } } },
+    ]);
+    expect(pins[0].pdfVersionId).toBe("v1");
+    expect(pins[1].pdfVersionId).toBeUndefined();
   });
 });

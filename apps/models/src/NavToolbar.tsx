@@ -65,7 +65,9 @@ export default function NavToolbar(): JSX.Element {
   const isMobile = useIsMobile();
   // Wave 40 — the open-task count rides as a badge on the Tasks
   // button (the floating bottom-left "N tasks" pill is gone).
-  const panelTasks = usePanelTasks();
+  // 2026-11-14 — counted for the ACTIVE building only.
+  const activeBuildingId = useModelsToolStore((s) => s.activeBuildingId);
+  const panelTasks = usePanelTasks({ buildingId: activeBuildingId });
 
   function onToggle(id: string): void {
     // Active → close. Anything else → open / swap in place.

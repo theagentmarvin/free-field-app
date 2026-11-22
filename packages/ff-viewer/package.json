@@ -14,12 +14,13 @@
     "test": "vitest run --no-file-parallelism --passWithNoTests",
     "lint": "eslint . --ext .ts,.tsx",
     "lint:drift": "node ../../apps/settings/scripts/toe-drift-check.js src",
-    "build": "tsc --noEmit"
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@thatopen/components": "^3.6.0",
     "@thatopen/fragments": "3.6.0",
-    "pdfjs-dist": "^5.7.284",
+    "pdfjs-dist": "^6.2.108",
     "three": "^0.182.0",
     "web-ifc": "^0.0.77"
   },

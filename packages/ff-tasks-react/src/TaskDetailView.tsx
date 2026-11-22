@@ -1,9 +1,14 @@
+import { OPEN_LABEL } from "./taskTarget";
+import { SheetChips, SheetPicker } from "./SheetAttachments";
+import { EMPTY_SHEET_CATALOG } from "./sheetCatalog";
+import type { SheetCatalog } from "./sheetRefs";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 import { EyeClosed } from "iconoir-react";
 
 import {
   isLegal,
+  isLinkviewLocation,
   parseDateInput,
   PRIORITY_LABELS,
   priorityOf,
@@ -13,6 +18,7 @@ import {
   validateTitle,
   type ChecklistItem,
   type EditableTaskFields,
+  type SheetRef,
   type TaskEntryView,
   type TaskPriority,
   type TaskStatus,
@@ -122,6 +128,11 @@ export interface TaskDetailViewProps {
   priority?: string | null;
   checklist?: ChecklistItem[];
   watchers?: string[];
+  /** project sheets attached by reference */
+  sheetRefs?: SheetRef[];
+  /** the project's sheets (versions, folders) for the chips + picker */
+  sheetCatalog?: SheetCatalog;
+  projectId?: string | null;
   currentUid?: string | null;
   /** priority / checklist / watchers are available (rules-gated in cloud) */
   extendedFields?: boolean;
@@ -193,6 +204,14 @@ export function TaskDetailView(p: TaskDetailViewProps): JSX.Element {
   const locBadge = has3d ? "3D" : hasPlan ? "2D · plan" : null;
   const locClickable = (has3d && !!p.onShowIn3D) || (hasPlan && !!p.onShowOnPlan);
   const locationThumbUrl = usePhotoUrl(p.resolvePhotoUrl, loc?.thumb?.storagePath ?? null);
+  // LinkView dual location: plan | 3D side by side (only tasks created there).
+  const locationThumb2dUrl = usePhotoUrl(p.resolvePhotoUrl, loc?.thumb2d?.storagePath ?? null);
+  const fromLinkview = isLinkviewLocation(loc);
+  const dualThumbs = fromLinkview && !!locationThumbUrl && !!locationThumb2dUrl;
+
+  const openLabel = fromLinkview ? OPEN_LABEL.linkview : has3d ? OPEN_LABEL.models : OPEN_LABEL.documents;
+  const [locHover, setLocHover] = useState(false);
+  const [sheetPickerOpen, setSheetPickerOpen] = useState(false);
 
   function handleLocate(): void {
     if (loc?.bim?.worldPoint && p.onShowIn3D) p.onShowIn3D(loc.bim);
@@ -239,7 +258,22 @@ export function TaskDetailView(p: TaskDetailViewProps): JSX.Element {
             fontSize: 30,
           }}
         >
-          {locationThumbUrl ? (
+          {dualThumbs ? (
+            <div data-testid="detail-location-thumb-dual" style={{ position: "absolute", inset: 0, display: "flex", gap: 2 }}>
+              <img
+                data-testid="detail-location-thumb-2d"
+                src={locationThumb2dUrl ?? undefined}
+                alt="Plan snapshot"
+                style={{ width: "50%", height: "100%", objectFit: "cover" }}
+              />
+              <img
+                data-testid="detail-location-thumb-3d"
+                src={locationThumbUrl ?? undefined}
+                alt="3D snapshot"
+                style={{ width: "50%", height: "100%", objectFit: "cover" }}
+              />
+            </div>
+          ) : locationThumbUrl ? (
             <img
               data-testid="detail-location-thumb"
               src={locationThumbUrl}
@@ -271,27 +305,30 @@ export function TaskDetailView(p: TaskDetailViewProps): JSX.Element {
               borderRadius: r.pill,
             }}
           >
-            {locBadge}
+            {fromLinkview ? "2D + 3D" : locBadge}
           </span>
           {locClickable && (
             <span
-              aria-hidden
+              data-testid="detail-location-open-label"
               style={{
                 position: "absolute",
                 top: 8,
                 right: 8,
-                width: 24,
                 height: 24,
+                padding: "0 10px",
                 borderRadius: r.pill,
-                background: "rgba(16,20,26,0.55)",
+                background: locHover ? "rgba(47,111,228,0.95)" : "rgba(16,20,26,0.65)",
                 color: "#fff",
-                display: "grid",
-                placeItems: "center",
-                fontSize: 13,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                fontSize: f.xs,
+                fontWeight: 700,
                 lineHeight: 1,
+                transition: "background 100ms ease",
               }}
             >
-              ›
+              {openLabel} ›
             </span>
           )}
         </div>
@@ -312,7 +349,13 @@ export function TaskDetailView(p: TaskDetailViewProps): JSX.Element {
           type="button"
           data-testid="detail-location-card"
           onClick={handleLocate}
-          style={{ display: "block", width: "100%", border: "none", background: "none", padding: 0, cursor: "pointer", textAlign: "left", font: "inherit", color: "inherit" }}
+          title={openLabel}
+          aria-label={`${openLabel}`}
+          onMouseEnter={() => setLocHover(true)}
+          onMouseLeave={() => setLocHover(false)}
+          onFocus={() => setLocHover(true)}
+          onBlur={() => setLocHover(false)}
+          style={{ display: "block", width: "100%", border: "none", background: "none", padding: 0, cursor: "pointer", textAlign: "left", font: "inherit", color: "inherit", filter: locHover ? "brightness(0.96)" : "none" }}
         >
           {inner}
         </button>
@@ -754,6 +797,48 @@ export function TaskDetailView(p: TaskDetailViewProps): JSX.Element {
               editable={editable}
               onChange={(next) => p.onEditFields?.({ checklist: next })}
             />
+          </section>
+        )}
+
+        {/* sheets attached from the project (by reference) */}
+        {p.extendedFields && ((p.sheetRefs?.length ?? 0) > 0 || editable) && (
+          <section data-testid="detail-zone-sheets" style={cardTightStyle}>
+            <p style={sectionLabelStyle}>Sheets · {p.sheetRefs?.length ?? 0}</p>
+            <SheetChips
+              refs={p.sheetRefs ?? []}
+              catalog={p.sheetCatalog ?? EMPTY_SHEET_CATALOG}
+              projectId={p.projectId ?? null}
+              onRemove={
+                editable
+                  ? (ref) =>
+                      p.onEditFields?.({
+                        sheetRefs: (p.sheetRefs ?? []).filter(
+                          (x) => !(x.pdfFileId === ref.pdfFileId && x.pdfVersionId === ref.pdfVersionId && x.page === ref.page),
+                        ),
+                      })
+                  : undefined
+              }
+            />
+            {editable && (
+              <button
+                type="button"
+                data-testid="detail-attach-from-project"
+                onClick={() => setSheetPickerOpen(true)}
+                style={{ marginTop: (p.sheetRefs?.length ?? 0) > 0 ? s.s2 : 0, height: 36, padding: "0 14px", borderRadius: r.md, border: `1px solid ${c.borderStrong}`, background: c.surface, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: f.md, color: c.text }}
+              >
+                📄 Attach from project
+              </button>
+            )}
+            {sheetPickerOpen && (
+              <SheetPicker
+                projectId={p.projectId ?? null}
+                buildingId={p.buildingId ?? null}
+                catalog={p.sheetCatalog}
+                selected={p.sheetRefs ?? []}
+                onChange={(next) => p.onEditFields?.({ sheetRefs: next })}
+                onClose={() => setSheetPickerOpen(false)}
+              />
+            )}
           </section>
         )}
 

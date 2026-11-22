@@ -26,14 +26,17 @@
 import {
   useCallback,
   useEffect,
-  useRef,
+  useMemo,
   useState,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { useLocation } from "react-router-dom";
 
 import { type IfcViewerHandle } from "@ff/viewer-react";
 import { RequireProjectMember } from "@ff/auth";
+import { createObservableRef } from "@ff/viewer-tools";
+import { useLowMemoryPressure } from "./lowMemory";
 import {
   PersistentViewerSurface,
   ViewerSurfaceHostContext,
@@ -77,7 +80,12 @@ export function ViewerKeepAlive({
 
   // The single shared viewer handle, owned here and threaded to both
   // the kernel and (via context) the active route's chrome.
-  const viewerRef = useRef<IfcViewerHandle>(null);
+  // An OBSERVABLE ref: consumers (PropertiesDrawer, ...) learn when the live
+  // handle appears or is replaced without polling (see useViewerHandle).
+  const viewerRef = useMemo(
+    () => createObservableRef<IfcViewerHandle>() as unknown as RefObject<IfcViewerHandle>,
+    [],
+  );
 
   // The active route's portal target element.
   const [hostNode, setHostNode] = useState<HTMLElement | null>(null);
@@ -93,6 +101,10 @@ export function ViewerKeepAlive({
     (loaded: boolean) => setSurfaceLoaded(loaded),
     [],
   );
+
+  // Low-RAM devices (deviceMemory <= 4 GB, iOS): ask the viewer for the
+  // conservative "low" memory-pressure level. No-op elsewhere.
+  useLowMemoryPressure(viewerRef, surfaceLoaded);
 
   // Coming back from a route with no host the surface can be
   // stale-sized — nudge the viewer to re-fit on the next frame.

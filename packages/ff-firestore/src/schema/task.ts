@@ -69,6 +69,21 @@ export const TaskLocationSchema = z.object({
       storagePath: z.string().min(1),
     })
     .optional(),
+  /** LinkView dual location: Storage path of the PLAN snapshot, set only
+   *  on tasks created in LinkView (`origin: 'linkview'`), where `thumb`
+   *  stays the 3D snapshot and `bim` + `pdf` are both set. Additive and
+   *  optional: every other task omits it, and readers that do not know it
+   *  ignore it. Lives inside `location`, so no rules change is needed. */
+  thumb2d: z
+    .object({
+      storagePath: z.string().min(1),
+    })
+    .optional(),
+  /** Which surface created the task. Currently only `'linkview'` (the
+   *  split module: 2D pin AND 3D placement stored together). Absent =
+   *  Models / Documents / Tasks, shown and opened exactly as before.
+   *  A plain string so a later origin never fails an older client. */
+  origin: z.string().min(1).optional(),
   bim: z
     .object({
       elements: z.array(
@@ -90,12 +105,35 @@ export const TaskLocationSchema = z.object({
       pdfFileId: z.string().min(1),
       page: z.number().int().positive(),
       uv: z.tuple([z.number(), z.number()]),
+      /** Calibration used at pin time. Required; plans without a
+       *  calibration use the official sentinel `UNCALIBRATED_CALIB_ID`
+       *  ("uncalibrated", @ff/types). */
       calibId: z.string().min(1),
+      /** w72: the plan VERSION (PdfVersionRecord.id) the pin was placed
+       *  on. Optional — pins written before w72 omit it and stay valid;
+       *  readers treat absent as "latest at the time" (unknown). */
+      pdfVersionId: z.string().min(1).optional(),
     })
     .nullable(),
   text: z.string().optional(),
 });
 export type TaskLocation = z.infer<typeof TaskLocationSchema>;
+
+/**
+ * A project sheet attached to a task BY REFERENCE (never a copy). Additive,
+ * optional on the doc; the rules allowlist needs `sheetRefs` before a cloud
+ * write succeeds (docs/integration/task-sheet-refs-rules.md).
+ */
+export const TaskSheetRefSchema = z.object({
+  pdfFileId: z.string().min(1),
+  pdfVersionId: z.string().min(1),
+  /** display snapshot of the version number at attach time */
+  versionNumber: z.number().int().positive().optional(),
+  /** display snapshot of the sheet file name at attach time */
+  name: z.string(),
+  page: z.number().int().positive().optional(),
+});
+export type TaskSheetRef = z.infer<typeof TaskSheetRefSchema>;
 
 export const TaskSchema = z.object({
   id: z.string().min(1),
@@ -122,6 +160,8 @@ export const TaskSchema = z.object({
 
   location: TaskLocationSchema.nullable(),
   photos: z.array(TaskPhotoSchema).default([]),
+  /** project sheets attached by reference (optional; absent on older tasks) */
+  sheetRefs: z.array(TaskSheetRefSchema).max(20).optional(),
 
   lastAction: TaskActionNameSchema, // denormalized chip
   entryCount: z.number().int().nonnegative().default(0),

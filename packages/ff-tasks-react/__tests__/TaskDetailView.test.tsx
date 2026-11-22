@@ -189,6 +189,17 @@ describe("TaskDetailView", () => {
     expect(p.onShowIn3D).toHaveBeenCalledWith(bim); // 3D pin is primary
   });
 
+  it("location card shows an Open in Models / Documents affordance", () => {
+    const bim = { elements: [{ modelId: "m1", expressId: 7 }], worldPoint: [1, 2, 3] as [number, number, number], cameraPose: null };
+    const { unmount } = render(<TaskDetailView {...viewProps({ location: { storeyName: "L1", bim, pdf: null }, onShowIn3D: vi.fn() })} />);
+    expect(screen.getByTestId("detail-location-open-label").textContent).toContain("Open in Models");
+    expect(screen.getByTestId("detail-location-card").getAttribute("title")).toBe("Open in Models");
+    unmount();
+    const pdf = { pdfFileId: "f1", page: 2, uv: [0.5, 0.5] as [number, number], calibId: "k1" };
+    render(<TaskDetailView {...viewProps({ location: { storeyName: "L1", bim: null, pdf }, onShowOnPlan: vi.fn() })} />);
+    expect(screen.getByTestId("detail-location-open-label").textContent).toContain("Open in Documents");
+  });
+
   it("location card is non-interactive without a host callback", () => {
     const location = {
       storeyName: "L2",

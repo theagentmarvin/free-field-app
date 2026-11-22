@@ -1,6 +1,10 @@
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import type { FirebaseApp } from 'firebase/app';
 
+/** Cloud Functions region (VITE_FIREBASE_FUNCTIONS_REGION); unset = SDK default (us-central1). */
+const FUNCTIONS_REGION: string | undefined =
+  import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION || undefined;
+
 /**
  * Thin wrappers around the user-module Cloud Functions (plan v4 §3).
  * They live here so MembersPage / InvitePage stay dumb renderers and
@@ -24,7 +28,7 @@ export async function callInviteMember(
   const fn = httpsCallable<
     { email: string; role: 'admin' | 'member'; projectId?: string },
     InviteResult
-  >(getFunctions(app), 'inviteMember');
+  >(getFunctions(app, FUNCTIONS_REGION), 'inviteMember');
   // Phase 1b: name the project explicitly — a user may belong to several,
   // and the server authorizes from the member doc of THIS project.
   const res = await fn({ email, role, projectId });
@@ -38,7 +42,7 @@ export async function callSetMemberRole(
   projectId?: string
 ): Promise<void> {
   const fn = httpsCallable<{ uid: string; role: 'admin' | 'member'; projectId?: string }, unknown>(
-    getFunctions(app),
+    getFunctions(app, FUNCTIONS_REGION),
     'setMemberRole'
   );
   await fn({ uid, role, projectId });
@@ -50,7 +54,7 @@ export async function callRemoveMember(
   projectId?: string
 ): Promise<void> {
   const fn = httpsCallable<{ uid: string; projectId?: string }, unknown>(
-    getFunctions(app),
+    getFunctions(app, FUNCTIONS_REGION),
     'removeMember'
   );
   await fn({ uid, projectId });
@@ -66,7 +70,7 @@ export async function callCreateProject(
   name: string
 ): Promise<{ projectId: string; name: string }> {
   const fn = httpsCallable<{ name: string }, { projectId: string; name: string }>(
-    getFunctions(app),
+    getFunctions(app, FUNCTIONS_REGION),
     'createProject'
   );
   const res = await fn({ name });
