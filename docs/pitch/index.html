@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FreeField — Product Brief &amp; Pitch (for landing-page build)</title>
+<meta name="description" content="FreeField product context, verified pitch kit, and brand constraints for building the launch landing page.">
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --panel2: #1c2330; --border: #2d3644;
+    --text: #e6edf3; --muted: #9aa7b4; --accent: #4da3ff; --accent2: #3fb950;
+    --warn: #d29922; --code-bg: #0b0f14;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 16px/1.6 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { padding: 56px 0 32px; border-bottom: 1px solid var(--border); }
+  .kicker { color: var(--accent); text-transform: uppercase; letter-spacing: .14em; font-size: 13px; font-weight: 700; }
+  h1 { font-size: 42px; line-height: 1.15; margin: 14px 0 10px; }
+  h2 { font-size: 26px; margin: 48px 0 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+  h3 { font-size: 19px; margin: 26px 0 8px; }
+  p { color: var(--text); }
+  .muted { color: var(--muted); }
+  blockquote { margin: 18px 0; padding: 18px 22px; background: var(--panel);
+               border-left: 4px solid var(--accent); border-radius: 0 10px 10px 0; font-size: 18px; }
+  blockquote.big { font-size: 22px; font-weight: 600; }
+  .pill { display: inline-block; padding: 3px 12px; border-radius: 999px; font-size: 13px;
+          font-weight: 600; border: 1px solid var(--border); background: var(--panel); margin: 2px 4px 2px 0; }
+  .pill.green { border-color: #234; color: var(--accent2); }
+  .pill.blue { border-color: #245; color: var(--accent); }
+  .pill.amber { border-color: #432; color: var(--warn); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin: 18px 0; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .card h3 { margin-top: 0; }
+  .card .proof { color: var(--muted); font-size: 14px; margin-top: 10px; }
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 15px; }
+  th, td { border: 1px solid var(--border); padding: 9px 12px; text-align: left; vertical-align: top; }
+  th { background: var(--panel2); }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  code { background: var(--code-bg); padding: 2px 6px; border-radius: 5px; font-size: 14px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); padding: 14px 16px;
+        border-radius: 10px; overflow-x: auto; font-size: 13.5px; line-height: 1.5; }
+  .media-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin: 16px 0; }
+  .media-grid figure { margin: 0; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .media-grid img { width: 100%; display: block; }
+  .media-grid figcaption { padding: 10px 14px; font-size: 13.5px; color: var(--muted); }
+  .callout { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px 22px; margin: 18px 0; }
+  .callout.warn { border-left: 4px solid var(--warn); }
+  .callout.ok { border-left: 4px solid var(--accent2); }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  ul.tight li { margin: 4px 0; }
+  .btn { display: inline-block; margin: 8px 8px 0 0; padding: 10px 20px; border-radius: 8px;
+         background: var(--accent); color: #06121f; font-weight: 700; }
+  .btn.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--border); color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">FreeField · Product Brief · 2026-11-22</div>
+  <h1>Sovereign field BIM — open source, self-hosted, nothing to buy.</h1>
+  <p class="muted">This page is the single source of product context for building the FreeField launch landing page. It contains the verified pitch kit, the confirmed feature set (with footage), repository map, brand assets, and hard constraints. Read it fully before designing.</p>
+  <a class="btn" href="https://github.com/theagentmarvin/free-field-monorepo">Monorepo (web core)</a>
+  <a class="btn ghost" href="https://github.com/theagentmarvin/free-field-app">This repo (free-field-app)</a>
+</header>
+
+<h2>1 · The pitch (verified, launch-clean)</h2>
+
+<h3>Hook</h3>
+<blockquote class="big">Your BIM model is smart — the field shouldn't work from a dumbed-down copy.</blockquote>
+
+<h3>30-second pitch (≈35s spoken)</h3>
+<blockquote>“Your BIM model is smart — the field gets a flat PDF that's already stale. The only fix you're sold is locked modules per seat, your data in their cloud, on their release calendar. FreeField ends both: sovereign field BIM — open source and self-hosted — the real model on web and tablet, plan and 3D side by side, tasks pinned to geometry, offline included. A native Android app and a Revit exporter ship in the same open repos. No seats, no lock-in, your data stays yours. Your team or an AI coding agent adapts it to how you build. Own your tool, not a license.”</blockquote>
+
+<h3>One-liner for any room</h3>
+<blockquote>There's nothing to buy — everything is MIT, and the only cost is your own hosting.</blockquote>
+
+<h3>The three pillars</h3>
+<div class="grid">
+  <div class="card">
+    <h3>1 · Own the roadmap, not a ticket queue</h3>
+    <p>Every capability is a package you can open and change — web core, Android app, and Revit exporter all ship open. The fix your crew needs next isn't a support ticket in someone else's backlog — it's a change scoped to one package, extended on your schedule. Extend it yourself or point an AI coding agent at it; the whole community can too.</p>
+    <p class="proof">Proof: ff-* TypeScript packages, Capacitor Android app, and the Revit exporter are all MIT/public.</p>
+  </div>
+  <div class="card">
+    <h3>2 · Plug into what you already run — nothing gets ripped out</h3>
+    <p>The Revit bundle exporter carries model and drawings straight out of Revit; the web app ingests IFC and plan PDFs, calibrates plan alongside eye-level 3D, and pins tasks to exact geometry — so crews act on the coordinated model, not a flattened copy drifting from the source of truth. Runs in any browser on any device, with a native Android app for the field.</p>
+    <p class="proof">Proof: Revit bundle exporter + IFC/plan-PDF ingest + plan↔3D calibration + tasks pinned to 3D/plan positions — all free, all public.</p>
+  </div>
+  <div class="card">
+    <h3>3 · Open. No seats. Yours.</h3>
+    <p>MIT-licensed, self-hosted, zero seats — equipping the whole field crew, including the durable-offline Android app, costs engineering time you control, not a per-user bill that scales against your margins. Projects and tasks sync to infrastructure you run, and models live on your devices — so your data stays on your side of the wall.</p>
+    <p class="proof">Proof: MIT across all repos; self-hosted sync (tasks only, models on-device); demo mode with zero backend; offline Android with crash recovery and low-RAM tuning.</p>
+  </div>
+</div>
+
+<h3>Positioning statement</h3>
+<blockquote>For mid-size GCs and self-performing specialty contractors with a BIM/VDC function, FreeField is <strong>sovereign field BIM</strong> — an open-source, self-hosted field-BIM layer, MIT end to end: web app, native Android tablet app with durable offline, and Revit exporter. It puts the coordinated model in the field with tasks pinned to exact locations, working offline. You adapt it to your stack and way of working — nobody sells you anything, nothing is paywalled — instead of closed proprietary platforms that force your processes into their roadmap and per-seat licensing.</blockquote>
+
+<h2>2 · Verified product state (footage-checked 2026-11-22)</h2>
+<p class="muted">Every item below was verified frame-by-frame against demo recordings on 2026-11-22. Do not claim anything beyond this list.</p>
+
+<h3>Web app (public MIT monorepo — cloneable today)</h3>
+<ul class="tight">
+  <li><strong>IFC + floor-plan PDF ingest</strong> — load a <code>.ffbundle</code> (or IFC + PDFs) directly in the browser; no backend required for the core flow.</li>
+  <li><strong>Settings / authoring</strong> — extract levels, upload plan PDFs, 2-point calibration of each plan to its storey (translation, rotation, uniform scale). <em>“Scale: calibrated”</em> badge in the UI.</li>
+  <li><strong>Models viewer</strong> — federated 3D viewer (That Open Engine): selection, IFC property catalog panel, filters, sections, measurement, saved views.</li>
+  <li><strong>LinkView</strong> — calibrated plan side-by-side with first-person eye-height 3D of the same location; <strong>Mapped PDFs picker</strong> (A104 Fourth Floor, A105 Fifth Floor, A106 Green Roof, A401 Typical Public, C101 Site Plan, G100 Parking Deck…), PDF-opacity slider, element properties.</li>
+  <li><strong>Documents</strong> — project folders, multi-page PDF viewer with OUTLINE navigation, revision labels (“Revision - v1 - p1”), IFC properties on selected elements.</li>
+  <li><strong>PDF revision compare</strong> — diff two revisions of a drawing: <em>Side by side / Overlay / Changes</em> modes, auto-detected change list (“6 changes - 0 reviewed”, with added/removed + dimensions), <strong>Export CSV / Export PNG</strong>. <span class="pill green">differentiator — highlight this</span></li>
+  <li><strong>Tasks</strong> — issues pinned to a 3D location or a plan position; list/board views, filters, due dates, mentions, checklists, CSV export.</li>
+  <li><strong>Users &amp; roles</strong> — email-link sign-in, invitations, admin/member roles, multi-project membership (Firebase Auth/Firestore, self-hosted per org).</li>
+  <li><strong>Offline capture</strong> — field capture queues offline in any browser (outbox); models cache on-device.</li>
+  <li><strong>Demo mode</strong> — <code>VITE_FF_DEMO_AUTH=true</code> runs the whole app with zero backend.</li>
+</ul>
+
+<h3>Native Android app (repo going public this week)</h3>
+<ul class="tight">
+  <li>Capacitor 7 app (<code>app.freefield.field</code>, minSdk 26 / target 35) — “FreeField Field”.</li>
+  <li>Durable offline <code>.frag</code> models + photo/note BlobStore (not a browser cache).</li>
+  <li>Renderer-crash recovery (kill the sandboxed renderer → app, route and recovery notice come back) — e2e-tested.</li>
+  <li>Memory tuning for low-RAM field tablets; Playwright e2e passing on emulator.</li>
+</ul>
+
+<h3>Revit bundle exporter (repo going public this week)</h3>
+<ul class="tight">
+  <li>Revit add-in: <strong>“FreeField” ribbon tab → “Export Bundle”</strong> (verified in Autodesk Revit 2025.4).</li>
+  <li>Dialog: sheet list with <strong>sheet → level → IFC-storey mapping</strong> (all-green “Mapped” status), search, level filter, “Select all mappable”.</li>
+  <li>Options: include schedules, element outlines, map ceiling/area plans, IFC4 Reference View.</li>
+  <li>Pipeline: <em>Exporting IFC → PDF per sheet → Mapping → Writing bundle</em> → outputs a <code>.ffbundle</code> folder (e.g. 28 sheets / 13 levels / est. 38.3 MB on the Snowdon Towers sample).</li>
+</ul>
+
+<h3>Architecture facts (for the technical section)</h3>
+<ul class="tight">
+  <li>Models, PDFs and calibrations stay <strong>client-side</strong> (IndexedDB via Dexie). Only tasks, projects and members sync — through a Firebase project <strong>each organization self-hosts</strong>.</li>
+  <li>TypeScript (strict) monorepo: React 18, Vite 5, pnpm workspaces + Turborepo, Vitest, ESLint.</li>
+  <li>3D: <code>@thatopen/components</code> + <code>@thatopen/fragments</code> (That Open Engine), three.js, web-ifc (WASM served locally). PDFs: pdfjs-dist.</li>
+  <li><code>packages/ff-telemetry</code> + deployment runbook ship — pilot metrics are instrumentable today.</li>
+</ul>
+
+<h2>3 · Repository map</h2>
+<table>
+  <tr><th>Repo</th><th>What it is</th><th>Status</th></tr>
+  <tr><td><a href="https://github.com/theagentmarvin/free-field-monorepo">free-field-monorepo</a></td><td>Web core: Settings, Models, LinkView, Documents, Tasks, Users + ff-* packages. MIT.</td><td>Public</td></tr>
+  <tr><td><a href="https://github.com/theagentmarvin/free-field-app">free-field-app</a></td><td>Landing/OSS repo (this site lives here).</td><td>Public</td></tr>
+  <tr><td>free-field-mobile</td><td>Native Android app (“FreeField Field”), Capacitor 7.</td><td><span class="pill amber">private → public this week</span></td></tr>
+  <tr><td>Revit bundle exporter</td><td>Revit add-in, “Export Bundle” → .ffbundle.</td><td><span class="pill amber">private → public this week</span></td></tr>
+</table>
+<div class="callout warn">
+  <strong>Release gate:</strong> until the Android + exporter repos are public, the landing page must not deep-link them as “clone now”. Say “shipping this week” or link once they flip. The monorepo README's “no native mobile app” and “Commissioned work” lines must be removed at release (nothing is for sale — see §5).
+</div>
+
+<h2>4 · Demo media (verified footage)</h2>
+<p class="muted">Screen recordings live in the shared Google Drive → <strong>“Free Field”</strong> folder (recorded 2026-11-22 unless noted). Host them (or trimmed cuts) before embedding; the filenames below are the source of truth.</p>
+<table>
+  <tr><th>File</th><th>Shows</th><th>Use for</th></tr>
+  <tr><td><code>Revit Exporter refined.mp4</code> (2 min, 720p)</td><td>Full Revit → .ffbundle round-trip</td><td>Hero / “From Revit” section — launch-ready as-is</td></tr>
+  <tr><td><code>Revit Exporter Raw.mp4</code> (10.7 min)</td><td>Same, uncut</td><td>Backup footage for cuts</td></tr>
+  <tr><td><code>1-2 Smart sheets Docs module.mp4</code> (2:16)</td><td>Bundle load, 3D model + properties, multi-page PDF viewer with outline</td><td>Documents section</td></tr>
+  <tr><td><code>1-2 Smart sheets Linked views.mp4</code> (1:07)</td><td>LinkView: plan ↔ eye-height 3D, mapped-PDF picker, opacity slider</td><td>LinkView section — the money shot</td></tr>
+  <tr><td><code>PDF Compare functionality.mp4</code> (1:10)</td><td>Revision diff: side-by-side/overlay/changes, change list, CSV/PNG export</td><td>“See what changed” differentiator</td></tr>
+  <tr><td><code>0-Config … 4-Task Module.mp4</code> (Nov 14 batch)</td><td>Module-by-module walkthroughs</td><td>Feature tour</td></tr>
+  <tr><td><code>FreeField-lanzamiento-ES.mp4</code></td><td>Spanish launch cut</td><td>ES market</td></tr>
+</table>
+<p class="muted">Existing web-core GIFs already in this repo (<code>docs/media/</code>): settings-calibration, models-filters, models-isolate-section, linkview-walk, linkview-overlap, documents-measure, tasks-board, banner.png.</p>
+<div class="media-grid">
+  <figure><img src="../media/settings-calibration.gif" alt="Plan calibration"><figcaption>Settings — 2-point plan-to-storey calibration</figcaption></figure>
+  <figure><img src="../media/linkview-walk.gif" alt="LinkView walk"><figcaption>LinkView — plan ↔ eye-height 3D</figcaption></figure>
+  <figure><img src="../media/models-filters.gif" alt="Model filters"><figcaption>Models — filters &amp; isolation</figcaption></figure>
+  <figure><img src="../media/tasks-board.gif" alt="Task board"><figcaption>Tasks — board view, pinned to geometry</figcaption></figure>
+</div>
+
+<h2>5 · Hard constraints (non-negotiable)</h2>
+<ul class="tight">
+  <li><strong>No competitor names anywhere.</strong> Never Dalux, Speckle, or “unlike X”. Category-level contrast only: “closed proprietary platforms”, “per-seat licensing”, “vendor release calendar”.</li>
+  <li><strong>Nothing is for sale.</strong> No pricing section, no “contact sales”, no services, no enterprise tier, no newsletter-gated demo. The project sells nothing. The only CTA patterns allowed: <em>View on GitHub · Clone the repo · Read the docs · Join the community</em>.</li>
+  <li><strong>Everything is free MIT</strong> — web app, Android app, Revit exporter. Say so plainly.</li>
+  <li><strong>Subject is the company:</strong> “you adapt it to your stack and way of working.”</li>
+  <li><strong>Surfaces:</strong> web + tablet (native Android). iOS is roadmap — if mentioned, say so honestly.</li>
+  <li><strong>Honesty flags that must survive into copy:</strong> early project / rough edges; web models are a device cache (clearing browser data flushes them — durable offline is the Android app); self-hosting is the user's infra; no support SLA — you own the roadmap, backed by an open community.</li>
+  <li><strong>Category term:</strong> “sovereign field BIM” — use it, gloss it on first use: <em>open source, self-hosted, no seats: your model, your data, your roadmap, on your infrastructure.</em></li>
+  <li><strong>Emotional arc</strong> for the hero/above-the-fold: frustration (field works from stale PDFs) → fear (lock-in, per-seat creep, data in someone else's cloud) → pride (you own the tool). End on: <em>Own your tool, not a license.</em></li>
+</ul>
+
+<h2>6 · Buyer-variant copy (drop-in sections)</h2>
+<div class="grid">
+  <div class="card">
+    <h3>Technical (BIM/VDC manager, IT)</h3>
+    <p class="muted">FreeField is MIT-licensed modular TypeScript, end to end: web app, Capacitor Android app, and Revit bundle exporter — all public. Ingest IFC and plan PDFs, calibrate plan to 3D, pin tasks to geometry; models stay on-device, syncing only tasks to your self-hosted backend. Durable offline on Android with crash recovery and low-RAM tuning. Your VDC team or an AI agent extends any package on your schedule. No seats.</p>
+  </div>
+  <div class="card">
+    <h3>Business (ops executive)</h3>
+    <p class="muted">FreeField turns the BIM model you already have into a real field tool — on web and on a native tablet app that works offline, all free and open source. Your foreman pins tasks to the actual model, not a flat PDF. No per-seat fees, no locked modules; your data and roadmap stay in your hands. There's nothing to buy — the only cost is your own hosting. Not headcount.</p>
+  </div>
+  <div class="card">
+    <h3>Developer / OSS community</h3>
+    <p class="muted">FreeField is sovereign field BIM — open source, self-hosted, no seats, MIT end to end. Clone the web app: load IFC and plan PDFs, calibrate plan to storey side-by-side with eye-level 3D, pin tasks to geometry. The Capacitor Android app adds durable offline models on field tablets; the Revit bundle exporter carries model + drawings out of Revit. Modular ff-* TypeScript packages on That Open Engine; sync is tasks-only. Extend it with your team or an AI coding agent.</p>
+  </div>
+</div>
+
+<h2>7 · Objection handling (FAQ candidates)</h2>
+<table>
+  <tr><th>Objection</th><th>Honest answer</th></tr>
+  <tr><td>“It's early — rough edges.”</td><td>Yes, young project; what it does (model in the field, plan↔3D calibrated, tasks pinned, offline capture) is built and e2e-tested today. Back every claim with a live demo.</td></tr>
+  <tr><td>“No iOS?”</td><td>Web runs in any browser including iPad; native app is Android — deliberate, matching cheap rugged field tablets. iOS is roadmap; qualify honestly up front.</td></tr>
+  <tr><td>“Self-hosting is a burden.”</td><td>You run it on infrastructure you already control — your cloud bill, not per-seat rent. Demo mode runs with zero backend; deployment docs included.</td></tr>
+  <tr><td>“Will our models survive?”</td><td>Web: models are a device cache — source files always re-ingestable. Android app: durable offline storage for models, photos, notes.</td></tr>
+  <tr><td>“It's free — what's the catch?”</td><td>No catch, no company selling anything. Your costs: your hosting and your engineering time. Trade-off: no support SLA — you own the roadmap, backed by an open community.</td></tr>
+  <tr><td>“What do we pay for?”</td><td>Nothing. No services business, no premium tier. Only your own infrastructure.</td></tr>
+  <tr><td>“Revit round-trip, out of the box?”</td><td>Yes — the exporter ships free in a public repo: model + drawings out of Revit into FreeField's format. No paid connector, no per-seat gate.</td></tr>
+  <tr><td>“Offline on the tablet?”</td><td>Two honest layers: web queues field capture offline (models are a cache); the Android app gives durable offline storage with crash recovery. Say which layer you're showing.</td></tr>
+</table>
+
+<h2>8 · Brand assets</h2>
+<ul class="tight">
+  <li>Logos: <code>Free field Logo 2.jpg</code>, <code>Free Field Logo.jfif</code> — in the shared Drive “Free Field” folder (extract a clean SVG/PNG for the site).</li>
+  <li>Banner: <code>docs/media/banner.png</code> in this repo.</li>
+  <li>Category coin: <strong>sovereign field BIM</strong>. Closer line: <strong>Own your tool, not a license.</strong></li>
+  <li>Tone: confident, plain, construction-literate. No consultancy gray, no hype. Short sentences. Field vocabulary (crew, foreman, storey, plan, task).</li>
+</ul>
+
+<h2>9 · Pilot success metrics (for a “serious project” section, optional)</h2>
+<p class="muted">Instrumented via <code>ff-telemetry</code> — no invented numbers, only criteria:</p>
+<ul class="tight">
+  <li><strong>Adoption / activation</strong> — share of the pilot crew opening the model or a task on-site ≥ once/week after week two.</li>
+  <li><strong>Task-closure velocity</strong> — median time from task-pinned-on-site to task-closed-verified, vs the crew's prior paper/email baseline.</li>
+  <li><strong>Time-to-first-value</strong> — days from kickoff to the first task pinned to production geometry in the field (go/no-go gate).</li>
+</ul>
+
+<footer>
+  FreeField · MIT · Built from the verified pitch kit v3.2 (2026-11-22) + footage verification pass.
+  Source of truth for claims: this page. When in doubt, cut the claim — don't embellish.
+</footer>
+
+</div>
+</body>
+</html>
