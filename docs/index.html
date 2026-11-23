@@ -19,8 +19,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FreeField: BIM de terreno open source que es tuyo</title>
-<meta name="description" content="FreeField reúne el modelo IFC real, los planos calibrados y las observaciones de obra en un solo lugar. Licencia MIT, alojado en tu propia cuenta de nube, sin licencias por usuario. Prueba la demo en vivo.">
+<title>FreeField: BIM de terreno, open source y tuyo</title>
+<meta name="description" content="FreeField junta el modelo IFC real, los planos calibrados y las observaciones de obra en un solo lugar. Licencia MIT, corre en tu propia nube y no cobra por usuario. Prueba la demo en vivo.">
 <link rel="canonical" href="https://theagentmarvin.github.io/free-field-app/">
 <link rel="alternate" hreflang="es" href="https://theagentmarvin.github.io/free-field-app/">
 <link rel="alternate" hreflang="en" href="https://theagentmarvin.github.io/free-field-app/en/">
@@ -38,7 +38,7 @@
 <meta property="og:locale" content="es_CL">
 <meta property="og:locale:alternate" content="en_US">
 <meta property="og:title" content="FreeField: BIM de terreno que de verdad es tuyo">
-<meta property="og:description" content="Recorre el edificio desde el plano y fija cada observación en el punto exacto. Open source, MIT, en tu propia nube, sin licencias por usuario.">
+<meta property="og:description" content="Recorre la obra desde el plano y deja cada observación fijada en su punto exacto. Open source, MIT, en tu propia nube y sin licencias por usuario.">
 <meta property="og:image" content="https://theagentmarvin.github.io/free-field-app/assets/og.jpg">
 <meta property="og:image:type" content="image/jpeg">
 <meta property="og:image:width" content="1200">
@@ -46,7 +46,7 @@
 <meta property="og:image:alt" content="Un plano y el modelo 3D lado a lado en FreeField, con un marcador de &quot;estás aquí&quot; sobre el plano.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="FreeField: BIM de terreno que de verdad es tuyo">
-<meta name="twitter:description" content="Recorre el edificio desde el plano y fija cada observación en el punto exacto. Open source, MIT, en tu propia nube, sin licencias por usuario.">
+<meta name="twitter:description" content="Recorre la obra desde el plano y deja cada observación fijada en su punto exacto. Open source, MIT, en tu propia nube y sin licencias por usuario.">
 <meta name="twitter:image" content="https://theagentmarvin.github.io/free-field-app/assets/og.jpg">
 <meta name="twitter:image:alt" content="Un plano y el modelo 3D lado a lado en FreeField, con un marcador de &quot;estás aquí&quot; sobre el plano.">
 
@@ -96,7 +96,7 @@
         </summary>
         <div class="nav__panel">
           <ul>
-            <li><a href="#core-loop">Flujo base</a></li>
+            <li><a href="#core-loop">Cómo funciona</a></li>
             <li><a href="#revit-exporter">Exportador Revit</a></li>
             <li><a href="#compare">Comparar revisiones</a></li>
             <li><a href="#android">App Android</a></li>
@@ -119,13 +119,13 @@
   <div class="container hero__grid">
     <div class="hero__text">
       <h1 id="top-h">BIM de terreno que de&nbsp;verdad es tuyo.</h1>
-      <p class="lead">Abre el modelo IFC real junto a un plano calibrado. Recorre el edificio desde el plano, fija cada observación en el punto exacto y opéralo todo en tu propia cuenta de nube.</p>
+      <p class="lead">El modelo IFC real y el plano calibrado, lado a lado. Recorre la obra desde el plano, deja cada observación fijada en su punto exacto y corre todo en tu propia nube.</p>
       <div class="cta-row">
         <a class="btn btn--primary" href="https://marvin-dev-c4ca4.web.app/" rel="noopener">Probar la demo en vivo <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right"/></svg></a>
         <a class="btn btn--secondary" href="https://github.com/theagentmarvin/free-field-app" rel="noopener">Ver en GitHub <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right"/></svg></a>
       </div>
       <p class="helper">Sin registro. Corre en tu navegador.</p>
-      <p class="facts">Un proyecto joven: open source (MIT), alojado en tu propio proyecto de nube y sin licencias por usuario que contar.</p>
+      <p class="facts">Un proyecto joven: open source (MIT), corre en tu propio proyecto de nube y sin licencias por usuario que pagar.</p>
     </div>
     <div class="hero__media">
       <div class="calib" aria-hidden="true">
@@ -144,7 +144,7 @@
           </video>
         </div>
         <figcaption class="sheet__cells">
-          <div class="cell cell--grow"><span class="cell__label">Vista</span><span class="cell__value">LinkView. Recorre el modelo desde el plano: te mueves en un panel y el otro te sigue.</span></div>
+          <div class="cell cell--grow"><span class="cell__label">Vista</span><span class="cell__value">LinkView. Recorres el modelo desde el plano: te mueves en un panel y el otro te sigue.</span></div>
           <div class="cell"><span class="cell__label">Velocidad</span><span class="cell__value tabular">1,1×, editado</span></div>
           <div class="cell cell--control" hidden><button class="clip-toggle" type="button" aria-controls="clip-hero"><svg class="icon icon--sm" aria-hidden="true" focusable="false"><use href="#i-pause"/></svg><span class="clip-toggle__label">Pausar</span></button></div>
         </figcaption>
@@ -156,11 +156,20 @@
 <!-- 2 · The problem -->
 <section id="problem" class="section problem" aria-labelledby="problem-h">
   <div class="container problem__grid">
-    <h2 id="problem-h">El modelo es inteligente. A&nbsp;terreno llega una copia plana.</h2>
+    <h2 id="problem-h">El modelo lo sabe todo. A&nbsp;terreno llega un PDF.</h2>
+    <figure class="problem__rev">
+      <figcaption class="problem__rev-title">Lámina A-102 · Nivel 2</figcaption>
+      <dl class="spec">
+      <div class="spec__row"><dt>Rev C</dt><dd>Emitida para construcción. Es la vigente y la que está en el modelo.</dd></div>
+      <div class="spec__row rev--truck"><dt>Rev B</dt><dd>Reemplazada, pero es la que anda en la camioneta.</dd></div>
+      <div class="spec__row rev--old"><dt>Rev A</dt><dd><span>Reemplazada</span></dd></div>
+      </dl>
+      <p class="problem__rev-note">Cuadro de revisiones de ejemplo.</p>
+    </figure>
     <div class="problem__body">
-      <p>Tu equipo VDC arma un modelo con cada ducto, losa y tabique. La cuadrilla recibe un set de PDF, una lámina marcada en la nube de otro y una licencia que alguien tiene que aprobar.</p>
-      <p>Después, la lámina que anda en la camioneta va una revisión atrás. La RFI dice “cerca de la escalera, eje C”. La observación de entrega no tiene ubicación, solo una foto.</p>
-      <p>Las licencias por usuario deciden quién puede mirar. Las plataformas cerradas guardan el registro en sus servidores y tu hoja de ruta en su calendario.</p>
+      <p>Tu equipo VDC modela cada ducto, cada losa y cada tabique. A la obra llega un set de PDF, una lámina marcada en la nube de otro y un acceso que alguien tiene que aprobar.</p>
+      <p>Al final, la lámina que anda en la camioneta va una revisión atrás. La RFI dice “cerca de la escalera, por el eje C”. Y la observación de entrega no dice dónde está: solo trae una foto.</p>
+      <p>Las licencias por usuario definen quién alcanza a ver el modelo. Las plataformas cerradas guardan tu historial en sus servidores y tus mejoras esperan su calendario.</p>
     </div>
     <p class="problem__resolution">FreeField reúne el modelo real, la lámina vigente y la observación en un solo lugar, y ese lugar es tuyo.</p>
   </div>
@@ -169,8 +178,8 @@
 <!-- 3 · The core loop -->
 <section id="core-loop" class="section core" aria-labelledby="core-loop-h">
   <div class="container">
-    <h2 id="core-loop-h" class="core__h">Del IFC a una observación fijada en el punto exacto.</h2>
-    <p class="intro">Cargar el IFC, calibrar un plano, recorrerlo en LinkView y fijar tareas: todo eso corre en la demo en vivo. La sincronización entre compañeros requiere iniciar sesión en tu propio proyecto.</p>
+    <h2 id="core-loop-h" class="core__h">Del IFC a una observación fijada en su punto exacto.</h2>
+    <p class="intro">Cargar el IFC, calibrar un plano, recorrerlo en LinkView y fijar tareas funciona hoy en la demo en vivo. Para sincronizar con tu equipo, inicias sesión en tu propio proyecto.</p>
     <ol class="details">
       <li class="detail">
         <figure class="sheet">
@@ -186,7 +195,7 @@
           </figcaption>
         </figure>
         <div class="view-title"><span class="bubble" aria-hidden="true">1</span><h3>Carga el IFC en tu navegador</h3></div>
-        <p>El modelo se convierte en tu navegador y el archivo IFC no sale de tu equipo. Arquitectura, instalaciones y estructura se cargan juntas en una vista federada, con filtros, planos de corte y medición cuando los necesites.</p>
+        <p>El IFC se procesa en tu navegador y el archivo no sale de tu computador. Arquitectura, instalaciones y estructura se cargan juntas en un modelo federado, con filtros, planos de corte y mediciones cuando las necesites.</p>
       </li>
       <li class="detail">
         <figure class="sheet">
@@ -203,7 +212,7 @@
           </figcaption>
         </figure>
         <div class="view-title"><span class="bubble" aria-hidden="true">2</span><h3>Amarra cada plano a su nivel</h3></div>
-        <p>Dos clics en el plano y dos en el modelo. La lámina queda amarrada a su nivel y una etiqueta “Escala: calibrada” lo confirma. Un plano sin calibrar muestra una etiqueta ámbar <code>pt</code>. FreeField nunca adivina metros.</p>
+        <p>Dos clics en el plano y dos en el modelo, y la lámina queda calibrada a su nivel. Lo confirma la etiqueta “Escala: calibrada”. Si el plano no está calibrado, ves una etiqueta ámbar <code>pt</code>: FreeField nunca inventa metros.</p>
       </li>
       <li class="detail">
         <figure class="sheet">
@@ -219,7 +228,7 @@
           </figcaption>
         </figure>
         <div class="view-title"><span class="bubble" aria-hidden="true">3</span><h3>Recorre el edificio desde el plano</h3></div>
-        <p>Plano a la izquierda, 3D a la derecha, vinculados en ambos sentidos. Arrastra el marcador “estás aquí” y la cámara baja a la altura de los ojos, <span class="tabular">1,65&nbsp;m</span>. Camina con <kbd>W</kbd>, <kbd>A</kbd>, <kbd>S</kbd>, <kbd>D</kbd>. El modo superposición extiende el plano sobre el modelo con un control de opacidad, para que veas dónde no coinciden el dibujo y el modelo.</p>
+        <p>Plano a la izquierda, 3D a la derecha, conectados en ambos sentidos. Arrastra el marcador “estás aquí” y la cámara baja a la altura de la vista, <span class="tabular">1,65&nbsp;m</span>. Camina con <kbd>W</kbd>, <kbd>A</kbd>, <kbd>S</kbd>, <kbd>D</kbd>. En modo superposición, el plano se tiende sobre el modelo con un control de opacidad, y ves de inmediato dónde el dibujo y el modelo no calzan.</p>
       </li>
       <li class="detail">
         <figure class="sheet">
@@ -236,7 +245,7 @@
           </figcaption>
         </figure>
         <div class="view-title"><span class="bubble" aria-hidden="true">4</span><h3>Fija la observación donde ocurrió</h3></div>
-        <p>Defecto, RFI, observación, seguridad, información. Fíjala a un elemento 3D o a un punto del plano, con foto, plazo y responsable. Más tarde haces clic en el pin y la cámara vuelve a donde se levantó. Vistas de tabla y tablero, exportación CSV, un informe imprimible y sincronización en vivo entre compañeros al iniciar sesión en tu propio proyecto.<span data-feature="bcf"><span class="when-next"> La exportación BCF llega en la próxima versión.</span><span class="when-live"> Exporta a BCF para tus herramientas de coordinación.</span></span></p>
+        <p>Defecto, RFI, observación de entrega, seguridad o información. Fíjala a un elemento 3D o a un punto del plano, con foto, plazo y responsable. Después haces clic en el pin y la cámara vuelve al lugar. Vistas de tabla y tablero, exportación CSV, informe imprimible y sincronización en vivo con tu equipo al iniciar sesión en tu propio proyecto.<span data-feature="bcf"><span class="when-next"> La exportación BCF llega en la próxima versión.</span><span class="when-live"> Exporta a BCF para tus herramientas de coordinación.</span></span></p>
       </li>
     </ol>
     <div class="core__cta">
@@ -251,36 +260,36 @@
   <div class="container exporter__grid">
     <div class="exporter__head">
       <h2 id="revit-exporter-h">Exporta desde Revit. Llega calibrado.</h2>
-      <p class="lead">Exportas una vez. Los planos llegan a FreeField ya alineados con el modelo.</p>
+      <p class="lead">Exportas una vez y los planos entran a FreeField ya calibrados con el modelo.</p>
     </div>
 
     <figure class="sheet exporter__before">
       <div class="sheet__media">
-        <video id="clip-exporter" class="sheet__video" width="1280" height="978" muted loop playsinline preload="none" poster="assets/media/revit-exporter.webp" controls data-autoplay aria-label="El diálogo Export Bundle de FreeField asociando 28 láminas a niveles IFC y luego exportando un paquete con una barra de progreso hasta que indica Done.">
+        <video id="clip-exporter" class="sheet__video" width="1280" height="978" muted loop playsinline preload="none" poster="assets/media/revit-exporter.webp" controls data-autoplay aria-label="El diálogo Export Bundle de FreeField asociando 28 láminas a sus niveles del IFC y luego exportando el paquete, con una barra de progreso hasta que aparece Done.">
           <source src="assets/media/revit-exporter.webm" type="video/webm">
           <source src="assets/media/revit-exporter.mp4" type="video/mp4">
         </video>
       </div>
       <figcaption class="sheet__cells">
         <div class="cell cell--grow"><span class="cell__label">Vista</span><span class="cell__value">El diálogo y el flujo del exportador, en Revit.</span></div>
-        <div class="cell"><span class="cell__label">Fuente</span><span class="cell__value">Complemento de Revit, proyecto de ejemplo</span></div>
+        <div class="cell"><span class="cell__label">Fuente</span><span class="cell__value">Complemento de Revit, proyecto de prueba</span></div>
         <div class="cell"><span class="cell__label">Velocidad</span><span class="cell__value tabular">Exportación acelerada 20×</span></div>
         <div class="cell cell--control" hidden><button class="clip-toggle" type="button" aria-controls="clip-exporter"><svg class="icon icon--sm" aria-hidden="true" focusable="false"><use href="#i-pause"/></svg><span class="clip-toggle__label">Pausar</span></button></div>
       </figcaption>
     </figure>
 
     <div class="exporter__text prose">
-      <p>El complemento de FreeField agrega un botón Export Bundle en una pestaña FreeField de la cinta de Revit. Asocia cada lámina a su nivel y a su piso IFC. Busca, filtra por nivel o selecciona todo lo asociable. Agrega tablas de cuantificación, contornos de elementos o la IFC4 Reference View si las necesitas.</p>
-      <p>Una sola ejecución exporta el IFC, imprime un PDF por lámina, los asocia y escribe un único <code>.ffbundle</code>. Arrastra el paquete a FreeField y cada plano queda calibrado a su nivel, sin hacer la calibración de dos clics lámina por lámina.</p>
-      <p data-feature="exporter"><span class="when-next">El repositorio del exportador se abre pronto y se publicará abierto, con licencia MIT, como todo lo demás. La importación de paquetes ya está en la app web.</span><span class="when-live">El exportador y la importación de paquetes son públicos, MIT, como todo lo demás.</span> <span class="status" data-feature="exporter"><span class="when-next tag tag--proposed">Repo se abre pronto</span><span class="when-live tag tag--built">Público · MIT</span></span></p>
+      <p>El complemento suma una pestaña FreeField a la cinta de Revit, con el botón Export Bundle. Ahí asocias cada lámina con su nivel en el IFC: puedes buscar, filtrar por nivel o seleccionar todo lo que se pueda asociar. Si las necesitas, incluye tablas de cubicación, contornos de elementos o la IFC4 Reference View.</p>
+      <p>Una sola corrida exporta el IFC, genera un PDF por lámina, los asocia y escribe un único <code>.ffbundle</code>. Arrastra el paquete a FreeField y cada plano queda calibrado en su nivel, sin repetir los dos clics lámina por lámina.</p>
+      <p data-feature="exporter"><span class="when-next">El repositorio del exportador se abre pronto, también con licencia MIT. La importación de paquetes ya funciona en la app web.</span><span class="when-live">El exportador y la importación de paquetes son públicos y MIT, como todo lo demás.</span> <span class="status" data-feature="exporter"><span class="when-next tag tag--proposed">Repo se abre pronto</span><span class="when-live tag tag--built">Público · MIT</span></span></p>
     </div>
 
     <div class="exporter__pipeline">
       <ol class="pipeline">
         <li><span class="bubble" aria-hidden="true">A</span><p class="pipeline__label">Exportando IFC</p><p class="pipeline__detail">El modelo, en IFC.</p></li>
         <li><span class="bubble" aria-hidden="true">B</span><p class="pipeline__label">PDF por lámina</p><p class="pipeline__detail">Un PDF por cada lámina seleccionada.</p></li>
-        <li><span class="bubble" aria-hidden="true">C</span><p class="pipeline__label">Asociación</p><p class="pipeline__detail">Cada lámina amarrada a su nivel y piso IFC.</p></li>
-        <li><span class="bubble" aria-hidden="true">D</span><p class="pipeline__label">Tablas</p><p class="pipeline__detail">Las tablas de cuantificación, si las incluyes.</p></li>
+        <li><span class="bubble" aria-hidden="true">C</span><p class="pipeline__label">Asociación</p><p class="pipeline__detail">Cada lámina asociada a su nivel en el IFC.</p></li>
+        <li><span class="bubble" aria-hidden="true">D</span><p class="pipeline__label">Cubicaciones</p><p class="pipeline__detail">Las tablas de cantidades, si las incluyes.</p></li>
         <li><span class="bubble" aria-hidden="true">E</span><p class="pipeline__label">Escribiendo paquete</p><p class="pipeline__detail">Un <code>.ffbundle</code>: el IFC, los PDF y un manifiesto.</p></li>
       </ol>
       <div class="dim">
@@ -299,7 +308,7 @@
         </div>
         <figcaption class="sheet__cells">
           <div class="cell cell--grow"><span class="cell__label">Vista</span><span class="cell__value">Una lámina del paquete, en FreeField: haz clic en un elemento del PDF y obtén sus propiedades del modelo.</span></div>
-          <div class="cell"><span class="cell__label">Fuente</span><span class="cell__value">App web FreeField, mismo proyecto de ejemplo</span></div>
+          <div class="cell"><span class="cell__label">Fuente</span><span class="cell__value">App web FreeField, mismo proyecto de prueba</span></div>
           <div class="cell"><span class="cell__label">Velocidad</span><span class="cell__value tabular">1,1×, editado</span></div>
           <div class="cell cell--control" hidden><button class="clip-toggle" type="button" aria-controls="clip-sheets"><svg class="icon icon--sm" aria-hidden="true" focusable="false"><use href="#i-pause"/></svg><span class="clip-toggle__label">Pausar</span></button></div>
         </figcaption>
@@ -312,8 +321,8 @@
 <section id="compare" class="section compare" aria-labelledby="compare-h">
   <div class="container compare__grid">
     <div class="compare__head">
-      <h2 id="compare-h">Mira qué cambió entre dos revisiones de una lámina.</h2>
-      <p class="lead">Antes de que la cuadrilla construya con la versión vieja, cada diferencia queda en una lista.</p>
+      <h2 id="compare-h">Detecta qué cambió entre dos revisiones de una lámina.</h2>
+      <p class="lead">Antes de que la cuadrilla construya con la revisión antigua, cada diferencia queda en una lista.</p>
     </div>
     <figure class="sheet sheet--wide compare__sheet">
       <div class="sheet__media">
@@ -330,9 +339,9 @@
       </figcaption>
     </figure>
     <div class="compare__body prose">
-      <p>Llega un set nuevo y nadie sabe decir qué se movió. Abre dos revisiones de una lámina lado a lado, superpuestas o en una vista de cambios que marca las diferencias.</p>
-      <p>FreeField arma una lista con los cambios detectados. Recórrelos uno a uno y marca cada uno como revisado. Tu ojo sigue tomando la decisión. La herramienta se asegura de que llegues a cada cambio.</p>
-      <p>Exporta la lista como CSV para el registro de RFI, o como PNG para mandársela al subcontratista.</p>
+      <p>Llega un set nuevo y nadie sabe qué cambió. Abre dos revisiones de la misma lámina lado a lado, superpuestas o en una vista de cambios que marca las diferencias.</p>
+      <p>FreeField arma una lista con los cambios que detecta. Revísalos uno por uno y marca cada uno como revisado. El criterio sigue siendo tuyo: la herramienta solo se asegura de que no se te pase ninguno.</p>
+      <p>Exporta la lista en CSV para tu registro de RFI, o en PNG para mandársela al subcontratista.</p>
     </div>
     <div class="compare__aside">
       <dl class="spec">
@@ -350,8 +359,8 @@
   <div class="container android__grid">
     <h2 id="android-h">Una app Android nativa para la tablet en obra.</h2>
     <div class="android__body prose">
-      <p>La app web ya corre en cualquier navegador, iPad incluido. FreeField Field es la app Android nativa para tablets reforzadas de terreno, de esas económicas con poca RAM y mala señal.</p>
-      <p>Guarda los modelos en el dispositivo, así el edificio abre sin conexión. Guarda fotos y notas en un almacenamiento local duradero. Si el visor 3D se cae, la app se recupera y sigue.</p>
+      <p>La app web ya corre en cualquier navegador, iPad incluido. FreeField Field es la app Android nativa para las tablets de terreno: robustas, económicas, con poca RAM y a veces sin señal.</p>
+      <p>Los modelos quedan guardados en el dispositivo, así que el edificio abre sin conexión. Fotos y notas van a un almacenamiento local duradero. Si el visor 3D se cae, la app se recupera y sigues donde estabas.</p>
     </div>
     <div class="strip">
       <div class="strip__head">
@@ -362,7 +371,7 @@
         <div class="strip__cell"><dt>Modelos</dt><dd>Modelos sin conexión guardados en el dispositivo</dd></div>
         <div class="strip__cell"><dt>Registro</dt><dd>Fotos y notas que sobreviven a una caída de señal</dd></div>
         <div class="strip__cell"><dt>Recuperación</dt><dd>Se recupera si el visor se cae, con pruebas end‑to‑end</dd></div>
-        <div class="strip__cell"><dt>Hardware</dt><dd>Ajustada para tablets reforzadas con poca RAM</dd></div>
+        <div class="strip__cell"><dt>Hardware</dt><dd>Optimizada para tablets robustas con poca RAM</dd></div>
         <div class="strip__cell"><dt>Hecha con</dt><dd>Capacitor 7</dd></div>
         <div class="strip__cell"><dt class="as-is">iOS</dt><dd>En la hoja de ruta</dd></div>
       </dl>
@@ -374,21 +383,21 @@
 <section id="own-it" class="section reversed own" aria-labelledby="own-it-h">
   <div class="container own__grid">
     <div class="own__head">
-      <h2 id="own-it-h">Sé dueño de la herramienta, no de una licencia.</h2>
-      <p class="lead">Todo es MIT. No hay licencias por usuario ni módulos bloqueados. Los costos son tu propio alojamiento y el tiempo de tu equipo, y la siguiente sección los detalla.</p>
+      <h2 id="own-it-h">Sé dueño de tu herramienta, no de una licencia.</h2>
+      <p class="lead">Todo es MIT: sin licencias por usuario ni módulos bloqueados. Los costos son tu propio alojamiento y el tiempo de tu equipo, y la siguiente sección los detalla.</p>
     </div>
     <div class="own__rows">
       <div class="own__row">
         <h3>Sin licencias por usuario</h3>
-        <p>Suma a toda la cuadrilla, a los subcontratistas y a la inspección del mandante. Nadie cuenta cabezas y ningún módulo está bloqueado.</p>
+        <p>Suma a toda la cuadrilla, a los subcontratistas y a la ITO del mandante. Nadie cuenta cabezas ni hay módulos bloqueados.</p>
       </div>
       <div class="own__row">
         <h3>Tu nube</h3>
-        <p>Cada empresa opera su propio proyecto de Firebase: Auth, Firestore, Storage, Functions y Hosting. Modelos, planos y calibraciones se quedan en el navegador. Tareas, proyectos y miembros se sincronizan con tu proyecto y con el de nadie más.</p>
+        <p>Cada empresa opera su propio proyecto de Firebase: Auth, Firestore, Storage, Functions y Hosting. Modelos, planos y calibraciones se quedan en el navegador. Tareas, proyectos y miembros se sincronizan con tu proyecto y con ningún otro.</p>
       </div>
       <div class="own__row">
         <h3>Tu hoja de ruta</h3>
-        <p>Haz un fork. El código es abierto, así que un desarrollador, tuyo o contratado, puede agregar un campo, conectarlo a un sistema que ya usas o cambiar un flujo. Un agente de programación con IA puede ayudar en ese trabajo. No abres un ticket ni esperas el calendario de versiones de un proveedor.</p>
+        <p>Haz un fork. Con el código abierto, un desarrollador (de tu equipo o externo) puede agregar un campo, conectarlo a un sistema que ya usas o cambiar un flujo, y un agente de programación con IA también puede ayudar. No abres un ticket ni esperas el calendario de versiones de un proveedor.</p>
       </div>
     </div>
     <div class="code own__code">
@@ -400,7 +409,7 @@
       <span class="sr-only code__status" aria-live="polite"></span>
     </div>
     <div class="own__aside">
-      <p class="own__caption">Parte en modo demo, sin backend. Requiere Node.js 20+ y pnpm 10.</p>
+      <p class="own__caption">Arranca en modo demo, sin backend. Requiere Node.js 20+ y pnpm 10.</p>
       <div class="cta-stack">
         <a class="btn btn--primary" href="https://github.com/theagentmarvin/free-field-app/blob/main/docs/deploy/self-hosting.md" rel="noopener">Leer la guía de autoalojamiento <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right"/></svg></a>
         <a class="btn btn--secondary" href="https://github.com/theagentmarvin/free-field-app" rel="noopener">Clonar el repo <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right"/></svg></a>
@@ -416,7 +425,7 @@
     <div class="ledger">
       <div class="ledger__cell">
         <h3>Lo que no pagas</h3>
-        <p>Licencias por usuario, cobros por persona, módulos bloqueados ni renovaciones de licencia. Capataces, ingenieros de terreno y subcontratistas pueden usarlo todos.</p>
+        <p>No hay licencias por usuario, cobros por persona, módulos bloqueados ni renovaciones. Capataces, ingenieros de terreno y subcontratistas pueden usarlo todos.</p>
       </div>
       <div class="ledger__cell">
         <h3>Lo que sí pagas</h3>
@@ -424,19 +433,19 @@
       </div>
       <div class="ledger__cell">
         <h3>Lo que no recibes</h3>
-        <p>Un contrato de soporte o un SLA. FreeField es un proyecto open source joven. Recibes el código, la guía de autoalojamiento y una comunidad, no un proveedor de turno.</p>
+        <p>Ni contrato de soporte ni SLA. FreeField es un proyecto open source joven. Recibes el código, la guía de autoalojamiento y una comunidad, no un proveedor al que llamar.</p>
       </div>
       <div class="ledger__cell">
         <h3>Límites conocidos hoy</h3>
-        <p>En la web, los modelos son una caché en el dispositivo. Los roles son Admin y Miembro. iOS está en la hoja de ruta.<span data-feature="exporter"><span class="when-next"> El repositorio del exportador se abre pronto.</span></span><span data-feature="android"><span class="when-next"> El repositorio de Android se abre pronto.</span></span><span data-feature="compare"><span class="when-next"> La comparación de revisiones llega en la próxima versión.</span></span></p>
+        <p>En la web, los modelos son una caché en el dispositivo. Los roles disponibles son Admin y Miembro. iOS está en la hoja de ruta.<span data-feature="exporter"><span class="when-next"> El repositorio del exportador se abre pronto.</span></span><span data-feature="android"><span class="when-next"> El repositorio de Android se abre pronto.</span></span><span data-feature="compare"><span class="when-next"> La comparación de revisiones llega en la próxima versión.</span></span></p>
       </div>
       <div class="ledger__cell">
         <h3>Para quién sirve</h3>
-        <p>Una constructora con alguien que pueda operar un despliegue web pequeño, o que lo contrate. Corre en un proyecto de Firebase que tú controlas, y el modo demo no necesita backend, así que puedes evaluarlo antes de asignar a nadie. Si necesitas un SLA de soporte, todavía no es para ti.</p>
+        <p>Una constructora que tenga a alguien capaz de operar un despliegue web pequeño, o que pueda contratarlo. Corre en un proyecto de Firebase que tú controlas y el modo demo no necesita backend, así que lo evalúas antes de destinar a alguien. Si necesitas un SLA de soporte, todavía no es para ti.</p>
       </div>
       <div class="ledger__cell ledger__cell--key">
         <h3>Tu cálculo, no el nuestro</h3>
-        <p>Compara las licencias que querrías cubrir, por lo que pagas por cada una, contra tu cuenta de alojamiento más las horas de ingeniería que dedicarías. El segundo número es el que tú controlas.</p>
+        <p>Multiplica las licencias que necesitarías por lo que cuesta cada una, y compáralo con tu cuenta de alojamiento más las horas de ingeniería que dedicarías. El segundo número lo controlas tú.</p>
       </div>
     </div>
     <a class="btn btn--secondary cost__cta" href="https://github.com/theagentmarvin/free-field-app/blob/main/docs/deploy/self-hosting.md" rel="noopener">Leer la guía de autoalojamiento <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right"/></svg></a>
@@ -450,39 +459,39 @@
     <div class="faq__list">
       <details>
         <summary><span>¿Está listo para un proyecto real?</span><svg class="icon faq__icon" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
-        <p>Es un proyecto joven y lo decimos. La demo en vivo muestra lo que funciona hoy. Como el código es MIT, puedes seguir operando tu propio fork pase lo que pase con el proyecto. Pruébalo en un edificio antes de depender de él.</p>
+        <p>Es un proyecto joven y te lo decimos. La demo en vivo muestra lo que funciona hoy. Como el código es MIT, puedes seguir operando tu propio fork pase lo que pase con el proyecto. Pruébalo en una obra antes de depender de él.</p>
       </details>
       <details>
-        <summary><span>Es gratis, ¿dónde está la trampa?</span><svg class="icon faq__icon" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
-        <p>Ninguna empresa está vendiendo nada. Tus costos son el alojamiento y el tiempo de tu equipo, y no hay SLA de soporte. La hoja de ruta es tuya, con una comunidad abierta detrás.</p>
+        <summary><span>Si es gratis, ¿cuál es la trampa?</span><svg class="icon faq__icon" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
+        <p>Nadie te está vendiendo nada. Tus costos son el alojamiento y el tiempo de tu equipo, y no hay SLA de soporte. A cambio, la hoja de ruta es tuya, con una comunidad abierta detrás.</p>
       </details>
       <details>
-        <summary><span>¿Autoalojarlo es una carga?</span><svg class="icon faq__icon" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
-        <p>Corre en infraestructura que ya controlas, a través de tu propio proyecto de Firebase. Puedes probar la app completa sin ningún backend en modo demo.</p>
+        <summary><span>¿Autoalojarlo da mucho trabajo?</span><svg class="icon faq__icon" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
+        <p>Corre en infraestructura que ya controlas, con tu propio proyecto de Firebase. Y en modo demo puedes probar la app completa sin backend.</p>
       </details>
       <details>
-        <summary><span>¿Adónde van nuestros modelos y planos?</span><svg class="icon faq__icon" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
-        <p>Los IFC se convierten en tu navegador y el archivo original no sale de tu equipo. El inicio de sesión y las tareas usan tu propio proyecto de Firebase, con acceso por enlace al correo, roles por proyecto y revocación inmediata. Modelos, planos y calibraciones se guardan en el navegador. No declaramos certificaciones ni auditorías.</p>
+        <summary><span>¿Dónde quedan nuestros modelos y planos?</span><svg class="icon faq__icon" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
+        <p>Los IFC se procesan en tu navegador y el archivo original no sale de tu computador. El inicio de sesión y las tareas usan tu propio proyecto de Firebase, con acceso por enlace enviado al correo, roles por proyecto y revocación inmediata. Modelos, planos y calibraciones se guardan en el navegador. No declaramos certificaciones ni auditorías.</p>
       </details>
       <details>
-        <summary><span>¿Nuestros modelos van a sobrevivir?</span><svg class="icon faq__icon" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
-        <p>En la app web, los modelos son una caché en el dispositivo y siempre puedes volver a importar el archivo original. La app Android agrega almacenamiento duradero sin conexión.</p>
+        <summary><span>¿Se pueden perder los modelos?</span><svg class="icon faq__icon" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
+        <p>En la app web, los modelos son una caché en el dispositivo y pueden borrarse, pero siempre puedes volver a importar el archivo original. La app Android agrega almacenamiento duradero sin conexión.</p>
       </details>
       <details>
         <summary><span>¿Funciona sin conexión en la tablet?</span><svg class="icon faq__icon" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
-        <p>En dos capas. La app web deja en cola lo que registras en terreno sin conexión, en cualquier navegador. La app Android agrega almacenamiento duradero de modelos y recuperación ante fallas.</p>
+        <p>Funciona en dos capas. La app web, en cualquier navegador, deja en cola lo que registras en terreno mientras no hay conexión. La app Android suma almacenamiento duradero de modelos y recuperación ante fallas.</p>
       </details>
       <details>
         <summary><span>¿Puedo usar hoy el exportador de Revit o la app Android?</span><svg class="icon faq__icon" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
-        <p><span data-feature="exporter"><span class="when-next">El exportador de Revit todavía no: su repositorio se abre pronto. La importación de paquetes ya está en la app web, así que un paquete del exportador abrirá apenas se publique.</span><span class="when-live">El exportador de Revit es público, MIT, en su propio repositorio.</span></span> <span data-feature="android"><span class="when-next">El repositorio de la app Android también se abre pronto.</span><span class="when-live">La app Android es pública, MIT, en su propio repositorio.</span></span> La app web, con importación de IFC y PDF, ya está disponible.</p>
+        <p><span data-feature="exporter"><span class="when-next">El exportador de Revit todavía no: su repositorio se abre pronto. La importación de paquetes ya está en la app web, así que podrás abrir un paquete del exportador apenas se publique.</span><span class="when-live">El exportador de Revit es público, MIT, en su propio repositorio.</span></span> <span data-feature="android"><span class="when-next">El repositorio de la app Android también se abre pronto.</span><span class="when-live">La app Android es pública, MIT, en su propio repositorio.</span></span> La app web, con importación de IFC y PDF, ya está disponible.</p>
       </details>
       <details>
         <summary><span>¿Y iOS?</span><svg class="icon faq__icon" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
         <p>La app web corre en cualquier navegador, también en iPad. La app nativa es Android porque es lo que usan las tablets reforzadas económicas. iOS está en la hoja de ruta.</p>
       </details>
       <details>
-        <summary><span>¿Reemplaza nuestro control documental?</span><svg class="icon faq__icon" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
-        <p>No. FreeField es la capa de terreno: el modelo, los planos y las observaciones. Mantén tus herramientas de control documental y de programación.</p>
+        <summary><span>¿Reemplaza nuestra gestión documental?</span><svg class="icon faq__icon" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
+        <p>No. FreeField es la capa de terreno: el modelo, los planos y las observaciones. Mantén tus herramientas de gestión documental y de planificación.</p>
       </details>
     </div>
   </div>
@@ -509,7 +518,7 @@
         <li>Una idea de UX</li>
         <li>Una corrección de documentación</li>
       </ul>
-      <p class="build__security">Los problemas de seguridad se reportan por el proceso privado descrito en <a href="https://github.com/theagentmarvin/free-field-app/blob/main/SECURITY.md" rel="noopener">SECURITY.md</a>.</p>
+      <p class="build__security">Reporta los problemas de seguridad por el canal privado descrito en <a href="https://github.com/theagentmarvin/free-field-app/blob/main/SECURITY.md" rel="noopener">SECURITY.md</a>.</p>
       <div class="cta-row">
         <a class="btn btn--secondary" href="https://github.com/theagentmarvin/free-field-app" rel="noopener">Clonar el repo <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right"/></svg></a>
         <a class="link-btn" href="https://github.com/theagentmarvin/free-field-app/blob/main/CONTRIBUTING.md" rel="noopener">Contribuir en GitHub</a>
@@ -523,7 +532,7 @@
   <div class="container closing__grid">
     <div class="closing__text">
       <h2 id="demo-h">Abre la demo y recorre el edificio.</h2>
-      <p class="lead">Sin cuenta y sin instalar nada. Carga el modelo de ejemplo o tu propio IFC. Se queda en tu navegador.</p>
+      <p class="lead">Sin cuenta y sin instalar nada. Carga el modelo de ejemplo o tu propio IFC, que se queda en tu navegador.</p>
     </div>
     <div class="cta-stack closing__ctas">
       <a class="btn btn--primary" href="https://marvin-dev-c4ca4.web.app/" rel="noopener">Probar la demo en vivo <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right"/></svg></a>
@@ -548,7 +557,7 @@
       <div class="tb"><p class="cell__label">Código</p><ul class="tb__links"><li><a href="https://github.com/theagentmarvin/free-field-app" rel="noopener">GitHub</a></li><li><a href="https://github.com/theagentmarvin/free-field-app/blob/main/docs/deploy/self-hosting.md" rel="noopener">Guía de autoalojamiento (en inglés)</a></li></ul></div>
       <div class="tb"><p class="cell__label">Comunidad</p><ul class="tb__links"><li><a href="https://github.com/theagentmarvin/free-field-app/blob/main/CONTRIBUTING.md" rel="noopener">Cómo contribuir</a></li><li><a href="https://github.com/theagentmarvin/free-field-app/blob/main/CODE_OF_CONDUCT.md" rel="noopener">Código de conducta</a></li><li><a href="https://github.com/theagentmarvin/free-field-app/blob/main/SECURITY.md" rel="noopener">Seguridad</a></li></ul></div>
     </div>
-    <p class="titleblock__strip">Revit es una marca registrada de su propietario; FreeField no tiene afiliación con él.</p>
+    <p class="titleblock__strip">Revit es una marca de su respectivo propietario; FreeField no está afiliado a él.</p>
   </div>
 </footer>
 </body>
