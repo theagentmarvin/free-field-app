@@ -111,7 +111,7 @@ Passwordless **email-link sign-in**, **invite links** with Admin or Member roles
 
 ## How your data is stored
 
-FreeField is **local-first**. Buildings, IFC/PDF versions, calibrations and saved views live in **your browser** (IndexedDB). Only **tasks, members and projects** sync through Firestore, and only when you self-host with sign-in. Clearing the site data removes your local models. There is no native mobile app; the UI is a responsive web app that works in a phone browser.
+FreeField is **local-first**. Buildings, IFC/PDF versions, calibrations and saved views live in **your browser** (IndexedDB). Only **tasks, members and projects** sync through Firestore, and only when you self-host with sign-in. Clearing the site data removes your local models. The UI is a responsive web app that also works in a phone or tablet browser. A native Android field app with durable offline storage is opening as its own repo soon.
 
 ## Self-hosting on your own Firebase
 
@@ -144,10 +144,6 @@ pnpm --filter @free-field/settings build
 ## Contributing
 
 Issues and pull requests are welcome: bug reports, IFC files that don't load well, UX ideas, docs. Start with [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). Please report security issues privately, as described in [SECURITY.md](SECURITY.md).
-
-## Commissioned work
-
-Need an **offline field app** or a **desktop BIM-authoring exporter plugin**? These are available as commissioned work. Open an issue to get in touch with the maintainers.
 
 ## License
 
