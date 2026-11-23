@@ -3,6 +3,9 @@
   'use strict';
   var root = document.documentElement;
   root.classList.add('js');
+  var T = (root.lang || '').indexOf('es') === 0
+    ? { pause: 'Pausar', play: 'Reproducir', copy: 'Copiar', copied: 'Copiado', copiedSr: 'Comandos copiados al portapapeles.', press: 'Presiona Ctrl+C', pressSr: 'Comandos seleccionados. Presiona Ctrl+C para copiar.' }
+    : { pause: 'Pause', play: 'Play clip', copy: 'Copy', copied: 'Copied', copiedSr: 'Commands copied to the clipboard.', press: 'Press Ctrl+C', pressSr: 'Commands selected. Press Ctrl+C to copy.' };
 
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var hasIO = 'IntersectionObserver' in window;
@@ -31,7 +34,7 @@
 
     function render() {
       var playing = !video.paused && !video.ended;
-      label.textContent = playing ? 'Pause' : 'Play clip';
+      label.textContent = playing ? T.pause : T.play;
       setIcon(btn, playing ? 'pause' : 'play');
     }
     function tryPlay() {
@@ -74,7 +77,7 @@
       if (status) status.textContent = announce;
       clearTimeout(timer);
       timer = setTimeout(function () {
-        label.textContent = 'Copy'; setIcon(btn, 'copy'); if (status) status.textContent = '';
+        label.textContent = T.copy; setIcon(btn, 'copy'); if (status) status.textContent = '';
       }, 2000);
     }
     function selectCode() {
@@ -85,10 +88,10 @@
     }
     btn.addEventListener('click', function () {
       var text = code.textContent.split(/\r?\n/).map(function (l) { return l.replace(/^\$ /, ''); }).join('\n').trim();
-      if (!navigator.clipboard || !navigator.clipboard.writeText) { selectCode(); show('Press Ctrl+C', 'copy', 'Commands selected. Press Ctrl+C to copy.'); return; }
+      if (!navigator.clipboard || !navigator.clipboard.writeText) { selectCode(); show(T.press, 'copy', T.pressSr); return; }
       navigator.clipboard.writeText(text).then(
-        function () { show('Copied', 'check', 'Commands copied to the clipboard.'); },
-        function () { selectCode(); show('Press Ctrl+C', 'copy', 'Commands selected. Press Ctrl+C to copy.'); }
+        function () { show(T.copied, 'check', T.copiedSr); },
+        function () { selectCode(); show(T.press, 'copy', T.pressSr); }
       );
     });
   });

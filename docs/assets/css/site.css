@@ -307,6 +307,15 @@ main:focus { outline: none; }
 .nav__end { display: flex; align-items: center; gap: var(--sp-2xs); padding-left: var(--sp-xs); }
 .nav__cta-long { display: none; }
 .nav__cta { min-height: 44px; }
+.nav__link { white-space: nowrap; }
+.nav__brand { flex-shrink: 0; }
+/* Language switch (ES | EN). Current language is a ruled cell with a coral underline; the other is a link. */
+.lang { display: flex; align-items: stretch; font-family: var(--font-text); font-weight: 600; font-size: 0.875rem; line-height: 1; }
+.lang__item { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 0 0.5rem; color: var(--ink); text-decoration: none; border-radius: var(--r-inner); }
+.lang a.lang__item:hover { background: var(--paper-sunk); }
+.lang__item[aria-current] { color: var(--ink); text-decoration: underline; text-decoration-color: var(--coral-line); text-decoration-thickness: 2px; text-underline-offset: 6px; }
+.lang__item[aria-current] { display: none; }
+@media (min-width: 768px) { .lang__item[aria-current] { display: inline-flex; } .lang__item + .lang__item { border-left: 1px solid var(--line); border-radius: 0; } }
 
 .nav__menu > summary {
   display: grid; place-items: center;
