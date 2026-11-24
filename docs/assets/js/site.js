@@ -212,4 +212,40 @@
     }, { rootMargin: '-40% 0px -55% 0px' });
     Array.prototype.forEach.call(document.querySelectorAll('main > section'), function (s) { spy.observe(s); });
   }
+  /* Hero headline: after the draft-in, the last line cycles once through who the BIM opens to,
+     then settles back on the real headline. Under 5 s, once, stops on any interaction,
+     skipped under reduced motion. The real sentence lives in the h1's .sr-only text. */
+  (function () {
+    var el = document.querySelector('.swap[data-swap]');
+    if (!el || reduce) return;
+    var words;
+    try { words = JSON.parse(el.getAttribute('data-swap')); } catch (e) { return; }
+    if (!words || !words.length) return;
+    var original = el.textContent;
+    var seq = words.concat([original]);
+    var i = 0, stopped = false, timer;
+    function finish() {
+      stopped = true; clearTimeout(timer);
+      el.classList.remove('is-out', 'is-in'); el.textContent = original;
+    }
+    ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(function (type) {
+      window.addEventListener(type, function () { if (!stopped) finish(); }, { once: true, passive: true });
+    });
+    function step() {
+      if (stopped || i >= seq.length) return;
+      if (document.hidden) { timer = setTimeout(step, 600); return; }
+      el.classList.remove('is-in');
+      el.classList.add('is-out');
+      timer = setTimeout(function () {
+        if (stopped) return;
+        el.textContent = seq[i++];
+        el.classList.remove('is-out');
+        void el.offsetWidth;
+        el.classList.add('is-in');
+        if (i < seq.length) timer = setTimeout(step, 1150); else stopped = true;
+      }, 210);
+    }
+    timer = setTimeout(step, 2300);
+  })();
+
 })();

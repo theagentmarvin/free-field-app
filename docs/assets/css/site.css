@@ -311,6 +311,7 @@ main:focus { outline: none; }
 .nav__cta { min-height: 44px; }
 .nav__link { white-space: nowrap; }
 .nav__brand { flex-shrink: 0; }
+@media (max-width: 359px) { .nav__cta { display: none; } }
 /* Language switch (ES | EN). Current language is a ruled cell with a coral underline; the other is a link. */
 .lang { display: flex; align-items: stretch; font-family: var(--font-text); font-weight: 600; font-size: 0.875rem; line-height: 1; }
 .lang__item { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 0 0.5rem; color: var(--ink); text-decoration: none; border-radius: var(--r-inner); }
@@ -983,3 +984,36 @@ main:focus { outline: none; }
   *, *::before, *::after { scroll-behavior: auto !important; }
   .faq__icon, .btn, a, .clip-toggle, .tour__label, .tour__item::before { transition: none; }
 }
+
+/* ---------- Hero headline: drafted on, then one pass through who it opens to ----------
+   Same moment as the calibration band: lines are traced by a coral construction rule and
+   the text inks in behind it, like a plotter. The last line then cycles once (site.js) and
+   always ends on the real headline. The real sentence is in .sr-only; this layer is aria-hidden.
+   Without the animation (reduced motion, old browsers) everything is simply visible. */
+.draft { display: block; }
+.draft__line { display: block; position: relative; width: fit-content; }
+.draft__line + .draft__line { white-space: nowrap; }
+.swap { display: inline-block; position: relative; }
+@media (prefers-reduced-motion: no-preference) {
+  .draft__line { animation: draft-ink 560ms var(--ease) both; }
+  .draft__line:nth-child(1) { animation-delay: 180ms; }
+  .draft__line:nth-child(2) { animation-delay: 380ms; }
+  .draft__line::after, .swap.is-in::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0.04em; height: 2px;
+    background: var(--coral-line); transform-origin: left center; pointer-events: none;
+    animation: draft-rule 980ms var(--ease) both;
+  }
+  .draft__line:nth-child(1)::after { animation-delay: 60ms; }
+  .draft__line:nth-child(2)::after { animation-delay: 260ms; }
+  .swap.is-in::after { animation-duration: 760ms; }
+  .hero__text .lead, .hero__text .cta-row, .hero__text .helper, .hero__text .facts { animation: draft-settle 520ms var(--ease) both; }
+  .hero__text .lead { animation-delay: 700ms; }
+  .hero__text .cta-row { animation-delay: 800ms; }
+  .hero__text .helper { animation-delay: 860ms; }
+  .hero__text .facts { animation-delay: 920ms; }
+  .swap.is-out { clip-path: inset(-0.2em 0 -0.3em 100%); transition: clip-path 200ms cubic-bezier(0.7, 0, 0.84, 0); }
+  .swap.is-in { animation: draft-ink 420ms var(--ease) both; }
+}
+@keyframes draft-ink { from { clip-path: inset(-0.2em 100% -0.3em 0); } to { clip-path: inset(-0.2em 0 -0.3em 0); } }
+@keyframes draft-rule { 0% { transform: scaleX(0); opacity: 1; } 45% { transform: scaleX(1); opacity: 1; } 100% { transform: scaleX(1); opacity: 0; } }
+@keyframes draft-settle { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
