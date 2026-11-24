@@ -62,6 +62,90 @@
   }
   Array.prototype.forEach.call(document.querySelectorAll('video[data-autoplay]'), initClip);
 
+  /* Tasks tour: the feature list beside the clip follows its segments (data-segments, in seconds).
+     timeupdate drives which label is current; a click on a label seeks the clip to that segment.
+     Until the clip has played (always, with no JS; by default, with reduced motion) the list stays static. */
+  function initTour(video) {
+    var list = document.getElementById(video.getAttribute('data-tour'));
+    var segs;
+    try { segs = JSON.parse(video.getAttribute('data-segments') || '[]'); } catch (err) { return; }
+    if (!list || !segs || !segs.length) return;
+    var sheet = video.closest('.sheet');
+    var toggle = sheet && sheet.querySelector('.clip-toggle');
+
+    var bar = document.createElement('div');
+    bar.className = 'tour__bar';
+    bar.setAttribute('aria-hidden', 'true');
+    var fills = segs.map(function (s) {
+      var seg = document.createElement('span');
+      seg.className = 'tour__seg';
+      seg.style.flexGrow = String(Math.max(0.1, s.end - s.start));
+      var fill = document.createElement('span');
+      fill.className = 'tour__fill';
+      seg.appendChild(fill);
+      bar.appendChild(seg);
+      return fill;
+    });
+    if (sheet) sheet.insertBefore(bar, sheet.querySelector('.sheet__cells'));
+
+    var items = [];
+    segs.forEach(function (s, i) {
+      var li = list.querySelector('[data-seg="' + s.id + '"]');
+      var label = li && li.querySelector('.tour__label');
+      if (!label) return;
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'tour__btn';
+      btn.setAttribute('aria-controls', video.id);
+      label.parentNode.insertBefore(btn, label);
+      btn.appendChild(label);
+      btn.addEventListener('click', function () { seek(i); });
+      items[i] = { li: li, btn: btn };
+    });
+
+    var engaged = false, current = -1, raf = 0;
+    function indexAt(t) {
+      for (var i = 0; i < segs.length; i++) if (t >= segs[i].start && t < segs[i].end) return i;
+      return t >= segs[segs.length - 1].end ? segs.length - 1 : -1;
+    }
+    function setCurrent(i) {
+      if (i === current) return;
+      var prev = items[current];
+      if (prev) { prev.li.classList.remove('is-current'); prev.btn.removeAttribute('aria-current'); }
+      current = i;
+      var next = items[i];
+      if (next) { next.li.classList.add('is-current'); next.btn.setAttribute('aria-current', 'true'); }
+    }
+    function update() {
+      var t = video.currentTime;
+      fills.forEach(function (f, i) {
+        var s = segs[i];
+        var p = t >= s.end ? 1 : t <= s.start ? 0 : (t - s.start) / (s.end - s.start);
+        f.style.transform = 'scaleX(' + p.toFixed(4) + ')';
+      });
+      if (engaged) setCurrent(indexAt(t));
+    }
+    /* Smooth fill while playing; with reduced motion the bar steps with timeupdate only. */
+    function frame() { update(); raf = video.paused ? 0 : requestAnimationFrame(frame); }
+    function seek(i) {
+      engaged = true;
+      video.currentTime = segs[i].start + 0.05;
+      setCurrent(i);
+      update();
+      if (video.paused) { if (toggle) toggle.click(); else video.play(); }
+    }
+
+    video.addEventListener('timeupdate', update);
+    video.addEventListener('seeked', update);
+    video.addEventListener('play', function () {
+      engaged = true;
+      update();
+      if (!reduce && !raf) raf = requestAnimationFrame(frame);
+    });
+    list.classList.add('tour--live');
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('video[data-segments]'), initTour);
+
   /* Copy buttons on code blocks. */
   Array.prototype.forEach.call(document.querySelectorAll('.code'), function (block) {
     var btn = block.querySelector('.code__copy');

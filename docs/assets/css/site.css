@@ -32,7 +32,9 @@
 [data-exporter="next"] [data-feature="exporter"] .when-live,
 [data-exporter="live"] [data-feature="exporter"] .when-next,
 [data-android="next"] [data-feature="android"] .when-live,
-[data-android="live"] [data-feature="android"] .when-next { display: none !important; }
+[data-android="live"] [data-feature="android"] .when-next,
+[data-skills="next"] [data-feature="skills"] .when-live,
+[data-skills="live"] [data-feature="skills"] .when-next { display: none !important; }
 .status { display: inline-block; vertical-align: 0.1em; }
 
 /* ---------- Tokens ---------- */
@@ -356,6 +358,7 @@ main:focus { outline: none; }
   .nav__brand { margin-right: 0; }
   .nav__links { display: flex; margin-right: auto; }
   .nav__link--xl { display: none; }
+  .nav__link { padding-inline: 12px; } /* seven section links must fit at 1024 */
   .nav__cta { min-height: 40px; }
 }
 @media (min-width: 1360px) {
@@ -552,6 +555,8 @@ main:focus { outline: none; }
 .view-title h3 { flex: 1; padding-bottom: 6px; border-bottom: 1.5px solid var(--ink); }
 .detail > p { margin-top: var(--sp-xs); max-width: var(--measure); }
 .core__cta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-xs) var(--sp-s); margin-top: var(--sp-2xl); }
+.detail__more { font-weight: 650; white-space: nowrap; }
+.detail__more:hover { color: var(--coral-ink); }
 @media (min-width: 768px) {
   .details { gap: var(--sp-2xl); }
 }
@@ -563,6 +568,75 @@ main:focus { outline: none; }
   .detail:nth-last-child(-n+2) > p { padding-bottom: 0; }
   .detail .sheet__cells { min-height: 66px; }
   .detail > p { max-width: var(--measure); }
+}
+
+/* ---------- 3b · Tasks: one tour clip, a feature list that follows it, and a spec schedule ---------- */
+.tasks__grid { display: grid; }
+.tasks__head .lead { margin-top: var(--sp-s); max-width: 46ch; }
+.tasks__sheet { margin-top: var(--sp-xl); }
+
+/* Feature list. Static by default (no JS, reduced motion, before the clip plays): a ruled list with hollow markers. */
+.tour { margin-top: var(--sp-l); border-top: 1.5px solid var(--ink); min-width: 0; }
+.tour__item {
+  position: relative;
+  display: grid; grid-template-columns: 1rem minmax(0, 1fr); column-gap: var(--sp-xs);
+  padding: 14px 0 16px;
+}
+.tour__item + .tour__item { border-top: 1px solid var(--line); }
+.tour__item::before {
+  content: ""; grid-column: 1; grid-row: 1;
+  width: 9px; height: 9px; margin-top: 0.5em; justify-self: center;
+  border-radius: 50%; border: 1.5px solid var(--line-strong); background: var(--paper);
+  transition: background-color 160ms var(--ease), border-color 160ms var(--ease);
+}
+.tour__label, .tour__btn { grid-column: 2; grid-row: 1; justify-self: start; }
+.tour__label {
+  font-weight: 650; line-height: 1.4; color: var(--ink);
+  border-radius: var(--r-tag);
+  -webkit-box-decoration-break: clone; box-decoration-break: clone;
+  transition: background-color 160ms var(--ease), color 160ms var(--ease);
+}
+.tour__detail { grid-column: 2; grid-row: 2; margin-top: 4px; font-size: var(--step--1); line-height: 1.45; color: var(--ink-2); max-width: 40ch; }
+
+/* With JS each label becomes a seek button; its hit area covers the whole row (>=44px). */
+.tour__btn {
+  appearance: none; border: 0; background: none; padding: 0; margin: 0;
+  font: inherit; color: inherit; text-align: left; cursor: pointer;
+}
+.tour__btn::after { content: ""; position: absolute; inset: 0; border-radius: var(--r-tag); }
+.tour__btn:focus-visible { outline: none; }
+.tour__btn:focus-visible::after { outline: 2px solid var(--focus); outline-offset: -2px; }
+.tour__item:hover .tour__label {
+  text-decoration: underline; text-decoration-color: var(--link-underline);
+  text-decoration-thickness: 2px; text-underline-offset: 0.22em;
+}
+/* The segment on screen: the launch video's dark chip with a coral dot. */
+.tour__item.is-current::before { background: var(--coral); border-color: var(--coral); }
+.tour__item.is-current .tour__label {
+  background: var(--ink); color: var(--paper);
+  padding: 2px 8px; margin: -2px -8px;
+  text-decoration: none;
+}
+.tour__btn:active .tour__label { background: var(--paper-sunk); }
+.tour__item.is-current .tour__btn:active .tour__label { background: var(--ink-active); }
+
+/* Thin segmented timeline under the footage (built by JS from the same segments). */
+.tour__bar { display: flex; gap: 3px; padding: 0 8px 8px; }
+.tour__seg { position: relative; height: 3px; min-width: 0; background: var(--line); border-radius: 1px; overflow: hidden; }
+.tour__fill { position: absolute; inset: 0; background: var(--ink); transform: scaleX(0); transform-origin: left center; }
+
+.tasks__spec { margin-top: var(--sp-2xl); }
+@media (min-width: 768px) {
+  .tasks__spec { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--sp-xl); }
+  .tasks__spec .spec__row:nth-child(2) { border-top: 0; }
+}
+@media (min-width: 1024px) {
+  .tasks__grid { grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--col-gap); }
+  .tasks__head { grid-column: 1 / 9; }
+  .tasks__head .lead { max-width: 44ch; }
+  .tasks__sheet { grid-column: 1 / 9; grid-row: 2; align-self: start; }
+  .tour { grid-column: 9 / 13; grid-row: 2; align-self: start; margin-top: var(--sp-xl); }
+  .tasks__spec { grid-column: 1 / 13; margin-top: var(--sp-3xl); column-gap: calc(var(--col-gap) * 2); }
 }
 
 /* ---------- 4 · Revit exporter ---------- */
@@ -696,6 +770,7 @@ main:focus { outline: none; }
   .strip__cells { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .strip__cell { display: block; padding: 16px 20px 20px; }
   .strip__cell dd { margin-top: var(--sp-xs); line-height: 1.4; }
+  .strip__cell:nth-child(7) { grid-column: 1 / -1; } /* 7 cells: 3 + 3 + a full-width last row */
 }
 @media (min-width: 1024px) {
   .android__grid { grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--col-gap); }
@@ -703,7 +778,9 @@ main:focus { outline: none; }
   .android__body { grid-column: 7 / 13; margin-top: 0; padding-top: 0.35em; }
   .android__body p { max-width: var(--measure); }
   .strip { grid-column: 1 / 13; }
-  .strip__cells { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .strip__cells { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .strip__cell:nth-child(7) { grid-column: auto; }
+  .strip__cell:nth-child(5) { grid-column: span 2; } /* 7 cells: 4 + (2-wide hardware) + 1 + 1 */
 }
 
 /* ---------- 7 · Own it (ink) ---------- */
@@ -904,5 +981,5 @@ main:focus { outline: none; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; }
-  .faq__icon, .btn, a, .clip-toggle { transition: none; }
+  .faq__icon, .btn, a, .clip-toggle, .tour__label, .tour__item::before { transition: none; }
 }
