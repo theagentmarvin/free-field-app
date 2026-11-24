@@ -10,6 +10,23 @@
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var hasIO = 'IntersectionObserver' in window;
 
+  /* A reload always starts at the top. Phones restore the old scroll position, and a menu tap
+     leaves #section in the URL, so every refresh used to jump back into the middle of the page.
+     Shared links to a section (#tasks, #compare...) still work on a first visit. */
+  var navEntry = window.performance && performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+  if (navEntry && navEntry.type === 'reload') {
+    if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+    if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+    window.scrollTo(0, 0);
+    window.addEventListener('load', function () { window.scrollTo(0, 0); }, { once: true });
+  }
+
+  /* Phones may block muted autoplay (battery or data saver). Any tap retries the clips in view. */
+  var retryOnGesture = [];
+  ['pointerdown', 'touchend', 'keydown'].forEach(function (type) {
+    window.addEventListener(type, function () { retryOnGesture.forEach(function (fn) { fn(); }); }, { passive: true });
+  });
+
   function setIcon(btn, name) {
     var use = btn.querySelector('use');
     if (use) use.setAttribute('href', '#i-' + name);
@@ -30,6 +47,8 @@
     var state = { wants: !reduce, inView: false };
 
     video.removeAttribute('controls');
+    video.muted = true; video.defaultMuted = true;
+    video.playsInline = true; video.setAttribute('playsinline', '');
     cell.hidden = false;
 
     function render() {
@@ -39,8 +58,11 @@
     }
     function tryPlay() {
       var p = video.play();
-      if (p && p.catch) p.catch(function () { state.wants = false; render(); });
+      /* AbortError only means a pause() or a fast scroll interrupted the start: keep trying.
+         NotAllowedError means the browser blocks autoplay: show Play and wait for a tap. */
+      if (p && p.catch) p.catch(function () { render(); });
     }
+    retryOnGesture.push(function () { if (state.wants && state.inView && video.paused) tryPlay(); });
 
     video.addEventListener('play', render);
     video.addEventListener('pause', render);
