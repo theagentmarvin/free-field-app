@@ -26,6 +26,8 @@ interface ImportMetaEnv {
   // Demo mode (plan v4 amendment v4.1): "true" boots the app with the
   // mocked sign-in and zero Firebase backend.
   readonly VITE_FF_DEMO_AUTH?: string;
+  /** "true" (with demo mode on) hides the "View as" switch and locks the role to viewer. */
+  readonly VITE_FF_DEMO_READONLY?: string;
 }
 
 interface ImportMeta {

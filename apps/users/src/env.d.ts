@@ -15,6 +15,8 @@ interface ImportMetaEnv {
   readonly VITE_FIREBASE_FUNCTIONS_REGION?: string;
   // Demo mode (plan v4 amendment v4.1): mocked sign-in, no Firebase.
   readonly VITE_FF_DEMO_AUTH?: string;
+  /** "true" (with demo mode on) hides the "View as" switch and locks the role to viewer. */
+  readonly VITE_FF_DEMO_READONLY?: string;
 }
 
 interface ImportMeta {
