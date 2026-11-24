@@ -111,7 +111,7 @@ Passwordless **email-link sign-in**, **invite links** with Admin or Member roles
 
 ## How your data is stored
 
-FreeField is **local-first**. Buildings, IFC/PDF versions, calibrations and saved views live in **your browser** (IndexedDB). Only **tasks, members and projects** sync through Firestore, and only when you self-host with sign-in. Clearing the site data removes your local models. The UI is a responsive web app that also works in a phone or tablet browser. A native Android field app with durable offline storage is opening as its own repo soon.
+FreeField is **local-first**. Buildings, IFC/PDF versions, calibrations and saved views start in **your browser** (IndexedDB). When you self-host with sign-in, **tasks, members and projects** sync through your own Firestore, and an admin can **publish** buildings so the converted models, PDFs and calibrations sync to your own Firebase (Firestore + Storage) for the whole team. The original IFC file is not uploaded. Anything never published stays only in that browser, so clearing the site data removes it. The UI is a responsive web app that also works in a phone or tablet browser. A native Android field app with durable offline storage is opening as its own repo soon.
 
 ## Self-hosting on your own Firebase
 

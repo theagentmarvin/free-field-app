@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { Link as RouterLink, useLocation } from "react-router-dom";
 import { Box, CheckSquare, Group, Link, LogOut, Page, Settings } from "iconoir-react";
 
-import { isDemoAuth, setDemoRole, useAuth, useRole } from "@ff/auth";
+import { isDemoAuth, isDemoReadOnly, setDemoRole, useAuth, useRole } from "@ff/auth";
 import { useIsMobile, useModelsToolStore } from "@ff/viewer-tools";
 import { BuildingSwitcher, useActiveBuilding } from "@free-field/models";
 import FreeFieldMark from "./FreeFieldMark";
@@ -247,7 +247,7 @@ export default function LeftRail({
               />
             ))}
           </div>
-          {demo && (
+          {demo && !isDemoReadOnly() && (
             <DemoRoleSwitch
               role={role === "admin" ? "admin" : "viewer"}
               variant="pill"
@@ -312,7 +312,7 @@ export default function LeftRail({
             ))}
           </div>
         )}
-        {demo && <DemoRoleSwitch role={role === "admin" ? "admin" : "viewer"} />}
+        {demo && !isDemoReadOnly() && <DemoRoleSwitch role={role === "admin" ? "admin" : "viewer"} />}
         {!demo && (
           <div style={bottomContainerStyle} title={user.email ?? undefined}>
             <LeftRailIcon icon={<LogOut />} label="Sign out" onClick={handleSignOut} />

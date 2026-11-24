@@ -49,10 +49,21 @@ export function isDemoAuth(): boolean {
 }
 
 /**
+ * Read-only demo. With `VITE_FF_DEMO_READONLY=true` (and demo mode on) the
+ * "View as" switch is hidden and the role is always 'viewer', whatever is in
+ * localStorage, so a public demo never offers uploads, Settings or Users.
+ * Off by default: forks keep the switch unless they opt in.
+ */
+export function isDemoReadOnly(): boolean {
+  return isDemoAuth() && import.meta.env?.VITE_FF_DEMO_READONLY === 'true';
+}
+
+/**
  * Current demo role. Defaults to 'viewer' (an unregistered visitor) when
  * nothing is stored — the demo must never start with admin rights.
  */
 export function getDemoRole(): DemoRole {
+  if (isDemoReadOnly()) return 'viewer';
   try {
     const stored = globalThis.localStorage?.getItem(DEMO_ROLE_STORAGE_KEY);
     return stored === 'admin' ? 'admin' : 'viewer';

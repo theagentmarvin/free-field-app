@@ -20,6 +20,7 @@ import {
   DEMO_ROLE_STORAGE_KEY,
   getDemoRole,
   isDemoAuth,
+  isDemoReadOnly,
   setDemoRole,
   subscribeDemoRole,
 } from '../src/demo';
@@ -142,5 +143,28 @@ describe('subscribeDemoRole', () => {
 
   it('uses the documented event name', () => {
     expect(DEMO_ROLE_CHANGED_EVENT).toBe('ff-demo-role-changed');
+  });
+});
+
+describe('isDemoReadOnly', () => {
+  it('locks the role to viewer even when admin is stored', () => {
+    vi.stubEnv('VITE_FF_DEMO_AUTH', 'true');
+    vi.stubEnv('VITE_FF_DEMO_READONLY', 'true');
+    localStorage.setItem(DEMO_ROLE_STORAGE_KEY, 'admin');
+    expect(isDemoReadOnly()).toBe(true);
+    expect(getDemoRole()).toBe('viewer');
+    setDemoRole('admin');
+    expect(getDemoRole()).toBe('viewer');
+  });
+
+  it('is off unless demo mode is on and the flag is exactly "true"', () => {
+    vi.stubEnv('VITE_FF_DEMO_AUTH', 'false');
+    vi.stubEnv('VITE_FF_DEMO_READONLY', 'true');
+    expect(isDemoReadOnly()).toBe(false);
+    vi.stubEnv('VITE_FF_DEMO_AUTH', 'true');
+    vi.stubEnv('VITE_FF_DEMO_READONLY', '1');
+    expect(isDemoReadOnly()).toBe(false);
+    localStorage.setItem(DEMO_ROLE_STORAGE_KEY, 'admin');
+    expect(getDemoRole()).toBe('admin');
   });
 });

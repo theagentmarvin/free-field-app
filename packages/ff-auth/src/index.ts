@@ -53,6 +53,7 @@ export { runTenantCheck, TenantMismatchError } from './tenant-check';
 // Demo mode — mocked sign-in (plan v4 amendment v4.1).
 export {
   isDemoAuth,
+  isDemoReadOnly,
   getDemoRole,
   setDemoRole,
   subscribeDemoRole,

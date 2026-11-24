@@ -18,4 +18,6 @@ declare module "*?url" {
 // "View as" toggle instead of Firebase claims.
 interface ImportMetaEnv {
   readonly VITE_FF_DEMO_AUTH?: string;
+  /** "true" hides the "View as" switch and locks the demo to the viewer role. */
+  readonly VITE_FF_DEMO_READONLY?: string;
 }
