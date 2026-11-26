@@ -20,7 +20,8 @@ service cloud.firestore {
     //             viewpoints; hard delete denied, tombstone via update). Membership, invitation and
     //             audit-log mutations are functions-only (see below) — an
     //             admin's client write surface does NOT cover them.
-    //   member → read-only consumption; no writes anywhere.
+    //   member → read-only consumption; no writes anywhere, except plan
+    //             markups (planMarkups: members author their own, see below).
     //
     // Membership mutation, invitation create/revoke, redemption and bootstrap
     // all run inside Cloud Functions (admin SDK) — never client-side — so the
@@ -439,6 +440,43 @@ service cloud.firestore {
         allow create: if isAdmin(pid) && valid() && request.resource.data.deletedAt == null;
         allow update: if isAdmin(pid) && valid()
           && keepsFields(['id', 'projectId', 'createdAt']);
+        allow delete: if false;
+      }
+
+      // Plan markups: vector drawings on one page of a plan version. Unlike
+      // the collections above, any active MEMBER authors them: create needs
+      // createdBy == the caller; update / tombstone needs the author or an
+      // admin. Identity, plan reference and authorship are immutable.
+      // `shape` is the JSON-encoded PlanMarkupShape (<= 100 KB).
+      match /planMarkups/{docId} {
+        function keys() {
+          return ['id', 'projectId', 'pdfFileId', 'pdfVersionId', 'page', 'kind',
+            'color', 'strokeWidth', 'shape', 'bbox', 'taskId', 'createdBy', 'createdAt']
+            .concat(syncKeys());
+        }
+        function valid() {
+          let d = request.resource.data;
+          return hasExactly(keys()) && syncStamp(docId)
+            && d.projectId == pid
+            && d.pdfFileId is string && d.pdfFileId.size() > 0
+            && d.pdfVersionId is string && d.pdfVersionId.size() > 0
+            && d.page is int && d.page > 0
+            && d.kind in ['pen', 'highlight', 'arrow', 'rect', 'ellipse', 'cloud', 'text']
+            && d.color is string && d.color.matches('^#[0-9a-fA-F]{6}$')
+            && d.strokeWidth is number && d.strokeWidth > 0 && d.strokeWidth <= 0.1
+            && d.shape is string && d.shape.size() >= 2 && d.shape.size() <= 100000
+            && d.bbox is list && d.bbox.size() == 4
+            && (d.taskId == null || (d.taskId is string && d.taskId.size() > 0))
+            && d.createdBy is string && d.createdBy.size() > 0
+            && d.createdAt is number;
+        }
+        allow read: if isMember(pid);
+        allow create: if isMember(pid) && valid()
+          && request.resource.data.deletedAt == null
+          && request.resource.data.createdBy == request.auth.uid;
+        allow update: if isMember(pid) && valid()
+          && keepsFields(['id', 'projectId', 'pdfFileId', 'pdfVersionId', 'page', 'createdBy', 'createdAt'])
+          && (resource.data.createdBy == request.auth.uid || isAdmin(pid));
         allow delete: if false;
       }
 

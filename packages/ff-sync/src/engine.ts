@@ -130,7 +130,7 @@ export class SyncEngine {
   async start(projectId: string, opts: StartOptions): Promise<void> {
     this.stop();
     const outbox = new OutboxEngine({
-      store: makeSyncOutboxStore(this.db, projectId),
+      store: makeSyncOutboxStore(this.db, projectId, !opts.canWrite),
       executor: createSyncExecutor({
         db: this.db,
         remote: this.deps.remote,
@@ -167,13 +167,13 @@ export class SyncEngine {
     }
     ctx.down = down;
     this.emit({ type: "started", projectId, canWrite: opts.canWrite });
-    if (opts.canWrite) {
-      await outbox.recoverStale();
-      if (stale()) return;
-      await outbox.pruneSent().catch(() => 0);
-      if (stale()) return;
-      void outbox.drain();
-    }
+    // Read-only members drain too: rows of `memberWrite` tables (plan markups)
+    // are authored by members, and the rules decide what else may be sent.
+    await outbox.recoverStale();
+    if (stale()) return;
+    await outbox.pruneSent().catch(() => 0);
+    if (stale()) return;
+    void outbox.drain();
     void this.emitOutbox();
   }
 
@@ -312,7 +312,7 @@ export class SyncEngine {
   async outboxCounts(): Promise<{ pending: number; failed: number }> {
     const ctx = this.ctx;
     if (!ctx) return { pending: 0, failed: 0 };
-    const rows = await makeSyncOutboxStore(this.db, ctx.projectId).list!(["added", "sending", "failed"]);
+    const rows = await makeSyncOutboxStore(this.db, ctx.projectId, !ctx.canWrite).list!(["added", "sending", "failed"]);
     return { pending: rows.filter((r) => r.state !== "failed").length, failed: rows.filter((r) => r.state === "failed").length };
   }
 
@@ -375,7 +375,8 @@ export class SyncEngine {
     return n;
   }
 
-  private isEligible(ctx: RunContext, row: Row): boolean {
+  private isEligible(ctx: RunContext, cfg: TableConfig, row: Row): boolean {
+    if (cfg.memberWrite) return true; // always syncs: no first-upload decision applies
     if (row.remoteUpdatedAt != null) return true;
     if (ctx.publish === "published") return true;
     if (ctx.publish === "declined") return typeof row.createdAt === "number" && row.createdAt >= ctx.armedAt;
@@ -384,8 +385,12 @@ export class SyncEngine {
 
   private async handleEntries(entries: HookEntry[]): Promise<void> {
     const ctx = this.ctx;
-    if (!ctx || !ctx.canWrite) return;
-    for (const e of entries) await this.enqueueEntry(ctx, e, true);
+    if (!ctx) return;
+    for (const e of entries) {
+      // Members (canWrite false) only enqueue tables they may author.
+      if (!ctx.canWrite && !TABLE_BY_DEXIE_NAME[e.table]?.memberWrite) continue;
+      await this.enqueueEntry(ctx, e, true);
+    }
     void this.emitOutbox();
   }
 
@@ -393,7 +398,7 @@ export class SyncEngine {
   private async enqueueEntry(ctx: RunContext, e: HookEntry, checkMembership: boolean): Promise<number> {
     const cfg = TABLE_BY_DEXIE_NAME[e.table];
     if (!cfg) return 0;
-    if (!this.isEligible(ctx, e.row)) return 0;
+    if (!this.isEligible(ctx, cfg, e.row)) return 0;
     const docId = cfg.docId(e.row);
     const { projectId, outbox } = ctx;
 

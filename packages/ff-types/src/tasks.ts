@@ -44,7 +44,8 @@ export type SyncCollectionName =
   | "calibrations"
   | "folders"
   | "folderAssignments"
-  | "viewpoints";
+  | "viewpoints"
+  | "planMarkups";
 
 /** Storage blob families (`projects/{pid}/{ifc,frag,pdf}/{versionId}.{ext}`). */
 export type SyncBlobKind = "ifc" | "frag" | "pdf";

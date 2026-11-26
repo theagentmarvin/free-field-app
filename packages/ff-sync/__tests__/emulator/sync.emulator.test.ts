@@ -226,3 +226,47 @@ describe("emulator: two clients on one project", { retry: 2, timeout: 60_000 }, 
     expect(await b.engine.downloadBuilding("b1")).toMatchObject({ downloaded: 1 });
   });
 });
+
+const markup = (id: string, by: string, over: Record<string, unknown> = {}) => ({
+  id, projectId: PID, pdfFileId: "pf1", pdfVersionId: "pv1", page: 1, kind: "arrow" as const, color: "#d94141",
+  strokeWidth: 0.003, shape: JSON.stringify({ pts: [[0.1, 0.1], [0.4, 0.3]] }), bbox: [0.1, 0.1, 0.4, 0.3],
+  taskId: null, createdBy: by, createdAt: Date.now(), ...over,
+});
+
+describe("emulator: plan markups (member-authored, real rules)", { retry: 2, timeout: 60_000 }, () => {
+  it("a plain member's markup reaches the admin; the member's edit and delete follow; offline queue drains", async () => {
+    const member = await client("mem-a", "member");
+    const admin = await client("admin-b");
+    await member.db.planMarkups.add(markup("m1", "mem-a"));
+    await waitFor(async () => !!(await admin.db.planMarkups.get("m1")), 15000);
+    expect((await admin.db.planMarkups.get("m1"))!.createdBy).toBe("mem-a");
+
+    await goOffline(member);
+    await member.db.planMarkups.update("m1", { bbox: [0.2, 0.2, 0.5, 0.4] });
+    await member.db.planMarkups.add(markup("m2", "mem-a", { kind: "pen" }));
+    await goOnline(member);
+    await waitFor(async () => {
+      const m1 = await admin.db.planMarkups.get("m1");
+      return !!m1 && m1.bbox[0] === 0.2 && !!(await admin.db.planMarkups.get("m2"));
+    }, 20000);
+
+    await member.db.planMarkups.delete("m2");
+    await waitFor(async () => !(await admin.db.planMarkups.get("m2")), 15000);
+  });
+
+  it("a plain member cannot move or delete another member's markup; the admin can delete it", async () => {
+    const alice = await client("mem-a", "member");
+    const bob = await client("mem-b", "member");
+    const admin = await client("admin-b");
+    await alice.db.planMarkups.add(markup("m1", "mem-a"));
+    await waitFor(async () => !!(await bob.db.planMarkups.get("m1")) && !!(await admin.db.planMarkups.get("m1")), 15000);
+
+    // Bob's edit is denied by the rules (the outbox row is killed, no remote change).
+    await bob.db.planMarkups.update("m1", { color: "#2f7d32" });
+    await waitFor(async () => (await bob.db.outbox.where("state").anyOf(["failed", "killed"]).count()) >= 1, 20000);
+    expect((await admin.db.planMarkups.get("m1"))!.color).toBe("#d94141");
+
+    await admin.db.planMarkups.delete("m1");
+    await waitFor(async () => !(await alice.db.planMarkups.get("m1")), 15000);
+  });
+});

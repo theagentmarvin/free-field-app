@@ -16,6 +16,7 @@ import type {
   PdfFolderRecord,
   PdfFolderAssignmentRecord,
   ViewerViewpointRecord,
+  PlanMarkupRecord,
 } from '@ff/types';
 import type {
   Building,
@@ -29,6 +30,7 @@ import type {
   Folder,
   FolderAssignment,
   Viewpoint,
+  PlanMarkup,
 } from '../src';
 
 // `remoteUpdatedAt` is the local mirror of the server stamp; the optional blob
@@ -62,4 +64,5 @@ export type _Parity = [
   Assert<Covers<Folder, PdfFolderRecord>>,
   Assert<Covers<FolderAssignment, PdfFolderAssignmentRecord>>,
   Assert<Covers<Viewpoint, ViewerViewpointRecord>>,
+  Assert<Covers<PlanMarkup, PlanMarkupRecord>>,
 ];

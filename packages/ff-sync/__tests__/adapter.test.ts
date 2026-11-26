@@ -24,10 +24,15 @@ const ROWS: Record<string, Record<string, unknown>> = {
   },
   folderAssignments: { id: "local-uuid", pdfFileId: "d1", folderId: "f1", createdAt: 1 },
   viewpoints: { id: "vp1", projectId: "p", name: "V", createdAt: 1, blob: "{}" },
+  planMarkups: {
+    id: "m1", projectId: "p", pdfFileId: "d1", pdfVersionId: "pv1", page: 1, kind: "arrow", color: "#d94141",
+    strokeWidth: 0.003, shape: '{"pts":[[0.1,0.1],[0.4,0.3]]}', bbox: [0.1, 0.1, 0.4, 0.3], taskId: null,
+    createdBy: "u1", createdAt: 1,
+  },
 };
 
 describe("generic adapter", () => {
-  it("covers all 11 collections", () => {
+  it("covers all 12 collections", () => {
     expect(TABLES.map((t) => t.collection).sort()).toEqual(Object.keys(ROWS).sort());
   });
 

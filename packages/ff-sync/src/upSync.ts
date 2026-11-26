@@ -14,6 +14,7 @@ import type {
   DocUpsertPayload,
   OutboxRecord,
   OutboxState,
+  SyncCollectionName,
 } from "@ff/types";
 
 import { runAsRemote, toDocData } from "./adapter";
@@ -26,9 +27,16 @@ export const SYNC_KINDS = ["doc-upsert", "doc-delete", "blob-upload"] as const;
 const isSyncRow = (r: OutboxRecord): boolean => (SYNC_KINDS as readonly string[]).includes(r.kind);
 
 /** Outbox store restricted to this project's sync rows (task rows are left alone). */
-export function makeSyncOutboxStore(db: ProjectDatabase, projectId: string): OutboxStore {
+export function makeSyncOutboxStore(
+  db: ProjectDatabase,
+  projectId: string,
+  /** Read-only members: only rows of member-authored tables (plan markups) are theirs to send. */
+  memberOnly = false,
+): OutboxStore {
   const mine = (rows: OutboxRecord[]): OutboxRecord[] =>
-    rows.filter((r) => isSyncRow(r) && r.projectId === projectId);
+    rows.filter(
+      (r) => isSyncRow(r) && r.projectId === projectId && (!memberOnly || isMemberRow(r)),
+    );
   const sorted = (states: readonly OutboxState[]) =>
     db.outbox.where("state").anyOf([...states]).sortBy("createdAt");
   return {
@@ -55,6 +63,13 @@ export function makeSyncOutboxStore(db: ProjectDatabase, projectId: string): Out
       return db.outbox.where("state").anyOf([...states]).count();
     },
   };
+}
+
+/** A doc row of a `memberWrite` table. */
+function isMemberRow(r: OutboxRecord): boolean {
+  if (r.kind !== "doc-upsert" && r.kind !== "doc-delete") return false;
+  const c = (r.payload as { collection?: SyncCollectionName }).collection;
+  return !!c && TABLE_BY_COLLECTION[c]?.memberWrite === true;
 }
 
 /** Rows sharing a key run in creation order (a doc never overtakes its blob). */

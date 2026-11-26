@@ -16,6 +16,7 @@ import {
   IfcVersionSchema,
   PdfFileSchema,
   PdfVersionSchema,
+  PlanMarkupSchema,
   StoreySchema,
   ViewpointSchema,
   calibrationDocId,
@@ -50,7 +51,8 @@ export interface TableConfig {
     | "calibrations"
     | "pdfFolders"
     | "pdfFolderAssignments"
-    | "viewerViewpoints";
+    | "viewerViewpoints"
+    | "planMarkups";
   /** Doc schema WITHOUT the base keys (validates both directions). */
   schema: z.ZodObject<z.ZodRawShape>;
   /** Firestore doc id of a local row. */
@@ -77,6 +79,12 @@ export interface TableConfig {
   blob?: { kind: "pdf" | "frag"; keyField: string };
   /** Parent field + version field for drain-time `versionNumber` allocation. */
   versioned?: { parentField: string };
+  /**
+   * Any active project member may author rows of this table (the rules allow
+   * it), so the engine enqueues and drains it for non-admins too and syncs it
+   * regardless of the first-upload decision. Default false (admin-only).
+   */
+  memberWrite?: boolean;
   /** Publish order (parents first). */
   order: number;
 }
@@ -257,6 +265,15 @@ export const TABLES: readonly TableConfig[] = [
     docId: idOf,
     hasUpdatedAt: false,
     order: 10,
+  },
+  {
+    collection: "planMarkups",
+    table: "planMarkups",
+    schema: strip(PlanMarkupSchema as never),
+    docId: idOf,
+    hasUpdatedAt: false,
+    memberWrite: true,
+    order: 11,
   },
 ];
 

@@ -199,7 +199,10 @@ const stored = (c: Case, pid = PID, over: Record<string, unknown> = {}) => ({
 
 describe("contract coverage", () => {
   it("every synced collection has a rules case and a zod schema", () => {
-    expect(CASES.map((c) => c.coll).sort()).toEqual([...SYNCED_COLLECTIONS].sort());
+    // planMarkups is member-authored, so it has its own file (rules-plan-markups.test.ts).
+    expect(CASES.map((c) => c.coll).sort()).toEqual(
+      SYNCED_COLLECTIONS.filter((n) => n !== "planMarkups").sort(),
+    );
   });
 
   it("the fixtures satisfy the zod schemas (rules and schemas cannot drift)", () => {

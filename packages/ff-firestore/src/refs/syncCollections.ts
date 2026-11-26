@@ -22,6 +22,7 @@ import type {
   Calibration,
   FolderAssignment,
   Viewpoint,
+  PlanMarkup,
 } from '../schema/sync';
 import { calibrationDocId, folderAssignmentDocId } from '../schema/sync';
 
@@ -38,6 +39,7 @@ export interface SyncedCollectionDocs {
   folders: import('../schema/folder').Folder;
   folderAssignments: FolderAssignment;
   viewpoints: Viewpoint;
+  planMarkups: PlanMarkup;
 }
 
 export type SyncedCollectionName = keyof SyncedCollectionDocs;
@@ -54,6 +56,7 @@ export const SYNCED_COLLECTIONS: readonly SyncedCollectionName[] = [
   'folders',
   'folderAssignments',
   'viewpoints',
+  'planMarkups',
 ];
 
 /** Generic typed collection ref: `syncedCollection(db, pid, 'storeys')`. */
@@ -96,6 +99,9 @@ export const folderAssignmentsCollection = (db: Firestore, pid: string) =>
   syncedCollection(db, pid, 'folderAssignments');
 export const viewpointsCollection = (db: Firestore, pid: string) =>
   syncedCollection(db, pid, 'viewpoints');
+
+export const planMarkupsCollection = (db: Firestore, pid: string) =>
+  syncedCollection(db, pid, 'planMarkups');
 
 export const calibrationDoc = (
   db: Firestore,

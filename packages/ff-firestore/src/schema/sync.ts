@@ -183,6 +183,36 @@ export const ViewpointSchema = z
 export type Viewpoint = z.infer<typeof ViewpointSchema>;
 
 /**
+ * /projects/{pid}/planMarkups/{id}  (PlanMarkupRecord)
+ * A vector drawing on one page of a plan VERSION, in normalised page
+ * coordinates (u, v in 0..1). `shape` is the JSON-encoded PlanMarkupShape
+ * (rules cap it at 100 KB; nested arrays are not storable in Firestore, hence
+ * a string). Unlike the other synced collections any active MEMBER may create
+ * one; only the author or an admin may change or tombstone it.
+ */
+export const PLAN_MARKUP_DOC_KINDS = ['pen', 'highlight', 'arrow', 'rect', 'ellipse', 'cloud', 'text'] as const;
+export const PLAN_MARKUP_SHAPE_MAX = 100_000;
+
+export const PlanMarkupSchema = z
+  .object({
+    id,
+    projectId: id,
+    pdfFileId: id,
+    pdfVersionId: id,
+    page: z.number().int().positive(),
+    kind: z.enum(PLAN_MARKUP_DOC_KINDS),
+    color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+    strokeWidth: z.number().positive().max(0.1),
+    shape: z.string().min(2).max(PLAN_MARKUP_SHAPE_MAX),
+    bbox: z.array(z.number()).length(4),
+    taskId: z.string().min(1).nullable(),
+    createdBy: id,
+    createdAt: z.number().int(),
+  })
+  .merge(SyncBaseSchema);
+export type PlanMarkup = z.infer<typeof PlanMarkupSchema>;
+
+/**
  * Deterministic calibration doc id. `storeyName` is user text and may contain
  * `/` (illegal in a doc id), so it is percent-encoded.
  */

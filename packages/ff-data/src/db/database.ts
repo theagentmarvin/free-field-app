@@ -35,7 +35,7 @@ import type {
 import type { BuildingLevelSelectionRecord } from "@ff/types";
 import type { PropertyCatalogEntry } from "@ff/types";
 import type { FilterPresetRecord } from "@ff/types";
-import type { ViewerViewpointRecord } from "@ff/types";
+import type { PlanMarkupRecord, ViewerViewpointRecord } from "@ff/types";
 
 export const DATABASE_NAME = "free-field";
 
@@ -129,6 +129,9 @@ export class ProjectDatabase extends Dexie {
   // v11 — Phase 1c sync bookkeeping (down-sync cursors, first-upload
   // decision). Local only; never synced.
   syncState!: Table<SyncStateRecord, string>;
+  // v12 — plan markups (vector drawings per plan version page). Synced;
+  // any project member may author rows (see docs/integration/plan-markups.md).
+  planMarkups!: Table<PlanMarkupRecord, string>;
 
   /** `name` is overridable so tests (and the sync integration suite) can
    *  open several independent "devices" in one process. */
@@ -237,6 +240,11 @@ export class ProjectDatabase extends Dexie {
     // v1..v10.
     this.version(11).stores({
       syncState: "&key, projectId",
+    });
+    // v12 — plan markups. One new table, no changes to v1..v11.
+    // `[pdfVersionId+page]` serves the viewer (one page of one version).
+    this.version(12).stores({
+      planMarkups: "&id, projectId, pdfFileId, [pdfVersionId+page], createdBy",
     });
   }
 }

@@ -131,4 +131,11 @@ export type {
   ViewerViewpointSnapshot,
   ViewerViewpointRecord,
 } from "./viewerViewpoints";
+export type {
+  PlanMarkupKind,
+  PlanMarkupPoint,
+  PlanMarkupShape,
+  PlanMarkupRecord,
+} from "./planMarkups";
+export { PLAN_MARKUP_KINDS } from "./planMarkups";
 export { LEGACY_DEFAULT_PROJECT_ID } from "./projectIds";
