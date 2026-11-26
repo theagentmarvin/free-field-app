@@ -97,6 +97,8 @@ Why this order: the website goes last, so a new web build never meets old rules 
 
 After step 7 the CLI prints the Hosting URL (`https://<project-id>.web.app`).
 
+**Tablet app (Android).** If the team will use the `free-field-android` app, its skill `freefield-app-deploy` generates `apps/settings/public/.well-known/assetlinks.json`, which lets sign-in email links open the app. Once that file exists, rebuild (step 4) and redeploy hosting (step 7) so the website serves it. The website must already be online before the app is installed.
+
 If `.env.production` changes (new project, new keys), **rebuild (step 4) and redeploy hosting**. Vite bakes the values in at build time. If the functions `.env.<project-id>` changes (e.g. `APP_ORIGIN`), **redeploy functions** (step 6).
 
 ## 4. First admin

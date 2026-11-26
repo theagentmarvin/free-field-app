@@ -115,6 +115,12 @@ Explain in plain words; the commands are in `deploy-steps.md` §8:
 - **Backups:** turn on scheduled Firestore backups. Unpublished models live only in users' browsers.
 - **Support:** MIT open source, **no SLA**. FreeField issues go to GitHub; Google Cloud outages and billing go through the company's Google support.
 
+## Tablet app (Android)
+
+Field teams can install the company's own offline Android app from the `free-field-android` repo (https://github.com/theagentmarvin/free-field-android). Its own skill, `freefield-app-deploy`, builds, signs and installs it. The website must be online first (steps 1 to 6 here).
+
+To let sign-in email links open the app, the website must serve `apps/settings/public/.well-known/assetlinks.json`. The app's skill generates that file. Then redeploy hosting with this skill (`firebase deploy --only hosting --project <alias>`).
+
 ## Reference files (read when…)
 - `references/planning.md`: before steps 1 and 3. Covers defaults when you can't ask, prerequisites and roles, who deploys, single environment, region (LatAm), cost drivers.
 - `references/it-request-template.es.md` / `.en.md`: step 3 (cover email + annex).

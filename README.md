@@ -113,6 +113,8 @@ Passwordless **email-link sign-in**, **invite links** with Admin or Member roles
 
 FreeField is **local-first**. Buildings, IFC/PDF versions, calibrations and saved views start in **your browser** (IndexedDB). When you self-host with sign-in, **tasks, members and projects** sync through your own Firestore, and an admin can **publish** buildings so the converted models, PDFs and calibrations sync to your own Firebase (Firestore + Storage) for the whole team. The original IFC file is not uploaded. Anything never published stays only in that browser, so clearing the site data removes it. The UI is a responsive web app that also works in a phone or tablet browser. A native Android field app with durable offline storage is opening as its own repo soon.
 
+Android field app: see [free-field-android](https://github.com/theagentmarvin/free-field-android).
+
 ## Self-hosting on your own Firebase
 
 Each organisation runs its **own** Firebase project (Auth, Firestore, Storage, Functions, Hosting). Copy the `.env.example` templates, fill in your project's values, and deploy. Start with the [self-hosting guide](docs/deploy/self-hosting.md); the shorter runbook is [docs/deploy/README.md](docs/deploy/README.md).

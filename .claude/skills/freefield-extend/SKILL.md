@@ -138,6 +138,10 @@ Ask: "Is this what you meant?" Adjust until it is.
 - **Deploy** using the `freefield-deploy` skill. Tell it what changed, because order matters. Rules and indexes go first, then functions, then hosting. A new synced field deployed in the wrong order makes writes from open tabs fail until they reload.
 - **Upstream.** If the change would help other companies (not just their branding), offer to prepare a pull request to the public FreeField repo. Keep company-specific bits (names, colours, ERP URLs) out of it.
 
+## The Android tablet app
+
+Changes to the tablet app live in the `free-field-android` repo (https://github.com/theagentmarvin/free-field-android), with its own skill, `freefield-app-extend`. Shared task logic, schema and rules live HERE, and the app picks them up by bumping its `vendor/free-field` submodule. A new synced task field must be deployed here (rules first, see step 7) before the tablet writes it.
+
 ## Things that commonly go wrong
 
 - **"Works in demo, fails for the team."** Demo mode has no security rules. A new task field needs `hasOnlyTaskKeys()` in `packages/ff-firestore/firestore.rules`, deployed, before cloud writes succeed.
