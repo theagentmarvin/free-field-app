@@ -101,10 +101,22 @@ export function visibleTasks(
   outboxRows: OutboxRecord[],
   opts: VisibleOptions = {}
 ): TaskView[] {
-  const { chip = "all", search = "", sort = "updated", limit = 50, overlaySending = false } = opts;
+  const { limit = 50, overlaySending = false } = opts;
   // NOTE: no clock here on purpose — recency/overdue rendering takes
   // `now` at the panel (isOverdue), keeping this function pure.
-  let rows = mergeTaskViews(cloud, outboxRows, { overlaySending }); // D5 suppression lives inside
+  const merged = mergeTaskViews(cloud, outboxRows, { overlaySending }); // D5 suppression lives inside
+  return filterMergedTasks(merged, opts).slice(0, limit);
+}
+
+/**
+ * The filter + sort half of {@link visibleTasks}, for callers that already
+ * hold merged rows (the tablet merges once per snapshot and re-filters on
+ * every keystroke). Saved-view predicates, status chip, search, sort — in
+ * that order. Pure; never mutates `merged`.
+ */
+export function filterMergedTasks(merged: readonly TaskView[], opts: VisibleOptions = {}): TaskView[] {
+  const { chip = "all", search = "", sort = "updated" } = opts;
+  let rows: TaskView[] = [...merged];
 
   // saved-view predicates (UI-refresh v1 §3 V8) — additive; absent
   // options keep the exact wave-10/11 semantics.
@@ -128,19 +140,19 @@ export function visibleTasks(
   switch (sort) {
     case "deadline":
       // dated first, soonest first; no-deadline last; failed/pending keep place
-      rows = [...rows].sort(
+      rows = rows.sort(
         (a, b) =>
           ((a.deadline ?? Infinity) - (b.deadline ?? Infinity)) || b.updatedAt - a.updatedAt
       );
       break;
     case "created":
-      rows = [...rows].sort((a, b) => b.num - a.num);
+      rows = rows.sort((a, b) => b.num - a.num);
       break;
     default:
-      rows = [...rows].sort((a, b) => b.updatedAt - a.updatedAt);
+      rows = rows.sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
-  return rows.slice(0, limit);
+  return rows;
 }
 
 // ── UI refresh v1 (§2 scope, §3 V4/V6/V8) ──────────────────────────────

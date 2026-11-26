@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => {
   // parent-before-child order is under test, not just "called".
   const calls: string[] = [];
   const makeTable = (name: string) => ({
+    toArray: vi.fn(async () => [] as unknown[]),
     bulkPut: vi.fn(async () => {
       calls.push(name);
       return undefined;
@@ -223,8 +224,35 @@ describe("runDemoSeedIfEmpty", () => {
     const result = await runDemoSeedIfEmpty();
 
     expect(result).toBe("skipped");
-    expect(mocks.fetch).not.toHaveBeenCalled();
+    // Only the PDF top-up may run: it reads the manifest, and with no
+    // missing seed PDFs it writes nothing.
+    expect(mocks.db.pdfBlobs.put).not.toHaveBeenCalled();
+    expect(mocks.db.pdfFiles.bulkPut).not.toHaveBeenCalled();
     expect(mocks.db.projects.bulkPut).not.toHaveBeenCalled();
+  });
+
+  it("tops up seed PDFs a seeded profile is missing, without re-seeding", async () => {
+    mocks.listBuildings.mockResolvedValue([
+      { id: "b1", projectId: "default-project", name: "Demo App" },
+    ]);
+    const file = { id: "pf-new", buildingId: "b1", name: "P-101 - Plumbing.pdf", createdAt: 1, updatedAt: 1 };
+    const other = { id: "pf-other", buildingId: "b-missing", name: "X.pdf", createdAt: 1, updatedAt: 1 };
+    const v1 = { id: "pv1", pdfFileId: "pf-new", versionNumber: 1, blobKey: "pb1", isLatest: false };
+    const v2 = { id: "pv2", pdfFileId: "pf-new", versionNumber: 2, blobKey: "pb2", isLatest: true };
+    stubFetch({
+      ...SAMPLE_MANIFEST,
+      tables: { ...SAMPLE_MANIFEST.tables, pdfFiles: [file, other], pdfVersions: [v1, v2] },
+      pdfBlobs: [{ key: "pb1", __blob: true }, { key: "pb2", __blob: true }, { key: "p1", __blob: true }],
+    });
+    const { runDemoSeedIfEmpty } = await loadSeedModule();
+
+    const result = await runDemoSeedIfEmpty();
+
+    expect(result).toBe("seeded");
+    expect(mocks.db.projects.bulkPut).not.toHaveBeenCalled();
+    expect(mocks.db.pdfBlobs.put).toHaveBeenCalledTimes(2);
+    expect(mocks.db.pdfFiles.bulkPut).toHaveBeenCalledWith([file]);
+    expect(mocks.db.pdfVersions.bulkPut).toHaveBeenCalledWith([v1, v2]);
   });
 
   it("gives up with 'unavailable' once the failure counter hits 3", async () => {

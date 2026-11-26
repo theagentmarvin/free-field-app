@@ -327,6 +327,55 @@ let inFlight: Promise<DemoSeedResult> | null = null;
  * already exists) and "unavailable" when the seed failed (the app
  * still boots).
  */
+/**
+ * Top-up for profiles seeded before a seed PDF was added (e.g. the
+ * plumbing v1/v2 revision pair for Compare). Adds only the seed PDF files
+ * this browser lacks, for buildings it already has; never touches the
+ * visitor's own data. Best effort: any failure leaves the DB unchanged
+ * and does not count as a seed failure.
+ */
+async function topUpSeedPdfs(): Promise<DemoSeedResult> {
+  try {
+    const manifest = await fetchManifest();
+    const tables = normalizeTables(manifest.tables);
+    const haveFiles = new Set((await db.pdfFiles.toArray()).map((f) => f.id));
+    const haveBuildings = new Set((await listBuildings(DEMO_PROJECT_ID)).map((b) => b.id));
+    const files = tables.pdfFiles.filter(
+      (f) => !haveFiles.has(f.id) && haveBuildings.has(f.buildingId),
+    );
+    if (files.length === 0) return "skipped";
+    const fileIds = new Set(files.map((f) => f.id));
+    const versions = tables.pdfVersions.filter((v) => fileIds.has(v.pdfFileId));
+    const blobKeys = new Set(versions.map((v) => v.blobKey));
+    const pdfBlobs = await fetchBlobs(
+      (manifest.pdfBlobs ?? []).filter((r) => blobKeys.has(String(r.key))),
+      "pdfBlobs",
+    );
+    const assignments = tables.pdfFolderAssignments.filter((a) => fileIds.has(a.pdfFileId));
+    const folderIds = new Set(assignments.map((a) => a.folderId));
+    const haveFolders = new Set((await db.pdfFolders.toArray()).map((f) => f.id));
+    const folders = tables.pdfFolders.filter((f) => folderIds.has(f.id) && !haveFolders.has(f.id));
+    for (const { key, blob } of pdfBlobs) {
+      await db.pdfBlobs.put({ key, bytes: blob });
+    }
+    await db.transaction(
+      "rw",
+      [db.pdfFiles, db.pdfVersions, db.pdfFolders, db.pdfFolderAssignments],
+      async () => {
+        await db.pdfFolders.bulkPut(folders);
+        await db.pdfFiles.bulkPut(files);
+        await db.pdfVersions.bulkPut(versions);
+        await db.pdfFolderAssignments.bulkPut(assignments);
+      },
+    );
+    return "seeded";
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn("[demoSeed] seed PDF top-up skipped:", err);
+    return "skipped";
+  }
+}
+
 export function runDemoSeedIfEmpty(): Promise<DemoSeedResult> {
   if (!inFlight) {
     inFlight = runSeed();
@@ -345,7 +394,7 @@ async function runSeed(): Promise<DemoSeedResult> {
   // exists in the demo project (also protects profiles populated by
   // the old pipeline seed or by the boss's own work).
   const existing = await listBuildings(DEMO_PROJECT_ID);
-  if (existing.length > 0) return "skipped";
+  if (existing.length > 0) return topUpSeedPdfs();
 
   setSeeding(true);
   try {

@@ -1001,6 +1001,23 @@ export interface SectionPlaneData {
   normal: { x: number; y: number; z: number };
 }
 
+/**
+ * Wave 82: per-plane options for {@link IfcViewerHandle.addSectionPlane}. Both default to `true`, the
+ * behaviour of the desktop toolbar.
+ */
+export interface SectionPlaneOptions {
+  /**
+   * Draw the cut outline + fill (a worker section query per plane and per move). Touch clients that drive
+   * many planes at once (a section box) turn it off: clipping alone costs one shader uniform per plane.
+   */
+  styled?: boolean;
+  /**
+   * Show the engine's drag helper (plane quad + transform arrow). Clients with their own controls (sliders)
+   * turn it off; the plane keeps clipping.
+   */
+  helper?: boolean;
+}
+
 /** Hard cap on the number of section planes (guard + readout note). */
 export const MAX_SECTION_PLANES = 8;
 
@@ -1757,7 +1774,24 @@ export interface IfcViewerHandle {
    * cut-edge outline. It is tracked separately from the horizontal
    * floor clip plane — `clearSectionPlanes` never touches that one.
    */
-  addSectionPlane: (point: { x: number; y: number; z: number }, normal: { x: number; y: number; z: number }) => boolean;
+  addSectionPlane: (
+    point: { x: number; y: number; z: number },
+    normal: { x: number; y: number; z: number },
+    options?: SectionPlaneOptions,
+  ) => boolean;
+  /**
+   * Wave 82: move / re-orient section plane `index` (insertion order, as in `getSectionPlanes`) IN PLACE: no
+   * plane is created or disposed, so no geometry is allocated and a slider can call it at pointer rate. The
+   * cut outline of a styled plane is refreshed. Returns `false` for an unknown index.
+   */
+  updateSectionPlane: (
+    index: number,
+    plane: { point: { x: number; y: number; z: number }; normal: { x: number; y: number; z: number } },
+  ) => boolean;
+  /**
+   * Wave 82: remove section plane `index` only (later planes shift down by one). No-op for an unknown index.
+   */
+  removeSectionPlane: (index: number) => void;
   /**
    * Invert the most recent section plane's normal (delete + recreate
    * at the same point). No-op when there are no section planes.
@@ -6005,6 +6039,7 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
     function addSectionPlaneImpl(
       point: { x: number; y: number; z: number },
       normal: { x: number; y: number; z: number },
+      options?: SectionPlaneOptions,
     ): boolean {
       const world = worldRef.current;
       const comps = componentsRef.current;
@@ -6033,9 +6068,17 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
           normal: { ...normal },
         });
 
+        // Wave 82: a client with its own controls hides the engine's
+        // helper (quad + transform arrow); `visible` is independent of
+        // `enabled`, so the plane keeps clipping.
+        if (options?.helper === false) {
+          const plane = clipper.list.get(id) as { visible?: boolean } | undefined;
+          if (plane) plane.visible = false;
+        }
+
         // Style the cut edges/fill. Guard against partial registries
         // (tests) — the plane is still valid without the styler.
-        const styler = ensureSectionStyle();
+        const styler = options?.styled === false ? null : ensureSectionStyle();
         if (styler) {
           const edges = styler.createFromClipping(id, {
             world,
@@ -8261,8 +8304,52 @@ const IfcViewer = forwardRef<IfcViewerHandle, IfcViewerProps>(
           pushMeasureReadout(null);
         },
         // ── Wave 13: 3D section planes ─────────────────────────
-        addSectionPlane: (point, normal): boolean =>
-          addSectionPlaneImpl(point, normal),
+        addSectionPlane: (point, normal, options): boolean =>
+          addSectionPlaneImpl(point, normal, options),
+        updateSectionPlane: (index, data): boolean => {
+          const comps = componentsRef.current;
+          const entry = sectionPlanesRef.current[index];
+          if (!comps || !entry) return false;
+          try {
+            const clipper = comps.get(OBC.Clipper);
+            const plane = clipper.list.get(entry.id) as
+              | {
+                  setFromNormalAndCoplanarPoint?: (n: THREE.Vector3, p: THREE.Vector3) => void;
+                  onDraggingEnded?: { trigger: () => void };
+                }
+              | undefined;
+            if (!plane?.setFromNormalAndCoplanarPoint) return false;
+            plane.setFromNormalAndCoplanarPoint(
+              new THREE.Vector3(data.normal.x, data.normal.y, data.normal.z),
+              new THREE.Vector3(data.point.x, data.point.y, data.point.z),
+            );
+            // A styled plane redraws its cut outline on this event (the same one a drag ends with).
+            plane.onDraggingEnded?.trigger();
+          } catch (err) {
+            // eslint-disable-next-line no-console
+            console.warn("[IfcViewer] updateSectionPlane failed:", err);
+            return false;
+          }
+          entry.point = { ...data.point };
+          entry.normal = { ...data.normal };
+          requestRender("section-update");
+          return true;
+        },
+        removeSectionPlane: (index): void => {
+          const comps = componentsRef.current;
+          const entry = sectionPlanesRef.current[index];
+          if (!comps || !entry) return;
+          try {
+            removeClippingPlanesById(comps.get(OBC.Clipper), [entry.id]);
+          } catch (err) {
+            // eslint-disable-next-line no-console
+            console.warn("[IfcViewer] removeSectionPlane failed:", err);
+            return;
+          }
+          sectionPlanesRef.current.splice(index, 1);
+          requestRender("section-remove");
+          tel.breadcrumb("section", "plane-remove", { count: sectionPlanesRef.current.length });
+        },
         flipLastSectionPlane: (): void => {
           const world = worldRef.current;
           const comps = componentsRef.current;

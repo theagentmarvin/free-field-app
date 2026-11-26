@@ -531,7 +531,13 @@ const h = vi.hoisted(() => {
     config = { color: null as unknown, opacity: 0 };
     list = new Map<
       string,
-      { type?: string; three: { normal: { x: number; y: number; z: number } } }
+      {
+        type?: string;
+        three: { normal: { x: number; y: number; z: number } };
+        visible?: boolean;
+        setFromNormalAndCoplanarPoint?: (n: unknown, p: unknown) => void;
+        onDraggingEnded?: { trigger: () => void };
+      }
     >();
     private _id = 0;
     createFromNormalAndCoplanarPoint(
@@ -540,7 +546,13 @@ const h = vi.hoisted(() => {
       _point: { x: number; y: number; z: number },
     ): string {
       const id = `plane-${++this._id}`;
-      this.list.set(id, { type: undefined, three: { normal: { ...normal } } });
+      this.list.set(id, {
+        type: undefined,
+        three: { normal: { ...normal } },
+        visible: true,
+        setFromNormalAndCoplanarPoint: vi.fn(),
+        onDraggingEnded: { trigger: vi.fn() },
+      });
       return id;
     }
     deleteAll(types?: Set<string>): void {
@@ -2677,6 +2689,37 @@ describe("<IfcViewer> section planes (Wave 15 clear)", () => {
     // The real bug left these behind — this assertion is the regression.
     expect(h.clipperInstances[0]!.list.size).toBe(0);
 
+    unmount();
+  });
+
+  it("wave 82: updateSectionPlane moves a plane in place, removeSectionPlane drops one", async () => {
+    const { ref, unmount } = await mountHandle();
+    const h0 = ref.current!;
+    expect(h0.addSectionPlane({ x: 0, y: 0, z: 1 }, { x: 0, y: 0, z: 1 }, { styled: false, helper: false })).toBe(true);
+    expect(h0.addSectionPlane({ x: 4, y: 0, z: 0 }, { x: -1, y: 0, z: 0 })).toBe(true);
+    const clipper = h.clipperInstances[0]!;
+    const ids = [...clipper.list.keys()];
+    // helper:false hides the engine helper (the plane keeps clipping); the default keeps it.
+    expect(clipper.list.get(ids[0]!)!.visible).toBe(false);
+    expect(clipper.list.get(ids[1]!)!.visible).toBe(true);
+    // styled:false creates no cut outline.
+    expect(h.clipStylerInstances[0]!.createFromClipping).toHaveBeenCalledTimes(1);
+
+    expect(h0.updateSectionPlane(1, { point: { x: 2, y: 0, z: 0 }, normal: { x: 1, y: 0, z: 0 } })).toBe(true);
+    expect(clipper.list.size).toBe(2); // in place: nothing created or deleted
+    expect([...clipper.list.keys()]).toEqual(ids);
+    expect(clipper.list.get(ids[1]!)!.setFromNormalAndCoplanarPoint).toHaveBeenCalledTimes(1);
+    expect(clipper.list.get(ids[1]!)!.onDraggingEnded!.trigger).toHaveBeenCalledTimes(1);
+    expect(h0.getSectionPlanes()[1]).toEqual({ point: { x: 2, y: 0, z: 0 }, normal: { x: 1, y: 0, z: 0 } });
+    expect(h0.updateSectionPlane(5, { point: { x: 0, y: 0, z: 0 }, normal: { x: 1, y: 0, z: 0 } })).toBe(false);
+
+    h0.removeSectionPlane(0);
+    expect(h0.getSectionPlaneCount()).toBe(1);
+    expect(clipper.list.size).toBe(1);
+    expect(clipper.list.has(ids[0]!)).toBe(false);
+    expect(h0.getSectionPlanes()[0]!.point).toEqual({ x: 2, y: 0, z: 0 });
+    h0.removeSectionPlane(9); // unknown index: no-op
+    expect(h0.getSectionPlaneCount()).toBe(1);
     unmount();
   });
 

@@ -127,6 +127,8 @@ function makeMockHandle(opts: {
     // exercises them — no-op stubs satisfy the extended interface
     // (same precedent as setMeasureMode / setViewPose above).
     addSectionPlane: vi.fn(() => true),
+    updateSectionPlane: vi.fn(() => true),
+    removeSectionPlane: vi.fn(),
     flipLastSectionPlane: vi.fn(),
     clearSectionPlanes: vi.fn(),
     getSectionPlaneCount: vi.fn(() => 0),

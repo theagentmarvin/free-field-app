@@ -1,4 +1,5 @@
-import { useTaskBuildingIndex, withEffectiveBuilding } from "./taskBuilding";
+import { useTaskBuildingIndex } from "./taskBuilding";
+import { minuteOf, selectTaskList } from "./taskListQuery";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { requireProjectId, useCurrentProject, useProjectId } from "@ff/auth";
 import {
@@ -9,6 +10,7 @@ import {
   isDualThumbLocation,
   normalizeLocationThumb2dPath,
   latestDraft,
+  mergeTaskViews,
   type TaskDraftFields,
   type TaskStatus,
   type TaskView,
@@ -60,18 +62,12 @@ import { TaskDetailHost } from "./TaskDetailHost";
 import { TaskOutboxSheet } from "./TaskOutboxSheet";
 import { TaskToolbar } from "./TaskToolbar";
 import { TaskColumnPicker } from "./TaskColumnPicker";
-import { loadVisibleColumns, saveVisibleColumns, type ColumnId, type TaskTableRow } from "./tableColumns";
-import { applyColumnFilters, countActiveFilters, type ActiveFilters } from "./columnFilters";
+import { loadVisibleColumns, saveVisibleColumns, type ColumnId } from "./tableColumns";
+import { countActiveFilters, type ActiveFilters } from "./columnFilters";
 import {
   SAVED_VIEWS,
-  visibleTasks,
   loadSavedViewId,
   persistSavedViewId,
-  scopeRowsToBuilding,
-  applyQuickFilters,
-  chipCounts,
-  deadlineSignal,
-  matchesChip,
   STATUS_LABELS,
   type QuickFilters,
   type Chip,
@@ -262,65 +258,40 @@ export function TasksApp({
   // BEFORE the chip makes every chip show what clicking it would yield.
   const [quick, setQuick] = useState<QuickFilters>({});
   const nowTs = Date.now();
-  const merged = useMemo(
+  const buildingIndex = useTaskBuildingIndex();
+  const buildingNames = useMemo(() => new Map((buildings ?? []).map((b) => [b.id, b.name] as const)), [buildings]);
+  const mergedAll = useMemo(
+    () => mergeTaskViews(cloud, rows, { overlaySending: source.overlaySending }),
+    [cloud, rows, source.overlaySending]
+  );
+  // The pipeline itself (saved-view predicates, search, sort, effective
+  // building, scope, quick filters, counts, chip, column filters) is the
+  // shared pure `selectTaskList`, which the tablet app runs verbatim.
+  const minute = minuteOf(nowTs);
+  const list = useMemo(
     () =>
-      visibleTasks(cloud, rows, {
-        chip: "all",
+      selectTaskList(mergedAll, {
+        chip,
         search,
         sort,
-        limit: Number.POSITIVE_INFINITY,
-        overlaySending: source.overlaySending,
-        // saved-view predicates (V8) — inert for the default "no view" state
-        assigneeUid: activeView?.apply.myTasks ? actor.uid : undefined,
-        overdueOnly: activeView?.apply.overdueOnly,
-        overdueNow: nowTs,
+        view: activeView,
+        scope,
+        buildingId,
+        quick,
+        columnFilters,
+        uid: actor.uid,
+        now: nowTs,
+        buildingIndex,
+        buildingNames,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [cloud, rows, search, sort, source.overlaySending, activeView, actor.uid, Math.floor(nowTs / 60_000)]
+    [mergedAll, chip, search, sort, activeView, scope, buildingId, quick, columnFilters, actor.uid, minute, buildingIndex, buildingNames]
   );
-  // Old tasks without a stamped building show (and scope by) the building
-  // they are pinned in.
-  const buildingIndex = useTaskBuildingIndex();
-  const mergedEff = useMemo(() => withEffectiveBuilding(merged, buildingIndex), [merged, buildingIndex]);
-  const preQuick = useMemo(() => scopeRowsToBuilding(mergedEff, buildingId, scope), [mergedEff, buildingId, scope]);
-  const quickCounts = useMemo(
-    () => ({
-      mine: preQuick.filter((t) => !!actor.uid && t.assigneeUid === actor.uid && matchesChip(t.status, "open")).length,
-      overdue: preQuick.filter((t) => deadlineSignal(t.deadline, t.status, nowTs) === "overdue").length,
-    }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [preQuick, actor.uid, Math.floor(nowTs / 60_000)]
-  );
-  const quickFiltered = useMemo(
-    () => applyQuickFilters(preQuick, quick, actor.uid, nowTs),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [preQuick, quick, actor.uid, Math.floor(nowTs / 60_000)]
-  );
-  const counts = useMemo(() => chipCounts(quickFiltered), [quickFiltered]);
-  const scoped = useMemo(() => quickFiltered.filter((t) => matchesChip(t.status, chip)), [quickFiltered, chip]);
-  // Host-free enrichment: building + storey display names ride the row
-  // (the package never touches the building store itself). Raw cloud
-  // docs keep `location` via the merge passthrough — read structurally.
-  const tableRows = useMemo<TaskTableRow[]>(
-    () =>
-      scoped.map((t) => {
-        const raw = t as TaskView & { location?: { storeyName?: string | null } | null };
-        const bid = t.buildingId ?? null;
-        return {
-          ...t,
-          buildingName: bid ? (buildings?.find((b) => b.id === bid)?.name ?? null) : null,
-          storeyName: raw.location?.storeyName ?? null,
-        };
-      }),
-    [scoped, buildings]
-  );
-
+  const { counts, quickCounts, tableRows } = list;
   // Board honours the same column filters as the table (chips + search are
-  // already applied upstream in `view`).
-  const boardRows = useMemo(
-    () => applyColumnFilters(tableRows, columnFilters, Date.now()),
-    [tableRows, columnFilters]
-  );
+  // already applied upstream).
+  const boardRows = list.rows;
+  const scoped = tableRows;
 
   // Wave 5A: table on tablet+desktop, cards on phone (boss-approved).
   // Both share the same rows/now/resolver/onOpen/onRetry contract.

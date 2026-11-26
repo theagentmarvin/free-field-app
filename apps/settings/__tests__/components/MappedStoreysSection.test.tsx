@@ -205,6 +205,8 @@ function makeMockHandle(
     // MappedStoreysSection — no-op stubs satisfy the extended
     // IfcViewerHandle interface (same precedent as getPose / getSnapshot).
     addSectionPlane: vi.fn(() => true),
+    updateSectionPlane: vi.fn(() => true),
+    removeSectionPlane: vi.fn(),
     flipLastSectionPlane: vi.fn(),
     clearSectionPlanes: vi.fn(),
     getSectionPlaneCount: vi.fn(() => 0),

@@ -38,6 +38,7 @@ export type {
   MeasureReadout,
   MeasurementEntry,
   SectionPlaneData,
+  SectionPlaneOptions,
   MotionSpeedupsConfig,
   RenderOnDemandConfig,
   SplitTileBuildConfig,

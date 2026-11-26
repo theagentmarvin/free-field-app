@@ -40,6 +40,7 @@ export { PhotoLightbox, type PhotoLightboxProps } from "./PhotoLightbox";
 export { TaskOutboxSheet, type TaskOutboxSheetProps } from "./TaskOutboxSheet";
 export * from "./tableColumns";
 export * from "./columnFilters";
+export * from "./taskListQuery";
 export { TaskTablePanel, type TaskTablePanelProps } from "./TaskTablePanel";
 export { TaskBoardPanel, type TaskBoardPanelProps, BOARD_COLUMNS, type BoardColumn, boardColumnFor } from "./TaskBoardPanel";
 export { TaskColumnFilterPopover, type TaskColumnFilterPopoverProps } from "./TaskColumnFilterPopover";
@@ -81,6 +82,8 @@ export {
   tasksForBuilding,
   useTaskBuildingIndex,
   EMPTY_TASK_BUILDING_INDEX,
+  withEffectiveBuilding,
+  resolveCreateBuildingId,
 } from "./taskBuilding";
 export type { TaskBuildingIndex, BuildingScopedTask } from "./taskBuilding";
 export { ProjectSyncMount, getWebSyncEngine, type ProjectSyncMountProps } from "./ProjectSyncMount";
