@@ -118,7 +118,7 @@
   <li><strong>Demo mode</strong> — <code>VITE_FF_DEMO_AUTH=true</code> runs the whole app with zero backend.</li>
 </ul>
 
-<h3>Native Android app (repo going public this week)</h3>
+<h3>Native Android app (public repo)</h3>
 <ul class="tight">
   <li>Capacitor 7 app (<code>app.freefield.field</code>, minSdk 26 / target 35) — “FreeField Field”.</li>
   <li>Durable offline <code>.frag</code> models + photo/note BlobStore (not a browser cache).</li>
@@ -126,7 +126,7 @@
   <li>Memory tuning for low-RAM field tablets; Playwright e2e passing on emulator.</li>
 </ul>
 
-<h3>Revit bundle exporter (repo going public this week)</h3>
+<h3>Revit bundle exporter (public repo)</h3>
 <ul class="tight">
   <li>Revit add-in: <strong>“FreeField” ribbon tab → “Export Bundle”</strong> (verified in Revit 2025.4).</li>
   <li>Dialog: sheet list with <strong>sheet → level → IFC-storey mapping</strong> (all-green “Mapped” status), search, level filter, “Select all mappable”.</li>
@@ -147,11 +147,11 @@
   <tr><th>Repo</th><th>What it is</th><th>Status</th></tr>
   <tr><td><a href="https://github.com/theagentmarvin/free-field-monorepo">free-field-monorepo</a></td><td>Web core: Settings, Models, LinkView, Documents, Tasks, Users + ff-* packages. MIT.</td><td>Public</td></tr>
   <tr><td><a href="https://github.com/theagentmarvin/free-field-app">free-field-app</a></td><td>Landing/OSS repo (this site lives here).</td><td>Public</td></tr>
-  <tr><td>free-field-mobile</td><td>Native Android app (“FreeField Field”), Capacitor 7.</td><td><span class="pill amber">private → public this week</span></td></tr>
-  <tr><td>Revit bundle exporter</td><td>Revit add-in, “Export Bundle” → .ffbundle.</td><td><span class="pill amber">private → public this week</span></td></tr>
+  <tr><td><a href="https://github.com/theagentmarvin/free-field-android">free-field-android</a></td><td>Native Android app (“FreeField Field”), Capacitor 7.</td><td><span class="pill green">public · MIT</span></td></tr>
+  <tr><td><a href="https://github.com/theagentmarvin/free-field-revit-exporter-app">free-field-revit-exporter-app</a></td><td>Revit add-in, “Export Bundle” → .ffbundle.</td><td><span class="pill green">public · MIT</span></td></tr>
 </table>
 <div class="callout warn">
-  <strong>Release gate:</strong> until the Android + exporter repos are public, the landing page must not deep-link them as “clone now”. Say “shipping this week” or link once they flip. The monorepo README's “no native mobile app” and “Commissioned work” lines must be removed at release (nothing is for sale — see §5).
+  <strong>Released:</strong> the Android and exporter repos are public, and the landing page links both.
 </div>
 
 <h2>4 · Demo media (verified footage)</h2>

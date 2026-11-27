@@ -13,14 +13,14 @@
                    Flip to live only once the skills are actually committed to the public repo.
   Markup pattern: <span data-feature="compare"><span class="when-next">…</span><span class="when-live">…</span></span>
   The CSS that shows/hides the variants is at the top of assets/css/site.css ("Feature availability").
-  When a feature goes live, also review: the exporter/Android "View on GitHub" links (none today, by release gate)
+  When a feature goes live, also review: the exporter/Android "View on GitHub" links (both live)
   (compare is live, so "revision compare" is already in og:description / twitter:description).
   This file is the English page. The Spanish (default) page is ../index.html: change both.
 -->
 <html lang="en-GB"
   data-compare="live"
   data-bcf="live"
-  data-exporter="next"
+  data-exporter="live"
   data-android="live"
   data-skills="live">
 <head>
@@ -332,7 +332,7 @@
     <div class="exporter__text prose">
       <p>The FreeField add-in for Revit exports the model and the sheets linked automatically: every sheet tied to its IFC level in a single pass. No manual pairing, no human error — the field opens exactly what the office issued. Add schedules, element outlines or the IFC4 Reference View if you need them.</p>
       <p>The result is a single bundle (<code>.ffbundle</code>): the IFC and a smart PDF per sheet — with BIM metadata embedded and accessible: click any element and read its properties. Drop the bundle into FreeField and everything arrives calibrated to its level, ready for the field.</p>
-      <p data-feature="exporter"><span class="when-next">The exporter repo is opening soon and will ship in the open, MIT, like the rest. Bundle import is already in the web app.</span><span class="when-live">The exporter and bundle import are public, MIT, like the rest.</span> <span class="status" data-feature="exporter"><span class="when-next tag tag--proposed">Repo opening soon</span><span class="when-live tag tag--built">Public · MIT</span></span></p>
+      <p data-feature="exporter"><span class="when-next">The exporter repo is opening soon and will ship in the open, MIT, like the rest. Bundle import is already in the web app.</span><span class="when-live">The exporter and bundle import are public, MIT, like the rest.</span> <span class="status" data-feature="exporter"><span class="when-next tag tag--proposed">Repo opening soon</span><a class="when-live tag tag--built" href="https://github.com/theagentmarvin/free-field-revit-exporter-app" data-goatcounter-click="github-exporter" rel="noopener">Public · MIT · view on GitHub</a></span></p>
     </div>
 
     <div class="exporter__pipeline">
@@ -557,7 +557,7 @@
       </details>
       <details>
         <summary><span>Can I use the Revit exporter or the Android app today?</span><svg class="icon faq__icon" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
-        <p><span data-feature="exporter"><span class="when-next">Not the Revit exporter yet: its repo is opening soon. Bundle import is already in the web app, so a bundle from the exporter will open as soon as it ships.</span><span class="when-live">The Revit exporter is public, MIT, in its own repo.</span></span> <span data-feature="android"><span class="when-next">The Android app’s repo is opening soon too.</span><span class="when-live">The Android app is public, MIT, in <a href="https://github.com/theagentmarvin/free-field-android" data-goatcounter-click="github-android" rel="noopener">its own repo</a>.</span></span> The web app, with IFC and PDF import, is available now.</p>
+        <p><span data-feature="exporter"><span class="when-next">Not the Revit exporter yet: its repo is opening soon. Bundle import is already in the web app, so a bundle from the exporter will open as soon as it ships.</span><span class="when-live">The Revit exporter is public, MIT, in <a href="https://github.com/theagentmarvin/free-field-revit-exporter-app" data-goatcounter-click="github-exporter" rel="noopener">its own repo</a>.</span></span> <span data-feature="android"><span class="when-next">The Android app’s repo is opening soon too.</span><span class="when-live">The Android app is public, MIT, in <a href="https://github.com/theagentmarvin/free-field-android" data-goatcounter-click="github-android" rel="noopener">its own repo</a>.</span></span> The web app, with IFC and PDF import, is available now.</p>
       </details>
       <details>
         <summary><span>What about iOS?</span><svg class="icon faq__icon" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>

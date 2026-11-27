@@ -115,6 +115,8 @@ FreeField is **local-first**. Buildings, IFC/PDF versions, calibrations and save
 
 Android field app: see [free-field-android](https://github.com/theagentmarvin/free-field-android).
 
+Revit exporter add-in: see [free-field-revit-exporter-app](https://github.com/theagentmarvin/free-field-revit-exporter-app).
+
 ## Self-hosting on your own Firebase
 
 Each organisation runs its **own** Firebase project (Auth, Firestore, Storage, Functions, Hosting). Copy the `.env.example` templates, fill in your project's values, and deploy. Start with the [self-hosting guide](docs/deploy/self-hosting.md); the shorter runbook is [docs/deploy/README.md](docs/deploy/README.md).
