@@ -6,7 +6,7 @@
     data-compare   PDF revision compare (§ Compare). next = dashed "Next release" tag; live = solid "In the web app" tag.
     data-bcf       BCF export from Tasks (core step 4). next = "comes in the next release"; live = "Export to BCF".
     data-exporter  Revit exporter add-in (.ffbundle import is already public in the web app). next = dashed "Repo opening soon".
-    data-android   Native Android app. next = dashed "Repo opening soon".
+    data-android   Android app (Capacitor). next = dashed "Repo opening soon".
     data-skills    Claude Code skills bundled in the public repo (§ Own it, card "Your roadmap", and the FAQ
                    "Is self-hosting a burden?"). next = "with a Claude Code licence and the self-hosting guide";
                    live = "with a Claude Code licence and the skills bundled in the repo".
@@ -21,7 +21,7 @@
   data-compare="live"
   data-bcf="live"
   data-exporter="next"
-  data-android="next"
+  data-android="live"
   data-skills="live">
 <head>
 <meta charset="utf-8">
@@ -406,12 +406,12 @@
   </div>
 </section>
 
-<!-- 6 · Native Android app -->
+<!-- 6 · Android app (Capacitor) -->
 <section id="android" class="section android" aria-labelledby="android-h">
   <div class="container android__grid">
-    <h2 id="android-h">A native Android app for the tablet on site.</h2>
+    <h2 id="android-h">An Android app for the job site.</h2>
     <div class="android__body prose">
-      <p>The web app runs in any browser. FreeField Field is the native Android app for the tablet on site: it runs on the rugged, affordable devices of the field, with or without a signal.</p>
+      <p>The web app runs in any browser. FreeField Field is the installable Android app for the job site: it runs on phones and on the rugged, affordable tablets of the field, with or without a signal.</p>
       <p>Models are stored on the device: the building opens offline, with model filters, measurements and navigation. Issues — with their photos and notes — go to durable local storage. If the 3D viewer crashes, the app recovers and carries on where you were.</p>
     </div>
     <figure class="sheet android__sheet">
@@ -438,14 +438,14 @@
     <div class="strip">
       <div class="strip__head">
         <p class="strip__title">FreeField Field</p>
-        <p class="strip__sub">Android <span class="status" data-feature="android"><span class="when-next tag tag--proposed">Repo opening soon</span><span class="when-live tag tag--built">Public · MIT</span></span></p>
+        <p class="strip__sub">Android <span class="status" data-feature="android"><span class="when-next tag tag--proposed">Repo opening soon</span><a class="when-live tag tag--built" href="https://github.com/theagentmarvin/free-field-android" data-goatcounter-click="github-android" rel="noopener">Public · MIT · view on GitHub</a></span></p>
       </div>
       <dl class="strip__cells">
         <div class="strip__cell"><dt>Models</dt><dd>Offline models stored on the device</dd></div>
-        <div class="strip__cell"><dt>Viewer</dt><dd>Filters, measurements and navigation on the tablet, offline too</dd></div>
+        <div class="strip__cell"><dt>Viewer</dt><dd>Filters, measurements and navigation on site, offline too</dd></div>
         <div class="strip__cell"><dt>Capture</dt><dd>Photo and note store that survives a dropped connection</dd></div>
         <div class="strip__cell"><dt>Recovery</dt><dd>Recovers if the viewer crashes — you carry on where you were</dd></div>
-        <div class="strip__cell"><dt>Hardware</dt><dd>Runs on the rugged, affordable tablets of the field</dd></div>
+        <div class="strip__cell"><dt>Hardware</dt><dd>Runs on Android phones and the rugged, affordable tablets of the field</dd></div>
         <div class="strip__cell"><dt>Built with</dt><dd>Capacitor 7</dd></div>
         <div class="strip__cell"><dt class="as-is">iOS</dt><dd>On the roadmap</dd></div>
       </dl>
@@ -552,16 +552,16 @@
         <p>If the building is published to your project, the model and sheets are backed up in your Firebase and every member downloads them again. Anything unpublished is a browser cache: it can be cleared, but you can always re-import the source file. The Android app adds durable offline storage.</p>
       </details>
       <details>
-        <summary><span>Does it work offline on the tablet?</span><svg class="icon faq__icon" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
+        <summary><span>Does it work offline on site?</span><svg class="icon faq__icon" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
         <p>In two layers. The web app queues field capture offline in any browser. The Android app adds durable model storage and crash recovery.</p>
       </details>
       <details>
         <summary><span>Can I use the Revit exporter or the Android app today?</span><svg class="icon faq__icon" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
-        <p><span data-feature="exporter"><span class="when-next">Not the Revit exporter yet: its repo is opening soon. Bundle import is already in the web app, so a bundle from the exporter will open as soon as it ships.</span><span class="when-live">The Revit exporter is public, MIT, in its own repo.</span></span> <span data-feature="android"><span class="when-next">The Android app’s repo is opening soon too.</span><span class="when-live">The Android app is public, MIT, in its own repo.</span></span> The web app, with IFC and PDF import, is available now.</p>
+        <p><span data-feature="exporter"><span class="when-next">Not the Revit exporter yet: its repo is opening soon. Bundle import is already in the web app, so a bundle from the exporter will open as soon as it ships.</span><span class="when-live">The Revit exporter is public, MIT, in its own repo.</span></span> <span data-feature="android"><span class="when-next">The Android app’s repo is opening soon too.</span><span class="when-live">The Android app is public, MIT, in <a href="https://github.com/theagentmarvin/free-field-android" data-goatcounter-click="github-android" rel="noopener">its own repo</a>.</span></span> The web app, with IFC and PDF import, is available now.</p>
       </details>
       <details>
         <summary><span>What about iOS?</span><svg class="icon faq__icon" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
-        <p>The web app runs in any browser. The native app is Android because that is what affordable rugged tablets run. iOS is on the roadmap.</p>
+        <p>The web app runs in any browser. The installable app is Android because that is what most site phones and affordable rugged tablets run. iOS is on the roadmap.</p>
       </details>
       <details>
         <summary><span>Does it replace our document control?</span><svg class="icon faq__icon" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>

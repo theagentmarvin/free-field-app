@@ -6,7 +6,7 @@
     data-compare   PDF revision compare (§ Compare). next = dashed tag; live = solid "En la app web" tag.
     data-bcf       BCF export from Tasks (core step 4).
     data-exporter  Revit exporter add-in (.ffbundle import is already public in the web app).
-    data-android   Native Android app.
+    data-android   Android app (Capacitor).
     data-skills    Claude Code skills bundled in the public repo (§ Es tuyo, card "Tu hoja de ruta", and the FAQ
                    "¿Autoalojarlo da mucho trabajo?"). next = "con una licencia de Claude Code y la guía de
                    autoalojamiento"; live = "con una licencia de Claude Code y las skills incluidas en el repositorio".
@@ -19,7 +19,7 @@
   data-compare="live"
   data-bcf="live"
   data-exporter="next"
-  data-android="next"
+  data-android="live"
   data-skills="live">
 <head>
 <meta charset="utf-8">
@@ -404,12 +404,12 @@
   </div>
 </section>
 
-<!-- 6 · Native Android app -->
+<!-- 6 · Android app (Capacitor) -->
 <section id="android" class="section android" aria-labelledby="android-h">
   <div class="container android__grid">
-    <h2 id="android-h">Una app Android nativa para la tablet en obra.</h2>
+    <h2 id="android-h">Una app Android para la obra.</h2>
     <div class="android__body prose">
-      <p>La app web corre en cualquier navegador. FreeField Field es la app Android nativa para la tablet en obra: corre en los equipos reforzados y económicos del terreno, con señal o sin ella.</p>
+      <p>La app web corre en cualquier navegador. FreeField Field es la app Android instalable para la obra: corre en celulares y en las tablets reforzadas y económicas del terreno, con señal o sin ella.</p>
       <p>Los modelos quedan guardados en el dispositivo: el edificio abre sin conexión, con filtros, mediciones y navegación del modelo. Las incidencias — con sus fotos y notas — van a un almacenamiento local duradero. Si el visor 3D se cae, la app se recupera y sigues donde estabas.</p>
     </div>
     <figure class="sheet android__sheet">
@@ -436,14 +436,14 @@
     <div class="strip">
       <div class="strip__head">
         <p class="strip__title">FreeField Field</p>
-        <p class="strip__sub">Android <span class="status" data-feature="android"><span class="when-next tag tag--proposed">Repo se abre pronto</span><span class="when-live tag tag--built">Público · MIT</span></span></p>
+        <p class="strip__sub">Android <span class="status" data-feature="android"><span class="when-next tag tag--proposed">Repo se abre pronto</span><a class="when-live tag tag--built" href="https://github.com/theagentmarvin/free-field-android" data-goatcounter-click="github-android" rel="noopener">Público · MIT · ver en GitHub</a></span></p>
       </div>
       <dl class="strip__cells">
         <div class="strip__cell"><dt>Modelos</dt><dd>Modelos sin conexión guardados en el dispositivo</dd></div>
-        <div class="strip__cell"><dt>Visor</dt><dd>Filtros, mediciones y navegación en la tablet, también sin conexión</dd></div>
+        <div class="strip__cell"><dt>Visor</dt><dd>Filtros, mediciones y navegación en terreno, también sin conexión</dd></div>
         <div class="strip__cell"><dt>Registro</dt><dd>Fotos y notas que sobreviven a una caída de señal</dd></div>
         <div class="strip__cell"><dt>Recuperación</dt><dd>Se recupera si el visor se cae — sigues donde estabas</dd></div>
-        <div class="strip__cell"><dt>Hardware</dt><dd>Corre en las tablets reforzadas y económicas del terreno</dd></div>
+        <div class="strip__cell"><dt>Hardware</dt><dd>Corre en celulares Android y en las tablets reforzadas y económicas del terreno</dd></div>
         <div class="strip__cell"><dt>Hecha con</dt><dd>Capacitor 7</dd></div>
         <div class="strip__cell"><dt class="as-is">iOS</dt><dd>En la hoja de ruta</dd></div>
       </dl>
@@ -550,16 +550,16 @@
         <p>Si el edificio está publicado en tu proyecto, el modelo y los planos quedan respaldados en tu Firebase y cada miembro los vuelve a descargar. Lo que no se publica es una caché del navegador: puede borrarse, pero siempre puedes volver a importar el archivo original. La app Android agrega almacenamiento duradero sin conexión.</p>
       </details>
       <details>
-        <summary><span>¿Funciona sin conexión en la tablet?</span><svg class="icon faq__icon" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
+        <summary><span>¿Funciona sin conexión en terreno?</span><svg class="icon faq__icon" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
         <p>Funciona en dos capas. La app web, en cualquier navegador, deja en cola lo que registras en terreno mientras no hay conexión. La app Android suma almacenamiento duradero de modelos y recuperación ante fallas.</p>
       </details>
       <details>
         <summary><span>¿Puedo usar hoy el exportador de Revit o la app Android?</span><svg class="icon faq__icon" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
-        <p><span data-feature="exporter"><span class="when-next">El exportador de Revit todavía no: su repositorio se abre pronto. La importación de paquetes ya está en la app web, así que podrás abrir un paquete del exportador apenas se publique.</span><span class="when-live">El exportador de Revit es público, MIT, en su propio repositorio.</span></span> <span data-feature="android"><span class="when-next">El repositorio de la app Android también se abre pronto.</span><span class="when-live">La app Android es pública, MIT, en su propio repositorio.</span></span> La app web, con importación de IFC y PDF, ya está disponible.</p>
+        <p><span data-feature="exporter"><span class="when-next">El exportador de Revit todavía no: su repositorio se abre pronto. La importación de paquetes ya está en la app web, así que podrás abrir un paquete del exportador apenas se publique.</span><span class="when-live">El exportador de Revit es público, MIT, en su propio repositorio.</span></span> <span data-feature="android"><span class="when-next">El repositorio de la app Android también se abre pronto.</span><span class="when-live">La app Android es pública, MIT, en <a href="https://github.com/theagentmarvin/free-field-android" data-goatcounter-click="github-android" rel="noopener">su propio repositorio</a>.</span></span> La app web, con importación de IFC y PDF, ya está disponible.</p>
       </details>
       <details>
         <summary><span>¿Y iOS?</span><svg class="icon faq__icon" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
-        <p>La app web corre en cualquier navegador. La app nativa es Android porque es lo que usan las tablets reforzadas económicas. iOS está en la hoja de ruta.</p>
+        <p>La app web corre en cualquier navegador. La app instalable es Android porque es lo que usan la mayoría de los celulares y las tablets reforzadas económicas de la obra. iOS está en la hoja de ruta.</p>
       </details>
       <details>
         <summary><span>¿Reemplaza nuestra gestión documental?</span><svg class="icon faq__icon" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></summary>
