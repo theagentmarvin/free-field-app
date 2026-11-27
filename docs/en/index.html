@@ -414,6 +414,27 @@
       <p>The web app runs in any browser. FreeField Field is the native Android app for the tablet on site: it runs on the rugged, affordable devices of the field, with or without a signal.</p>
       <p>Models are stored on the device: the building opens offline, with model filters, measurements and navigation. Issues — with their photos and notes — go to durable local storage. If the 3D viewer crashes, the app recovers and carries on where you were.</p>
     </div>
+    <figure class="sheet android__sheet">
+      <div class="sheet__media">
+        <video id="clip-android" class="sheet__video" width="1280" height="746" muted loop playsinline preload="none" poster="../assets/media/android-tour.webp" controls data-autoplay data-tour="android-tour-list" data-segments='[{"id":"nav","start":0,"end":6.67},{"id":"filters","start":6.67,"end":15.83},{"id":"walk","start":15.83,"end":26.39},{"id":"measure","start":26.39,"end":35.28},{"id":"compare","start":35.28,"end":44.03},{"id":"tasks","start":44.03,"end":52.3}]' aria-label="A tour of FreeField Field on an Android tablet: 3D model navigation, filters and level cuts, walking the plan in 3D, measuring on the plan, revision compare and a task opened from its pin on the plan.">
+          <source src="../assets/media/android-tour.webm" type="video/webm">
+          <source src="../assets/media/android-tour.mp4" type="video/mp4">
+        </video>
+      </div>
+      <figcaption class="sheet__cells">
+        <div class="cell cell--grow"><span class="cell__label">View</span><span class="cell__value">FreeField Field on an Android tablet, from the model to the task.</span></div>
+        <div class="cell"><span class="cell__label">Speed</span><span class="cell__value tabular">1.3–1.8×, edited</span></div>
+        <div class="cell cell--control" hidden><button class="clip-toggle" type="button" aria-controls="clip-android"><svg class="icon icon--sm" aria-hidden="true" focusable="false"><use href="#i-pause"/></svg><span class="clip-toggle__label">Pause</span></button></div>
+      </figcaption>
+    </figure>
+    <ol class="tour" id="android-tour-list" aria-label="What the tablet tour shows">
+      <li class="tour__item" data-seg="nav"><span class="tour__label">The model in your hand</span><span class="tour__detail">Orbit, zoom and step into the real IFC building with your fingers, issues in view.</span></li>
+      <li class="tour__item" data-seg="filters"><span class="tour__label">Filters and cuts</span><span class="tour__detail">Toggle models, levels and categories, or cut the building to see what is underneath.</span></li>
+      <li class="tour__item" data-seg="walk"><span class="tour__label">Walk the plan in 3D</span><span class="tour__detail">Move the dot on the plan and the 3D view follows at eye level.</span></li>
+      <li class="tour__item" data-seg="measure"><span class="tour__label">Measure on the plan</span><span class="tour__detail">Touch and hold to aim with the loupe, lift to place the point. Length, area and angle.</span></li>
+      <li class="tour__item" data-seg="compare"><span class="tour__label">Compare revisions</span><span class="tour__detail">Overlay, swipe or the changes view: what changed between two revisions of a sheet.</span></li>
+      <li class="tour__item" data-seg="tasks"><span class="tour__label">From pin to task</span><span class="tour__detail">Tap a pin on the plan, open the task and approve it or send it back from the tablet.</span></li>
+    </ol>
     <div class="strip">
       <div class="strip__head">
         <p class="strip__title">FreeField Field</p>

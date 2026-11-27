@@ -744,6 +744,7 @@ main:focus { outline: none; }
 /* ---------- 6 · Android ---------- */
 .android__grid { display: grid; }
 .android__body { margin-top: var(--sp-m); }
+.android__sheet { margin-top: var(--sp-xl); }
 .strip { margin-top: var(--sp-3xl); border: 1.5px solid var(--ink); background: var(--sheet); min-width: 0; }
 .strip__head {
   display: flex; justify-content: space-between; align-items: baseline; gap: var(--sp-s);
@@ -778,6 +779,8 @@ main:focus { outline: none; }
   .android__grid h2 { grid-column: 1 / 6; }
   .android__body { grid-column: 7 / 13; margin-top: 0; padding-top: 0.35em; }
   .android__body p { max-width: var(--measure); }
+  .android__sheet { grid-column: 1 / 9; grid-row: 2; align-self: start; margin-top: var(--sp-2xl); }
+  .android__grid .tour { grid-column: 9 / 13; grid-row: 2; align-self: start; margin-top: var(--sp-2xl); }
   .strip { grid-column: 1 / 13; }
   .strip__cells { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .strip__cell:nth-child(7) { grid-column: auto; }
