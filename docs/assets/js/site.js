@@ -270,4 +270,199 @@
     timer = setTimeout(step, 2300);
   })();
 
+  /* ---------- Phones: a shorter page ----------
+     Below 768 px the reference material folds away and the four core steps become tabs. Nothing is
+     removed: [data-more] blocks go into a "more" disclosure, the cost ledger becomes an accordion.
+     At 768 px and up (or with no JS) the page is exactly the long-form original. */
+  var ES = (root.lang || '').indexOf('es') === 0;
+  var mqPhone = window.matchMedia('(max-width: 767px)');
+  function icon(name, cls) {
+    return '<svg class="icon ' + cls + '" aria-hidden="true" focusable="false"><use href="#i-' + name + '"/></svg>';
+  }
+  function onPhoneChange(fn) {
+    fn(mqPhone.matches);
+    if (mqPhone.addEventListener) mqPhone.addEventListener('change', function (e) { fn(e.matches); });
+    else if (mqPhone.addListener) mqPhone.addListener(function (e) { fn(e.matches); });
+  }
+
+  /* [data-more]: consecutive siblings share one disclosure, labelled by the first one's value. */
+  (function () {
+    var groups = [], cur = null;
+    Array.prototype.forEach.call(document.querySelectorAll('[data-more]'), function (el) {
+      if (cur && cur.nodes[cur.nodes.length - 1].nextElementSibling === el) cur.nodes.push(el);
+      else { cur = { nodes: [el], label: el.getAttribute('data-more') || (ES ? 'Ver detalles' : 'More details'), box: null }; groups.push(cur); }
+    });
+    if (!groups.length) return;
+    onPhoneChange(function (phone) {
+      groups.forEach(function (g) {
+        if (phone && !g.box) {
+          var d = document.createElement('details');
+          d.className = 'more';
+          d.innerHTML = '<summary><span>' + g.label + '</span>' + icon('plus', 'more__icon') + '</summary>';
+          g.nodes[0].parentNode.insertBefore(d, g.nodes[0]);
+          g.nodes.forEach(function (n) { d.appendChild(n); });
+          g.box = d;
+        } else if (!phone && g.box) {
+          g.nodes.forEach(function (n) { g.box.parentNode.insertBefore(n, g.box); });
+          g.box.parentNode.removeChild(g.box);
+          g.box = null;
+        }
+      });
+    });
+  })();
+
+  /* Cost ledger and "own it" rows: on phones each heading opens its paragraph. The key ledger cell stays open. */
+  (function () {
+    var cells = Array.prototype.filter.call(document.querySelectorAll('.ledger__cell, .own__row'), function (c) {
+      return !c.classList.contains('ledger__cell--key') && c.querySelector('h3') && c.querySelector('p');
+    });
+    if (!cells.length) return;
+    onPhoneChange(function (phone) {
+      cells.forEach(function (c) {
+        var d = c.querySelector(':scope > details');
+        if (phone && !d) {
+          var h = c.querySelector('h3'), p = c.querySelector('p');
+          d = document.createElement('details');
+          d.className = 'acc';
+          var s = document.createElement('summary');
+          s.appendChild(h);
+          s.insertAdjacentHTML('beforeend', icon('plus', 'more__icon'));
+          d.appendChild(s); d.appendChild(p);
+          c.appendChild(d);
+        } else if (!phone && d) {
+          c.appendChild(d.querySelector('h3'));
+          c.appendChild(d.querySelector('p'));
+          c.removeChild(d);
+        }
+      });
+    });
+  })();
+
+  /* Core loop: on phones the four steps become tabs over one panel instead of four stacked clips. */
+  (function () {
+    var list = document.querySelector('.core .details');
+    if (!list) return;
+    var steps = Array.prototype.slice.call(list.children);
+    if (steps.length < 2) return;
+    var bar = null, active = 0;
+    function select(i, focus) {
+      active = i;
+      steps.forEach(function (li, k) {
+        li.classList.toggle('is-active', k === i);
+        var b = bar && bar.children[k];
+        if (b) { b.setAttribute('aria-selected', k === i ? 'true' : 'false'); b.tabIndex = k === i ? 0 : -1; }
+      });
+      if (focus && bar) bar.children[i].focus();
+    }
+    onPhoneChange(function (phone) {
+      if (phone && !bar) {
+        bar = document.createElement('div');
+        bar.className = 'steps';
+        bar.setAttribute('role', 'tablist');
+        bar.setAttribute('aria-label', ES ? 'Pasos' : 'Steps');
+        steps.forEach(function (li, k) {
+          var h = li.querySelector('h3');
+          li.id = li.id || 'core-step-' + (k + 1);
+          li.setAttribute('role', 'tabpanel');
+          var b = document.createElement('button');
+          b.type = 'button'; b.className = 'steps__tab'; b.id = li.id + '-tab';
+          b.setAttribute('role', 'tab'); b.setAttribute('aria-controls', li.id);
+          li.setAttribute('aria-labelledby', b.id);
+          b.innerHTML = '<span class="steps__n" aria-hidden="true">' + (k + 1) + '</span><span class="steps__t"></span>';
+          b.querySelector('.steps__t').textContent = h ? h.textContent : String(k + 1);
+          b.addEventListener('click', function () { select(k); });
+          bar.appendChild(b);
+        });
+        bar.addEventListener('keydown', function (e) {
+          var n = steps.length, k = active;
+          if (e.key === 'ArrowRight' || e.key === 'ArrowDown') k = (active + 1) % n;
+          else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') k = (active - 1 + n) % n;
+          else if (e.key === 'Home') k = 0;
+          else if (e.key === 'End') k = n - 1;
+          else return;
+          e.preventDefault(); select(k, true);
+        });
+        list.parentNode.insertBefore(bar, list);
+        list.classList.add('is-tabbed');
+        select(active);
+      } else if (!phone && bar) {
+        bar.parentNode.removeChild(bar); bar = null;
+        list.classList.remove('is-tabbed');
+        steps.forEach(function (li) { li.classList.remove('is-active'); li.removeAttribute('role'); li.removeAttribute('aria-labelledby'); });
+      }
+    });
+  })();
+
+  /* Section bar (below 1024 px, where the nav has no section links): where you are, how far down,
+     and one tap to the section menu. Hidden over the hero and the index. */
+  (function () {
+    var nav = document.querySelector('.nav');
+    var menu = document.querySelector('.nav__menu');
+    if (!nav || !menu || !hasIO) return;
+    var labels = {};
+    Array.prototype.forEach.call(menu.querySelectorAll('a[href^="#"]'), function (a) {
+      labels[a.getAttribute('href').slice(1)] = a.textContent.trim();
+    });
+    var bar = document.createElement('button');
+    bar.type = 'button';
+    bar.className = 'secbar';
+    bar.hidden = true;
+    bar.setAttribute('aria-label', ES ? 'Abrir el menú de secciones' : 'Open the section menu');
+    bar.innerHTML = '<span class="secbar__label"></span><span class="secbar__hint">' + (ES ? 'Secciones' : 'Sections') + icon('menu', 'icon--sm') + '</span><span class="secbar__track" aria-hidden="true"><span class="secbar__fill"></span></span>';
+    nav.appendChild(bar);
+    var label = bar.querySelector('.secbar__label'), fill = bar.querySelector('.secbar__fill');
+    var currentId = null;
+    bar.addEventListener('click', function () {
+      menu.open = true;
+      var a = (currentId && menu.querySelector('.nav__panel a[href="#' + currentId + '"]')) || menu.querySelector('.nav__panel a');
+      if (a) a.focus();
+    });
+    var quiet = { top: 1, index: 1 };
+    var spy = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        var id = e.target.id;
+        currentId = id;
+        var text = labels[id] || e.target.getAttribute('data-label');
+        if (quiet[id] || !text) { bar.hidden = true; root.classList.remove('has-secbar'); return; }
+        label.textContent = text;
+        bar.hidden = false; root.classList.add('has-secbar');
+      });
+    }, { rootMargin: '-30% 0px -65% 0px' });
+    Array.prototype.forEach.call(document.querySelectorAll('main > section'), function (s) { spy.observe(s); });
+    var ticking = false;
+    function progress() {
+      ticking = false;
+      var max = document.documentElement.scrollHeight - window.innerHeight;
+      fill.style.transform = 'scaleX(' + (max > 0 ? Math.min(1, window.scrollY / max) : 0).toFixed(4) + ')';
+    }
+    window.addEventListener('scroll', function () { if (!ticking) { ticking = true; requestAnimationFrame(progress); } }, { passive: true });
+    progress();
+  })();
+
+  /* Reveal: section headings are drafted on like the hero (a coral rule traces, the text inks in behind it),
+     leads and index rows settle in. Once per element, only when it scrolls into view, skipped under
+     reduced motion. Without JS or IntersectionObserver nothing is ever hidden. */
+  (function () {
+    if (reduce || !hasIO) return;
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        e.target.classList.add('is-in');
+        io.unobserve(e.target);
+      });
+    }, { rootMargin: '0px 0px -10% 0px' });
+    function watch(el, cls, delay) {
+      el.classList.add(cls);
+      if (delay) el.style.setProperty('--rv-d', delay + 'ms');
+      io.observe(el);
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('main > section:not(#top) h2'), function (h) { watch(h, 'rv-h'); });
+    Array.prototype.forEach.call(document.querySelectorAll('main > section:not(#top) .lead, .core .intro, .problem__resolution'), function (p) { watch(p, 'rv-s', 260); });
+    Array.prototype.forEach.call(document.querySelectorAll('.pick__item'), function (li, i) { watch(li, 'rv-s', 120 + i * 70); });
+    window.addEventListener('beforeprint', function () {
+      Array.prototype.forEach.call(document.querySelectorAll('.rv-h, .rv-s'), function (el) { el.classList.add('is-in'); });
+    });
+  })();
+
 })();

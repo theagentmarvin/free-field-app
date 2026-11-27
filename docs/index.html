@@ -161,8 +161,23 @@
   </div>
 </section>
 
+<!-- 1b · Index: one tap to the section a visitor cares about (the page is long on phones) -->
+<section id="index" class="section pick" aria-labelledby="pick-h">
+  <div class="container pick__grid">
+    <h2 id="pick-h" class="pick__h">Elige por dónde empezar.</h2>
+    <ul class="pick__list">
+      <li class="pick__item"><a class="pick__link" href="#core-loop"><img class="pick__thumb" src="assets/media/thumb-linkview-overlap.webp" width="144" height="90" alt="" loading="lazy" decoding="async"><span class="pick__text"><span class="pick__title">Cómo funciona</span><span class="pick__desc">Del IFC al plano calibrado y la incidencia fijada en su punto.</span></span><svg class="icon pick__icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right"/></svg></a></li>
+      <li class="pick__item"><a class="pick__link" href="#tasks"><img class="pick__thumb" src="assets/media/thumb-tasks-tour.webp" width="144" height="90" alt="" loading="lazy" decoding="async"><span class="pick__text"><span class="pick__title">Tareas</span><span class="pick__desc">Incidencias ancladas, con responsable, plazo e historial.</span></span><svg class="icon pick__icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right"/></svg></a></li>
+      <li class="pick__item"><a class="pick__link" href="#revit-exporter"><img class="pick__thumb" src="assets/media/thumb-revit-exporter.webp" width="144" height="90" alt="" loading="lazy" decoding="async"><span class="pick__text"><span class="pick__title">Exportador de Revit</span><span class="pick__desc">Un paquete: el IFC y cada plano calibrado en su nivel.</span></span><svg class="icon pick__icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right"/></svg></a></li>
+      <li class="pick__item"><a class="pick__link" href="#compare"><img class="pick__thumb" src="assets/media/thumb-pdf-compare.webp" width="144" height="90" alt="" loading="lazy" decoding="async"><span class="pick__text"><span class="pick__title">Comparar revisiones</span><span class="pick__desc">Qué cambió entre dos revisiones de un plano, en una lista.</span></span><svg class="icon pick__icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right"/></svg></a></li>
+      <li class="pick__item"><a class="pick__link" href="#android"><img class="pick__thumb" src="assets/media/thumb-android-tour.webp" width="144" height="90" alt="" loading="lazy" decoding="async"><span class="pick__text"><span class="pick__title">App Android</span><span class="pick__desc">El modelo, los planos y las tareas en terreno, con señal o sin ella.</span></span><svg class="icon pick__icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right"/></svg></a></li>
+      <li class="pick__item"><a class="pick__link" href="#own-it"><span class="pick__thumb pick__thumb--mit" aria-hidden="true">MIT</span><span class="pick__text"><span class="pick__title">Es tuyo · cuánto cuesta</span><span class="pick__desc">MIT, en tu propia nube, sin licencias por usuario.</span></span><svg class="icon pick__icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right"/></svg></a></li>
+    </ul>
+  </div>
+</section>
+
 <!-- 2 · The problem -->
-<section id="problem" class="section problem" aria-labelledby="problem-h">
+<section id="problem" data-label="El problema" class="section problem" aria-labelledby="problem-h">
   <div class="container problem__grid">
     <h2 id="problem-h">El modelo existe. Tu gente en terreno no puede&nbsp;usarlo.</h2>
     <figure class="problem__rev">
@@ -176,8 +191,8 @@
     </figure>
     <div class="problem__body">
       <p>En la obra se decide todo el día frente a un PDF sin información: lo impreso son solo líneas. Todo lo que contiene el modelo — la revisión vigente, las propiedades, lo que hay detrás del muro — se quedó en la oficina.</p>
-      <p>Cuando el plano es un PDF con la información del modelo — propiedades a la vista, revisión vigente, el edificio recorrible antes de construirlo — la decisión cambia de naturaleza: ya no se adivina, se verifica. Y decidir con información siempre sale más barato que demoler.</p>
-      <p>Y quienes abren la puerta cobran: por usuario o por proyecto. Da lo mismo — el acceso queda amarrado a una factura que se renueva, tu historial vive en servidores ajenos y tus mejoras esperan el calendario del proveedor.</p>
+      <p data-more="Seguir leyendo">Cuando el plano es un PDF con la información del modelo — propiedades a la vista, revisión vigente, el edificio recorrible antes de construirlo — la decisión cambia de naturaleza: ya no se adivina, se verifica. Y decidir con información siempre sale más barato que demoler.</p>
+      <p data-more="Seguir leyendo">Y quienes abren la puerta cobran: por usuario o por proyecto. Da lo mismo — el acceso queda amarrado a una factura que se renueva, tu historial vive en servidores ajenos y tus mejoras esperan el calendario del proveedor.</p>
     </div>
     <p class="problem__resolution">FreeField es la capa que faltaba entre tu ecosistema BIM y la obra: el modelo real, el plano inteligente y la incidencia en un solo lugar. Y ese lugar es tuyo: tu equipo lo despliega en tu nube y lo moldea a tu forma de construir — un profesional con Claude Code es suficiente. Porque aquí la herramienta se adapta a la empresa, no la empresa a la herramienta.</p>
   </div>
@@ -291,7 +306,7 @@
       <li class="tour__item" data-seg="detail"><span class="tour__label">Comentarios y el historial completo</span><span class="tour__detail">Cada incidencia guarda su ubicación, los comentarios con menciones y quién hizo qué, y cuándo. Fotos y checklist van en la misma ficha.</span></li>
       <li class="tour__item" data-seg="report"><span class="tour__label">Informe PDF y CSV</span><span class="tour__detail">Imprime el informe para la reunión de obra o exporta la lista<span data-feature="bcf"><span class="when-next"> a CSV</span><span class="when-live"> a CSV o a BCF</span></span>.</span></li>
     </ol>
-    <dl class="spec tasks__spec">
+    <dl class="spec tasks__spec" data-more="Ver la ficha del módulo">
       <div class="spec__row"><dt>Tipos</dt><dd>Defecto · RFI · Observación de entrega · Seguridad · Info</dd></div>
       <div class="spec__row"><dt>Seguimiento</dt><dd>Prioridad, plazos con alertas de vencidas y por vencer, responsables y @menciones</dd></div>
       <div class="spec__row"><dt>Registro</dt><dd>Fotos, checklist, comentarios e historial de actividad</dd></div>
@@ -328,12 +343,12 @@
     </figure>
 
     <div class="exporter__text prose">
-      <p>El complemento de FreeField para Revit exporta el modelo y los planos auto-vinculados: cada plano asociado a su nivel del IFC en una sola pasada. Sin emparejamiento manual ni error humano en la asociación — lo que la obra abre es exactamente lo que la oficina emitió. Si las necesitas, incluye tablas de cubicación, contornos de elementos o la IFC4 Reference View.</p>
-      <p>El resultado es un único paquete (<code>.ffbundle</code>): el IFC del modelo y un PDF inteligente por plano — con la metadata BIM incrustada y accesible: haz clic en cualquier elemento y lees sus propiedades. Arrastra el paquete a FreeField y todo llega calibrado en su nivel, listo para usarse en obra.</p>
+      <p data-more="Cómo funciona el paquete">El complemento de FreeField para Revit exporta el modelo y los planos auto-vinculados: cada plano asociado a su nivel del IFC en una sola pasada. Sin emparejamiento manual ni error humano en la asociación — lo que la obra abre es exactamente lo que la oficina emitió. Si las necesitas, incluye tablas de cubicación, contornos de elementos o la IFC4 Reference View.</p>
+      <p data-more="Cómo funciona el paquete">El resultado es un único paquete (<code>.ffbundle</code>): el IFC del modelo y un PDF inteligente por plano — con la metadata BIM incrustada y accesible: haz clic en cualquier elemento y lees sus propiedades. Arrastra el paquete a FreeField y todo llega calibrado en su nivel, listo para usarse en obra.</p>
       <p data-feature="exporter"><span class="when-next">El repositorio del exportador se abre pronto, también con licencia MIT. La importación de paquetes ya funciona en la app web.</span><span class="when-live">El exportador y la importación de paquetes son públicos y MIT, como todo lo demás.</span> <span class="status" data-feature="exporter"><span class="when-next tag tag--proposed">Repo se abre pronto</span><a class="when-live tag tag--built" href="https://github.com/theagentmarvin/free-field-revit-exporter-app" data-goatcounter-click="github-exporter" rel="noopener">Público · MIT · ver en GitHub</a></span></p>
     </div>
 
-    <div class="exporter__pipeline">
+    <div class="exporter__pipeline" data-more="Ver los pasos de la exportación">
       <ol class="pipeline">
         <li><span class="bubble" aria-hidden="true">A</span><p class="pipeline__label">Exportando IFC</p><p class="pipeline__detail">El modelo, en IFC.</p></li>
         <li><span class="bubble" aria-hidden="true">B</span><p class="pipeline__label">PDF inteligente por plano</p><p class="pipeline__detail">Un PDF por plano, con su metadata BIM.</p></li>
@@ -387,12 +402,12 @@
         <div class="cell cell--control" hidden><button class="clip-toggle" type="button" aria-controls="clip-compare"><svg class="icon icon--sm" aria-hidden="true" focusable="false"><use href="#i-pause"/></svg><span class="clip-toggle__label">Pausar</span></button></div>
       </figcaption>
     </figure>
-    <div class="compare__body prose">
+    <div class="compare__body prose" data-more="Ver detalles y ficha">
       <p>Llega un set nuevo y nadie sabe qué cambió. Abre dos revisiones del mismo plano desde tres ópticas — lado a lado, superpuestas o en una vista de cambios que marca cada diferencia. La comparación que antes exigía una licencia cara, desde la web o el móvil.</p>
       <p>FreeField arma una lista con los cambios que detecta. Revísalos uno por uno y marca cada uno como revisado. El criterio sigue siendo tuyo: la herramienta solo se asegura de que no se te pase ninguno.</p>
       <p>Exporta la lista en CSV para tu registro de RFI, o en PNG para mandársela al subcontratista.</p>
     </div>
-    <div class="compare__aside">
+    <div class="compare__aside" data-more="Ver detalles y ficha">
       <dl class="spec">
         <div class="spec__row"><dt>Modos</dt><dd>Tres ópticas — lado a lado · superposición · cambios</dd></div>
         <div class="spec__row"><dt>Dónde</dt><dd>Web y móvil</dd></div>
@@ -410,7 +425,7 @@
     <h2 id="android-h">Una app Android para la obra.</h2>
     <div class="android__body prose">
       <p>La app web corre en cualquier navegador. FreeField Field es la app Android instalable para la obra: corre en celulares y en las tablets reforzadas y económicas del terreno, con señal o sin ella.</p>
-      <p>Los modelos quedan guardados en el dispositivo: el edificio abre sin conexión, con filtros, mediciones y navegación del modelo. Las incidencias — con sus fotos y notas — van a un almacenamiento local duradero. Si el visor 3D se cae, la app se recupera y sigues donde estabas.</p>
+      <p data-more="Seguir leyendo">Los modelos quedan guardados en el dispositivo: el edificio abre sin conexión, con filtros, mediciones y navegación del modelo. Las incidencias — con sus fotos y notas — van a un almacenamiento local duradero. Si el visor 3D se cae, la app se recupera y sigues donde estabas.</p>
     </div>
     <figure class="sheet android__sheet">
       <div class="sheet__media">
@@ -438,7 +453,7 @@
         <p class="strip__title">FreeField Field</p>
         <p class="strip__sub">Android <span class="status" data-feature="android"><span class="when-next tag tag--proposed">Repo se abre pronto</span><a class="when-live tag tag--built" href="https://github.com/theagentmarvin/free-field-android" data-goatcounter-click="github-android" rel="noopener">Público · MIT · ver en GitHub</a></span></p>
       </div>
-      <dl class="strip__cells">
+      <dl class="strip__cells" data-more="Ver la ficha técnica">
         <div class="strip__cell"><dt>Modelos</dt><dd>Modelos sin conexión guardados en el dispositivo</dd></div>
         <div class="strip__cell"><dt>Visor</dt><dd>Filtros, mediciones y navegación en terreno, también sin conexión</dd></div>
         <div class="strip__cell"><dt>Registro</dt><dd>Fotos y notas que sobreviven a una caída de señal</dd></div>
@@ -570,10 +585,10 @@
 </section>
 
 <!-- 10 · Build on it -->
-<section id="build" class="section build" aria-labelledby="build-h">
+<section id="build" data-label="Construye encima" class="section build" aria-labelledby="build-h">
   <div class="container build__grid">
     <h2 id="build-h" class="build__h">Hecho para leerse, forkearse y extenderse.</h2>
-    <dl class="spec build__stack">
+    <dl class="spec build__stack" data-more="Ver el stack completo">
       <div class="spec__row"><dt>Lenguaje</dt><dd>TypeScript en modo estricto</dd></div>
       <div class="spec__row"><dt>App</dt><dd>React 18 y Vite</dd></div>
       <div class="spec__row"><dt>Monorepo</dt><dd>pnpm y Turborepo</dd></div>

@@ -163,8 +163,23 @@
   </div>
 </section>
 
+<!-- 1b · Index: one tap to the section a visitor cares about (the page is long on phones) -->
+<section id="index" class="section pick" aria-labelledby="pick-h">
+  <div class="container pick__grid">
+    <h2 id="pick-h" class="pick__h">Pick where to start.</h2>
+    <ul class="pick__list">
+      <li class="pick__item"><a class="pick__link" href="#core-loop"><img class="pick__thumb" src="../assets/media/thumb-linkview-overlap.webp" width="144" height="90" alt="" loading="lazy" decoding="async"><span class="pick__text"><span class="pick__title">How it works</span><span class="pick__desc">From the IFC to the calibrated sheet and the pinned issue.</span></span><svg class="icon pick__icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right"/></svg></a></li>
+      <li class="pick__item"><a class="pick__link" href="#tasks"><img class="pick__thumb" src="../assets/media/thumb-tasks-tour.webp" width="144" height="90" alt="" loading="lazy" decoding="async"><span class="pick__text"><span class="pick__title">Tasks</span><span class="pick__desc">Pinned issues with an owner, a deadline and a full history.</span></span><svg class="icon pick__icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right"/></svg></a></li>
+      <li class="pick__item"><a class="pick__link" href="#revit-exporter"><img class="pick__thumb" src="../assets/media/thumb-revit-exporter.webp" width="144" height="90" alt="" loading="lazy" decoding="async"><span class="pick__text"><span class="pick__title">Revit exporter</span><span class="pick__desc">One bundle: the IFC and every sheet calibrated to its level.</span></span><svg class="icon pick__icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right"/></svg></a></li>
+      <li class="pick__item"><a class="pick__link" href="#compare"><img class="pick__thumb" src="../assets/media/thumb-pdf-compare.webp" width="144" height="90" alt="" loading="lazy" decoding="async"><span class="pick__text"><span class="pick__title">Revision compare</span><span class="pick__desc">What changed between two revisions of a sheet, as a list.</span></span><svg class="icon pick__icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right"/></svg></a></li>
+      <li class="pick__item"><a class="pick__link" href="#android"><img class="pick__thumb" src="../assets/media/thumb-android-tour.webp" width="144" height="90" alt="" loading="lazy" decoding="async"><span class="pick__text"><span class="pick__title">Android app</span><span class="pick__desc">Model, sheets and tasks on site, with or without a signal.</span></span><svg class="icon pick__icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right"/></svg></a></li>
+      <li class="pick__item"><a class="pick__link" href="#own-it"><span class="pick__thumb pick__thumb--mit" aria-hidden="true">MIT</span><span class="pick__text"><span class="pick__title">Own it · what it costs</span><span class="pick__desc">MIT, in your own cloud, no per-seat licences.</span></span><svg class="icon pick__icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right"/></svg></a></li>
+    </ul>
+  </div>
+</section>
+
 <!-- 2 · The problem -->
-<section id="problem" class="section problem" aria-labelledby="problem-h">
+<section id="problem" data-label="The problem" class="section problem" aria-labelledby="problem-h">
   <div class="container problem__grid">
     <h2 id="problem-h">The model exists. Your field crew can’t&nbsp;use&nbsp;it.</h2>
     <figure class="problem__rev">
@@ -178,8 +193,8 @@
     </figure>
     <div class="problem__body">
       <p>On site, decisions are made all day in front of a PDF with no information: what’s printed is only lines. Everything the model holds — the current revision, the properties, what’s behind the wall — stayed in the office.</p>
-      <p>When the sheet is a PDF carrying the model’s information — properties in view, current revision, the building walkable before it’s built — the decision changes nature: no more guessing, just verifying. And deciding with information is always cheaper than demolishing.</p>
-      <p>And whoever opens the door charges for it: per seat or per project. Either way, access is tied to an invoice that renews, your record lives on someone else’s servers, and your improvements wait on the vendor’s calendar.</p>
+      <p data-more="Keep reading">When the sheet is a PDF carrying the model’s information — properties in view, current revision, the building walkable before it’s built — the decision changes nature: no more guessing, just verifying. And deciding with information is always cheaper than demolishing.</p>
+      <p data-more="Keep reading">And whoever opens the door charges for it: per seat or per project. Either way, access is tied to an invoice that renews, your record lives on someone else’s servers, and your improvements wait on the vendor’s calendar.</p>
     </div>
     <p class="problem__resolution">FreeField is the missing layer between your BIM ecosystem and the field: the real model, the smart sheet and the issue in one place. And that place is yours: your team deploys it on your cloud and shapes it to how you build — one professional with Claude Code is enough. Because here the tool adapts to the company, not the company to the tool.</p>
   </div>
@@ -293,7 +308,7 @@
       <li class="tour__item" data-seg="detail"><span class="tour__label">Comments and the full history</span><span class="tour__detail">Each issue keeps its location, the comments with mentions, and who did what, when. Photos and checklists live on the same card.</span></li>
       <li class="tour__item" data-seg="report"><span class="tour__label">PDF report and CSV</span><span class="tour__detail">Print the report for the site meeting or export the list<span data-feature="bcf"><span class="when-next"> to CSV</span><span class="when-live"> to CSV or BCF</span></span>.</span></li>
     </ol>
-    <dl class="spec tasks__spec">
+    <dl class="spec tasks__spec" data-more="See the module spec">
       <div class="spec__row"><dt>Types</dt><dd>Defect · RFI · Snag · Safety · Info</dd></div>
       <div class="spec__row"><dt>Tracking</dt><dd>Priority, deadlines with overdue and due-soon alerts, assignees and @mentions</dd></div>
       <div class="spec__row"><dt>Record</dt><dd>Photos, checklists, comments and an activity timeline</dd></div>
@@ -330,12 +345,12 @@
     </figure>
 
     <div class="exporter__text prose">
-      <p>The FreeField add-in for Revit exports the model and the sheets linked automatically: every sheet tied to its IFC level in a single pass. No manual pairing, no human error — the field opens exactly what the office issued. Add schedules, element outlines or the IFC4 Reference View if you need them.</p>
-      <p>The result is a single bundle (<code>.ffbundle</code>): the IFC and a smart PDF per sheet — with BIM metadata embedded and accessible: click any element and read its properties. Drop the bundle into FreeField and everything arrives calibrated to its level, ready for the field.</p>
+      <p data-more="How the bundle works">The FreeField add-in for Revit exports the model and the sheets linked automatically: every sheet tied to its IFC level in a single pass. No manual pairing, no human error — the field opens exactly what the office issued. Add schedules, element outlines or the IFC4 Reference View if you need them.</p>
+      <p data-more="How the bundle works">The result is a single bundle (<code>.ffbundle</code>): the IFC and a smart PDF per sheet — with BIM metadata embedded and accessible: click any element and read its properties. Drop the bundle into FreeField and everything arrives calibrated to its level, ready for the field.</p>
       <p data-feature="exporter"><span class="when-next">The exporter repo is opening soon and will ship in the open, MIT, like the rest. Bundle import is already in the web app.</span><span class="when-live">The exporter and bundle import are public, MIT, like the rest.</span> <span class="status" data-feature="exporter"><span class="when-next tag tag--proposed">Repo opening soon</span><a class="when-live tag tag--built" href="https://github.com/theagentmarvin/free-field-revit-exporter-app" data-goatcounter-click="github-exporter" rel="noopener">Public · MIT · view on GitHub</a></span></p>
     </div>
 
-    <div class="exporter__pipeline">
+    <div class="exporter__pipeline" data-more="See the export steps">
       <ol class="pipeline">
         <li><span class="bubble" aria-hidden="true">A</span><p class="pipeline__label">Exporting IFC</p><p class="pipeline__detail">The model, as IFC.</p></li>
         <li><span class="bubble" aria-hidden="true">B</span><p class="pipeline__label">Smart PDF per sheet</p><p class="pipeline__detail">One PDF per sheet, with its BIM metadata.</p></li>
@@ -389,12 +404,12 @@
         <div class="cell cell--control" hidden><button class="clip-toggle" type="button" aria-controls="clip-compare"><svg class="icon icon--sm" aria-hidden="true" focusable="false"><use href="#i-pause"/></svg><span class="clip-toggle__label">Pause</span></button></div>
       </figcaption>
     </figure>
-    <div class="compare__body prose">
+    <div class="compare__body prose" data-more="Details and spec">
       <p>A new set arrives and nobody can say what moved. Open two revisions of the same sheet from three angles — side by side, overlay, or a changes view that marks every difference. The comparison that once required an expensive licence — on web or mobile.</p>
       <p>FreeField builds a list of the detected changes. Step through them and mark each one reviewed. Your eye still makes the call. The tool makes sure you reach every change.</p>
       <p>Export the list as CSV for the RFI log, or a PNG to send to the sub.</p>
     </div>
-    <div class="compare__aside">
+    <div class="compare__aside" data-more="Details and spec">
       <dl class="spec">
         <div class="spec__row"><dt>Modes</dt><dd>Three angles — side by side · overlay · changes</dd></div>
         <div class="spec__row"><dt>Where</dt><dd>Web and mobile</dd></div>
@@ -412,7 +427,7 @@
     <h2 id="android-h">An Android app for the job site.</h2>
     <div class="android__body prose">
       <p>The web app runs in any browser. FreeField Field is the installable Android app for the job site: it runs on phones and on the rugged, affordable tablets of the field, with or without a signal.</p>
-      <p>Models are stored on the device: the building opens offline, with model filters, measurements and navigation. Issues — with their photos and notes — go to durable local storage. If the 3D viewer crashes, the app recovers and carries on where you were.</p>
+      <p data-more="Keep reading">Models are stored on the device: the building opens offline, with model filters, measurements and navigation. Issues — with their photos and notes — go to durable local storage. If the 3D viewer crashes, the app recovers and carries on where you were.</p>
     </div>
     <figure class="sheet android__sheet">
       <div class="sheet__media">
@@ -440,7 +455,7 @@
         <p class="strip__title">FreeField Field</p>
         <p class="strip__sub">Android <span class="status" data-feature="android"><span class="when-next tag tag--proposed">Repo opening soon</span><a class="when-live tag tag--built" href="https://github.com/theagentmarvin/free-field-android" data-goatcounter-click="github-android" rel="noopener">Public · MIT · view on GitHub</a></span></p>
       </div>
-      <dl class="strip__cells">
+      <dl class="strip__cells" data-more="See the spec sheet">
         <div class="strip__cell"><dt>Models</dt><dd>Offline models stored on the device</dd></div>
         <div class="strip__cell"><dt>Viewer</dt><dd>Filters, measurements and navigation on site, offline too</dd></div>
         <div class="strip__cell"><dt>Capture</dt><dd>Photo and note store that survives a dropped connection</dd></div>
@@ -572,10 +587,10 @@
 </section>
 
 <!-- 10 · Build on it -->
-<section id="build" class="section build" aria-labelledby="build-h">
+<section id="build" data-label="Build on it" class="section build" aria-labelledby="build-h">
   <div class="container build__grid">
     <h2 id="build-h" class="build__h">Built to be read, forked and extended.</h2>
-    <dl class="spec build__stack">
+    <dl class="spec build__stack" data-more="See the full stack">
       <div class="spec__row"><dt>Language</dt><dd>TypeScript in strict mode</dd></div>
       <div class="spec__row"><dt>App</dt><dd>React 18 and Vite</dd></div>
       <div class="spec__row"><dt>Monorepo</dt><dd>pnpm and Turborepo</dd></div>
